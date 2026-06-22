@@ -1,0 +1,45 @@
+name: PR gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+
+  smoke:
+    # Proves the published binary validates configs with NO workspace siblings
+    # present (scaffold/demo-data absent) — i.e. fully standalone (plan 100 AC-2/AC-3).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: verify a valid config (expect exit 0)
+        run: node dist/cli.js verify tests/fixtures/valid.export-config.json
+      - name: verify an invalid config (expect non-zero)
+        run: |
+          if node dist/cli.js verify tests/fixtures/invalid.export-config.json; then
+            echo "::error::invalid config unexpectedly passed validation"
+            exit 1
+          fi
+          echo "invalid config correctly rejected"
+      - name: --version reports CLI + schema versions
+        run: node dist/cli.js --version
