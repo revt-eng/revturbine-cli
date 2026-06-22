@@ -12,9 +12,9 @@ change is reviewable and rollback-able.
 ## Install
 
 ```bash
-npm i -g revturbine-cli      # global `revt-config` binary
+npm i -g revt-config         # global `revt-config` binary
 # or run without installing:
-npx revturbine-cli --help
+npx revt-config --help
 ```
 
 Requires Node ≥ 20.
