@@ -12,10 +12,13 @@ change is reviewable and rollback-able.
 ## Install
 
 ```bash
-npm i -g revt-config         # global `revt-config` binary
+npm i -g @revturbine/revt-config   # global `revt-config` binary
 # or run without installing:
-npx revt-config --help
+npx @revturbine/revt-config --help
 ```
+
+The published npm package is `@revturbine/revt-config`; the installed command is
+`revt-config`.
 
 Requires Node ≥ 20.
 

@@ -1,5 +1,5 @@
 {
-  "name": "revt-config",
+  "name": "@revturbine/revt-config",
   "version": "0.1.0",
   "description": "revt-config — verify RevTurbine ExportedConfig files and ship them to a RevTurbine instance through the Change Set lifecycle.",
   "license": "MIT",
