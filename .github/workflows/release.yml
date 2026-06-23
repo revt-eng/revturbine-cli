@@ -1,11 +1,15 @@
 name: Release
 
-# Publishes the `@revturbine/revt-config` package to the PUBLIC npm registry
-# when a v* tag is pushed. The tag drives the release; the published version is
-# package.json's version. Requires the NPM_TOKEN secret (an npm automation token
-# with publish rights under the `revturbine` npm org). `--access public` is
-# required because the package is scoped. Until that secret is set, tagging
-# fails fast with a clear message rather than publishing nothing silently.
+# Publishes `@revturbine/revt-config` to the PUBLIC npm registry when a v* tag is
+# pushed, using npm TRUSTED PUBLISHING (OIDC) — no NPM_TOKEN secret. npm trusts
+# this workflow's GitHub OIDC identity based on a trusted-publisher rule
+# configured on the package (npmjs.com → @revturbine/revt-config → Settings →
+# Trusted Publisher: GitHub Actions, org `revt-eng`, repo `revturbine-cli`,
+# workflow `release.yml`). Provenance is generated automatically.
+#
+# Requirements: `id-token: write` permission (below) and npm CLI >= 11.5.1
+# (Node 20 ships an older npm, so we upgrade it in a step). The tag drives the
+# release; the published version is package.json's version.
 
 on:
   push:
@@ -14,7 +18,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance
+  id-token: write # OIDC token for npm trusted publishing + provenance
 
 jobs:
   publish:
@@ -26,6 +30,8 @@ jobs:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
           cache: npm
+      - name: Upgrade npm (trusted publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest
       - run: npm ci
       - run: npm run verify
       - run: npm run build
@@ -36,7 +42,5 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME does not match package.json ($PKG_VERSION). Bump package.json and re-tag."
             exit 1
           fi
-      - name: Publish to public npm
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to public npm (OIDC trusted publishing)
+        run: npm publish --access public
