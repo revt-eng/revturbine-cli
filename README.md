@@ -1,10 +1,10 @@
-# revturbine-cli (`revt-config`)
+# revturbine-cli (`revturbine`)
 
 Verify [RevTurbine](https://www.revturbine.com) **ExportedConfig** files and ship
 them to a RevTurbine instance through the Change Set lifecycle — from the
 terminal, the same operations the in-app Pre-Sales Agent performs.
 
-`revt-config` is the command-line counterpart to the RevTurbine control plane. It
+`revturbine` is the command-line counterpart to the RevTurbine control plane. It
 schema-validates a config offline, authenticates to an instance via the browser
 (RFC 8628 device flow), and stages / deploys configs as Change Sets so every
 change is reviewable and rollback-able.
@@ -12,27 +12,27 @@ change is reviewable and rollback-able.
 ## Install
 
 ```bash
-npm i -g @revturbine/revt-config   # global `revt-config` binary
+npm i -g @revturbine/cli   # global `revturbine` binary
 # or run without installing:
-npx @revturbine/revt-config --help
+npx @revturbine/cli --help
 ```
 
-The published npm package is `@revturbine/revt-config`; the installed command is
-`revt-config`.
+The published npm package is `@revturbine/cli`; the installed command is
+`revturbine`.
 
 Requires Node ≥ 20.
 
 ## Quick start
 
 ```bash
-revt-config verify ./export-config.json      # schema-validate locally (no network)
-revt-config login                            # authorize this machine (device flow)
-revt-config diff ./export-config.json        # dry-run: live config vs local, no writes
-revt-config upload ./export-config.json      # stage as a draft Change Set
-revt-config deploy <change-set-id>           # submit → approve → deploy (go live)
+revturbine verify ./export-config.json      # schema-validate locally (no network)
+revturbine login                            # authorize this machine (device flow)
+revturbine diff ./export-config.json        # dry-run: live config vs local, no writes
+revturbine upload ./export-config.json      # stage as a draft Change Set
+revturbine deploy <change-set-id>           # submit → approve → deploy (go live)
 ```
 
-`revt-config <command> --help` documents every flag.
+`revturbine <command> --help` documents every flag.
 
 ## Commands
 
@@ -57,7 +57,7 @@ Validation is **mandatory** and runs fully offline against a vendored,
 version-stamped snapshot of RevTurbine's `ExportedConfigSchema`
 (`src/schema/`, regenerated from the canonical schema via
 `npm run generate:schema`). The CLI never uploads a config it could not
-validate. `revt-config --version` reports both the CLI version and the schema
+validate. `revturbine --version` reports both the CLI version and the schema
 snapshot version.
 
 ## License

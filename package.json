@@ -1,7 +1,7 @@
 {
-  "name": "@revturbine/revt-config",
-  "version": "0.1.0",
-  "description": "revt-config — verify RevTurbine ExportedConfig files and ship them to a RevTurbine instance through the Change Set lifecycle.",
+  "name": "@revturbine/cli",
+  "version": "0.1.1",
+  "description": "revturbine — verify RevTurbine ExportedConfig files and ship them to a RevTurbine instance through the Change Set lifecycle.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,7 +11,7 @@
   "bugs": "https://github.com/revt-eng/revturbine-cli/issues",
   "type": "module",
   "bin": {
-    "revt-config": "dist/cli.js"
+    "revturbine": "dist/cli.js"
   },
   "files": [
     "dist"
