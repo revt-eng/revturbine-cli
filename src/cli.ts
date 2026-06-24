@@ -29,6 +29,7 @@ import { ExportedConfigSchema } from './schema/exported-config.snapshot.mjs';
 import { SCHEMA_VERSION } from './schema/version';
 import { getCredential, normalizeBaseUrl, removeCredential, resolveConfigDir } from './lib/credentials';
 import { deviceLogin } from './lib/device-auth';
+import { signup } from './lib/signup';
 import { diffExportedConfig, formatDiff } from './lib/config-diff';
 import { fetchValidation, formatFindings, hasBlockingFindings } from './lib/config-validate';
 
@@ -263,6 +264,65 @@ program
       await deviceLogin(normalizeBaseUrl(url ?? DEFAULT_URL));
     } catch (err) {
       console.error(`${LOG} ✗ Login failed: ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+/** Prompt for one line of input. */
+async function promptLine(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return (await rl.question(question)).trim();
+  } finally {
+    rl.close();
+  }
+}
+
+/** Prompt for a secret, masking the echoed characters. */
+async function promptHidden(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+  // Mask everything the readline writes except the prompt itself.
+  const muted = rl as unknown as { _writeToOutput?: (s: string) => void };
+  muted._writeToOutput = (s: string) => {
+    process.stdout.write(s.includes(question) ? s : '*');
+  };
+  try {
+    const answer = await rl.question(question);
+    process.stdout.write('\n');
+    return answer.trim();
+  } finally {
+    rl.close();
+  }
+}
+
+program
+  .command('signup')
+  .description('Create a RevTurbine account and log in (email + password + emailed verification code).')
+  .argument('[url]', `RevTurbine instance URL (default: ${DEFAULT_URL})`)
+  .option('--name <name>', 'Full name (prompted if omitted)')
+  .option('--email <email>', 'Email address (prompted if omitted)')
+  .option('--password <password>', 'Password, min 8 chars (prompted hidden if omitted)')
+  .action(async (url: string | undefined, opts: { name?: string; email?: string; password?: string }) => {
+    const baseUrl = normalizeBaseUrl(url ?? DEFAULT_URL);
+    try {
+      const name = opts.name ?? (await promptLine('Name: '));
+      const email = opts.email ?? (await promptLine('Email: '));
+      const password = opts.password ?? (await promptHidden('Password: '));
+      if (!name || !email || password.length < 8) {
+        console.error(`${LOG} ✗ Name, email, and a password of at least 8 characters are required.`);
+        process.exit(1);
+      }
+      const result = await signup({
+        baseUrl,
+        name,
+        email,
+        password,
+        promptOtp: (attempt) =>
+          promptLine(attempt > 1 ? 'Verification code (try again): ' : 'Verification code: '),
+      });
+      if (result.status === 'awaiting_invitation') process.exit(0);
+    } catch (err) {
+      console.error(`${LOG} ✗ Signup failed: ${(err as Error).message}`);
       process.exit(1);
     }
   });

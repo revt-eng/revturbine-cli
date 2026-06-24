@@ -25,6 +25,7 @@ Requires Node ≥ 20.
 ## Quick start
 
 ```bash
+revturbine signup                           # create an account (email + password + emailed code)
 revturbine verify ./export-config.json      # schema-validate locally (no network)
 revturbine login                            # authorize this machine (device flow)
 revturbine diff ./export-config.json        # dry-run: live config vs local, no writes
@@ -38,6 +39,7 @@ revturbine deploy <change-set-id>           # submit → approve → deploy (go 
 
 | Command | What it does |
 |---|---|
+| `signup` | Create an account headlessly: email + password, then an emailed one-time code to verify, then a token is stored. A business-email domain already claimed by a workspace exits with "an admin must invite you" (no token). |
 | `login` / `logout` | Device-flow auth; tokens stored at `~/.revturbine/credentials.json` (mode 0600). |
 | `verify` | Schema-validate a config offline against the bundled schema. |
 | `diff` | Non-destructive: download the live config, diff against local, dry-run the import. |
