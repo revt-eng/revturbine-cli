@@ -1,5 +1,5 @@
 /**
- * revt-config — verify RevTurbine ExportedConfig files and load them into a
+ * revturbine — verify RevTurbine ExportedConfig files and load them into a
  * RevTurbine instance through the Change Set lifecycle.
  *
  * Configs are canonical ExportedConfig JSON files, addressed by path.
@@ -15,7 +15,7 @@
  * rollback-able). Auth uses a token from `login` (RFC 8628 device flow),
  * persisted at ~/.revturbine/credentials.json (0600).
  *
- *   revt-config <command> --help
+ *   revturbine <command> --help
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -32,7 +32,7 @@ import { deviceLogin } from './lib/device-auth';
 import { diffExportedConfig, formatDiff } from './lib/config-diff';
 import { fetchValidation, formatFindings, hasBlockingFindings } from './lib/config-validate';
 
-const LOG = '[revt-config]';
+const LOG = '[revturbine]';
 // Default RevTurbine instance. Includes the `/app` subfolder basePath (plan 85)
 // so API calls resolve to `…/app/api/…`. Uses `www` deliberately: the apex
 // `revturbine.com` 308-redirects to `www`, and a cross-origin redirect strips
@@ -120,7 +120,7 @@ function authHint(url: string, status: number): void {
   if (status === 401 || status === 403) {
     console.error(
       `\n${LOG} Authentication required for ${url}. Log in with:\n` +
-        `  revt-config login ${url}`,
+        `  revturbine login ${url}`,
     );
   }
 }
@@ -198,8 +198,8 @@ async function confirmOrExit(promptText: string, yes: boolean): Promise<void> {
 const pkgVersion =
   (createRequire(import.meta.url)('../package.json') as { version?: string }).version ?? '0.0.0';
 
-// Appended to `revt-config --help`: command groups, copy-pasteable workflows,
-// and the auth model. Mirrors docs/cli/revt-config.md — keep them in sync.
+// Appended to `revturbine --help`: command groups, copy-pasteable workflows,
+// and the auth model. Mirrors the README — keep them in sync.
 const HELP_AFTER = `
 Command groups:
   Auth          login, logout
@@ -211,25 +211,25 @@ Command groups:
 
 Common workflows:
   # Author, validate, and ship against the default instance (www.revturbine.com/app)
-  revt-config login
-  revt-config verify ./export-config.json
-  revt-config diff ./export-config.json
-  revt-config upload ./export-config.json --deploy
+  revturbine login
+  revturbine verify ./export-config.json
+  revturbine diff ./export-config.json
+  revturbine upload ./export-config.json --deploy
 
   # Target a different instance — pass its URL (include the /app path)
-  revt-config login https://app.example.com/app
-  revt-config upload ./export-config.json --url https://app.example.com/app --deploy
+  revturbine login https://app.example.com/app
+  revturbine upload ./export-config.json --url https://app.example.com/app --deploy
 
   # Manual review flow (stage → inspect → submit → approve → deploy)
-  revt-config upload ./export-config.json    # stage a draft change set
-  revt-config preview <change-set-id>        # inspect runtime impact
-  revt-config submit  <change-set-id>
-  revt-config approve <change-set-id>
-  revt-config deploy  <change-set-id>
+  revturbine upload ./export-config.json    # stage a draft change set
+  revturbine preview <change-set-id>        # inspect runtime impact
+  revturbine submit  <change-set-id>
+  revturbine approve <change-set-id>
+  revturbine deploy  <change-set-id>
 
   # Inspect and roll back
-  revt-config status
-  revt-config rollback <change-set-id>
+  revturbine status
+  revturbine rollback <change-set-id>
 
 Default instance:
   --url and the \`login\` argument default to https://www.revturbine.com/app —
@@ -248,9 +248,9 @@ Full reference: https://github.com/revt-eng/revturbine-cli#commands
 const program = new Command();
 
 program
-  .name('revt-config')
+  .name('revturbine')
   .description('Verify ExportedConfig files and load them into a RevTurbine instance via Change Sets.')
-  .version(`${pkgVersion} (schema ${SCHEMA_VERSION})`, '-V, --version', 'Print the revt-config and bundled schema versions')
+  .version(`${pkgVersion} (schema ${SCHEMA_VERSION})`, '-V, --version', 'Print the revturbine and bundled schema versions')
   .showHelpAfterError()
   .addHelpText('after', HELP_AFTER);
 
@@ -332,7 +332,7 @@ program
     }
     console.log(
       `\n${LOG} ✓ No conflicts. Stage it with:\n` +
-        `  revt-config upload ${configFile} --url ${conn.url} --deploy`,
+        `  revturbine upload ${configFile} --url ${conn.url} --deploy`,
     );
   });
 
@@ -376,7 +376,7 @@ program
       console.log(
         `\n${LOG} Staged as a draft. Activate it with:\n` +
           (changeSetId
-            ? `  revt-config deploy ${changeSetId} --url ${conn.url}\n`
+            ? `  revturbine deploy ${changeSetId} --url ${conn.url}\n`
             : '') +
           '  …or from the RevTurbine UI (Drafts & Releases).',
       );
@@ -627,30 +627,30 @@ program
     console.log(`${LOG} ✓ Promotion ${opts.from} → ${opts.to} requested.`);
   });
 
-// Per-command examples surfaced in `revt-config <command> --help`.
+// Per-command examples surfaced in `revturbine <command> --help`.
 const COMMAND_EXAMPLES: Record<string, string> = {
   upload: [
     '',
     'Examples:',
-    '  revt-config upload ./export-config.json --url <url>             Stage as a draft change set',
-    '  revt-config upload ./export-config.json --url <url> --deploy    Stage, then submit → approve → deploy',
+    '  revturbine upload ./export-config.json --url <url>             Stage as a draft change set',
+    '  revturbine upload ./export-config.json --url <url> --deploy    Stage, then submit → approve → deploy',
   ].join('\n'),
-  deploy: ['', 'Example:', '  revt-config deploy cs_1a2b3c --url <url>        Activate a staged draft'].join('\n'),
+  deploy: ['', 'Example:', '  revturbine deploy cs_1a2b3c --url <url>        Activate a staged draft'].join('\n'),
   export: [
     '',
     'Examples:',
-    '  revt-config export --url <url>                                 Active change set → stdout (JSON)',
-    '  revt-config export --url <url> --save ./export-config.json     Write the live config to a file',
-    '  revt-config export --url <url> --format flatbuffer --save ./bundle.fb  Compiled bundle → file',
-    '  revt-config export --url <url> --change-set cs_1a2b3c          A specific change set’s frozen snapshot',
+    '  revturbine export --url <url>                                 Active change set → stdout (JSON)',
+    '  revturbine export --url <url> --save ./export-config.json     Write the live config to a file',
+    '  revturbine export --url <url> --format flatbuffer --save ./bundle.fb  Compiled bundle → file',
+    '  revturbine export --url <url> --change-set cs_1a2b3c          A specific change set’s frozen snapshot',
   ].join('\n'),
   evaluate: [
     '',
     'Example:',
-    '  revt-config evaluate --url <url> --user ./ctx.json',
+    '  revturbine evaluate --url <url> --user ./ctx.json',
     '    ctx.json: { "user_id": "u1", "plan_handle": "pro", "entitlement_handles": ["seats"] }',
   ].join('\n'),
-  promote: ['', 'Example:', '  revt-config promote --url <url> --from production --to staging'].join('\n'),
+  promote: ['', 'Example:', '  revturbine promote --url <url> --from production --to staging'].join('\n'),
 };
 for (const [name, text] of Object.entries(COMMAND_EXAMPLES)) {
   program.commands.find((c) => c.name() === name)?.addHelpText('after', text);

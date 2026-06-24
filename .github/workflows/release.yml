@@ -1,11 +1,11 @@
 name: Release
 
-# Publishes the `@revturbine/revt-config` package to the PUBLIC npm registry
-# when a v* tag is pushed. The tag drives the release; the published version is
+# Publishes the `@revturbine/cli` package to the PUBLIC npm registry when a v*
+# tag is pushed. The tag drives the release; the published version is
 # package.json's version. Requires the NPM_TOKEN secret (an npm automation token
 # with publish rights under the `revturbine` npm org). `--access public` is
-# required because the package is scoped. Until that secret is set, tagging
-# fails fast with a clear message rather than publishing nothing silently.
+# required because the package is scoped. (Trusted publishing / OIDC can replace
+# the token once @revturbine/cli exists and a trusted-publisher rule is set.)
 
 on:
   push:
