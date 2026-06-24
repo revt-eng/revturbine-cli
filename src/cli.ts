@@ -279,20 +279,54 @@ async function promptLine(question: string): Promise<string> {
 }
 
 /** Prompt for a secret, masking the echoed characters. */
-async function promptHidden(question: string): Promise<string> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-  // Mask everything the readline writes except the prompt itself.
-  const muted = rl as unknown as { _writeToOutput?: (s: string) => void };
-  muted._writeToOutput = (s: string) => {
-    process.stdout.write(s.includes(question) ? s : '*');
-  };
-  try {
-    const answer = await rl.question(question);
-    process.stdout.write('\n');
-    return answer.trim();
-  } finally {
-    rl.close();
-  }
+function promptHidden(question: string): Promise<string> {
+  const { stdin, stdout } = process;
+  // No TTY (piped/CI) -> fall back to a normal line read; there's no terminal
+  // echo to mask anyway, and scripts should prefer the --password flag.
+  if (!stdin.isTTY) return promptLine(question);
+
+  return new Promise<string>((resolve) => {
+    stdout.write(question);
+    const wasRaw = stdin.isRaw;
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding('utf8');
+    let input = '';
+    const cleanup = () => {
+      stdin.removeListener('data', onData);
+      stdin.setRawMode(wasRaw);
+      stdin.pause();
+    };
+    const onData = (chunk: string) => {
+      for (const ch of chunk) {
+        const code = ch.charCodeAt(0);
+        if (code === 13 || code === 10 || code === 4) {
+          // Enter (CR/LF) or Ctrl-D (EOT) -> submit
+          cleanup();
+          stdout.write('\n');
+          resolve(input.trim());
+          return;
+        }
+        if (code === 3) {
+          // Ctrl-C (ETX) -> abort the way the shell would
+          cleanup();
+          stdout.write('\n');
+          process.exit(130);
+        }
+        if (code === 127 || code === 8) {
+          // Backspace / Delete -> erase one masked char
+          if (input.length > 0) {
+            input = input.slice(0, -1);
+            stdout.write('\b \b');
+          }
+          continue;
+        }
+        input += ch;
+        stdout.write('*');
+      }
+    };
+    stdin.on('data', onData);
+  });
 }
 
 program
