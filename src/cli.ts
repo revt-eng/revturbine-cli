@@ -30,6 +30,7 @@ import { SCHEMA_VERSION } from './schema/version';
 import { getCredential, normalizeBaseUrl, removeCredential, resolveConfigDir } from './lib/credentials';
 import { deviceLogin } from './lib/device-auth';
 import { signup } from './lib/signup';
+import { trackEvent, shouldTrackCommandExecution } from './lib/track';
 import { diffExportedConfig, formatDiff } from './lib/config-diff';
 import { fetchValidation, formatFindings, hasBlockingFindings } from './lib/config-validate';
 
@@ -248,6 +249,18 @@ Full reference: https://github.com/revt-eng/revturbine-cli#commands
 
 const program = new Command();
 
+// Dogfood each successful ONLINE command as a `cli_command_executed` control-
+// plane event (plan 112 TASK-6). Fires only after the action resolves (so a
+// failed command that exits non-zero emits nothing); auth commands emit their
+// own events and offline `verify` has no connection, so both are skipped.
+program.hook('postAction', async (_thisCommand, actionCommand) => {
+  const opts = actionCommand.opts() as { url?: string; tenantId?: string };
+  if (!shouldTrackCommandExecution(actionCommand.name(), Boolean(opts.url))) return;
+  await trackEvent(opts.url as string, opts.tenantId, 'cli_command_executed', {
+    command: actionCommand.name(),
+  });
+});
+
 program
   .name('revturbine')
   .description('Verify ExportedConfig files and load them into a RevTurbine instance via Change Sets.')
@@ -261,7 +274,9 @@ program
   .argument('[url]', `RevTurbine instance URL (default: ${DEFAULT_URL})`)
   .action(async (url: string | undefined) => {
     try {
-      await deviceLogin(normalizeBaseUrl(url ?? DEFAULT_URL));
+      const base = normalizeBaseUrl(url ?? DEFAULT_URL);
+      await deviceLogin(base);
+      await trackEvent(base, undefined, 'cli_signed_in');
     } catch (err) {
       console.error(`${LOG} ✗ Login failed: ${(err as Error).message}`);
       process.exit(1);
@@ -355,6 +370,7 @@ program
           promptLine(attempt > 1 ? 'Verification code (try again): ' : 'Verification code: '),
       });
       if (result.status === 'awaiting_invitation') process.exit(0);
+      await trackEvent(baseUrl, undefined, 'cli_signed_up');
     } catch (err) {
       console.error(`${LOG} ✗ Signup failed: ${(err as Error).message}`);
       process.exit(1);
