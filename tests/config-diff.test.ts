@@ -9,18 +9,29 @@ const base = {
 };
 
 describe('diffExportedConfig', () => {
-  it('reports added / changed / removed per collection by id', () => {
+  it('reports added / changed / removed per collection by handle', () => {
     const next = {
       version: '1.0.0',
       plans: [
         { id: 'plan_free', unique_handle: 'free', name: 'Free Plan' }, // changed (name)
         { id: 'plan_pro', unique_handle: 'pro', name: 'Pro' }, // added
       ],
-      entitlements: [], // ent_a removed
+      entitlements: [], // 'a' removed
     };
     const diff = diffExportedConfig(base, next);
-    expect(diff.plans).toEqual({ added: ['plan_pro'], changed: ['plan_free'], removed: [] });
-    expect(diff.entitlements).toEqual({ added: [], changed: [], removed: ['ent_a'] });
+    expect(diff.plans).toEqual({ added: ['pro'], changed: ['free'], removed: [] });
+    expect(diff.entitlements).toEqual({ added: [], changed: [], removed: ['a'] });
+  });
+
+  it('coalesces by handle when row ids differ (anchor+ledger: ids re-mint on import)', () => {
+    const current = {
+      segments: [{ id: 'seg_row_1', handle: 'enterprise', name: 'Enterprise' }],
+    };
+    const next = {
+      segments: [{ id: 'seg_row_2', handle: 'enterprise', name: 'Enterprise (EMEA)' }],
+    };
+    const diff = diffExportedConfig(current, next);
+    expect(diff.segments).toEqual({ added: [], changed: ['enterprise'], removed: [] });
   });
 
   it('is empty when the configs match', () => {
@@ -30,13 +41,13 @@ describe('diffExportedConfig', () => {
 
   it('treats a missing current (empty tenant) as all-added', () => {
     const diff = diffExportedConfig({}, base);
-    expect(diff.plans.added).toEqual(['plan_free']);
-    expect(diff.entitlements.added).toEqual(['ent_a']);
+    expect(diff.plans.added).toEqual(['free']);
+    expect(diff.entitlements.added).toEqual(['a']);
   });
 
   it('formats a readable summary', () => {
     const out = formatDiff(diffExportedConfig({}, base));
     expect(out).toContain('plans: +1 added');
-    expect(out).toContain('+ plan_free');
+    expect(out).toContain('+ free');
   });
 });

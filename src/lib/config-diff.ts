@@ -18,9 +18,12 @@ const COLLECTIONS = [
   'reverse_trial_rules',
 ] as const;
 
+// Handle-first: under the anchor+ledger identity model, `handle` is the sole
+// identity that is stable across databases — row ids are re-minted on import,
+// so keying by id reads a re-imported entity as add+remove instead of a change.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function keyOf(item: any): string {
-  return item?.id ?? item?.handle ?? item?.unique_handle ?? item?.name ?? JSON.stringify(item);
+  return item?.handle ?? item?.unique_handle ?? item?.name ?? item?.id ?? JSON.stringify(item);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
