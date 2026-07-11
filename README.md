@@ -1,13 +1,13 @@
 # revturbine-cli (`revturbine`)
 
 Verify [RevTurbine](https://revturbine.com) **ExportedConfig** files and ship
-them to a RevTurbine instance through the Change Set lifecycle — from the
+them to a RevTurbine instance through the playbook-version lifecycle — from the
 terminal, the same operations the in-app Pre-Sales Agent performs.
 
 `revturbine` is the command-line counterpart to the RevTurbine control plane. It
 schema-validates a config offline, authenticates to an instance via the browser
-(RFC 8628 device flow), and stages / deploys configs as Change Sets so every
-change is reviewable and rollback-able.
+(RFC 8628 device flow), and stages / deploys configs as playbook versions so
+every change is reviewable and rollback-able.
 
 ## Install
 
@@ -29,8 +29,8 @@ revturbine signup                           # create an account (email + passwor
 revturbine verify ./export-config.json      # schema-validate locally (no network)
 revturbine login                            # authorize this machine (device flow)
 revturbine diff ./export-config.json        # dry-run: live config vs local, no writes
-revturbine upload ./export-config.json      # stage as a draft Change Set
-revturbine deploy <change-set-id>           # submit → approve → deploy (go live)
+revturbine upload ./export-config.json      # stage as a draft playbook version
+revturbine deploy <playbook-version-id>     # submit → approve → deploy (go live)
 ```
 
 `revturbine <command> --help` documents every flag.
@@ -43,14 +43,14 @@ revturbine deploy <change-set-id>           # submit → approve → deploy (go 
 | `login` / `logout` | Device-flow auth; tokens stored at `~/.revturbine/credentials.json` (mode 0600). |
 | `verify` | Schema-validate a config offline against the bundled schema. |
 | `diff` | Non-destructive: download the live config, diff against local, dry-run the import. |
-| `upload` | Stage a config as a draft Change Set (`--deploy` to also activate). |
+| `upload` | Stage a config as a draft playbook version (`--deploy` to also activate). |
 | `deploy` | Activate a staged draft: submit → approve → deploy. |
 | `validate` | Run config-validation against a staged draft. |
 | `export` | Download the live config (stdout, or `--save`). |
 | `status` | Show the active draft and recent releases. |
-| `discard` / `rollback` | Archive an open draft / revert a deployed change set. |
+| `discard` / `rollback` | Archive an open draft / revert a deployed playbook version. |
 | `evaluate` | Run the live config's placement/entitlement decisions for a user context. |
-| `preview` | Runtime-impact preview of a draft change set. |
+| `preview` | Runtime-impact preview of a draft playbook version. |
 | `promote` | Promote a compiled config from one environment to another. |
 
 ## Schema validation

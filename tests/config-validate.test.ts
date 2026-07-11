@@ -105,19 +105,19 @@ describe('fetchValidation against a stubbed /validate (AC-8)', () => {
       'http://stub',
       'cs_1',
       headers,
-      stubFetch(404, { error: 'ChangeSet not found' }),
+      stubFetch(404, { error: 'PlaybookVersion not found' }),
     );
     expect(result.ok).toBe(false);
     expect(result.status).toBe(404);
-    expect(result.error).toBe('ChangeSet not found');
+    expect(result.error).toBe('PlaybookVersion not found');
   });
 
-  it('POSTs { changeSetId } to /api/config/validate', async () => {
+  it('POSTs { playbookVersionId } to /api/config/validate', async () => {
     const spy = stubFetch(200, { findings: [] });
     await fetchValidation('http://stub', 'cs_42', headers, spy);
     expect(spy).toHaveBeenCalledWith(
       'http://stub/api/config/validate',
-      expect.objectContaining({ method: 'POST', body: JSON.stringify({ changeSetId: 'cs_42' }) }),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ playbookVersionId: 'cs_42' }) }),
     );
   });
 });
