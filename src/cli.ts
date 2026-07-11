@@ -537,7 +537,7 @@ program
     console.log(formatFindings(result.findings));
 
     if (hasBlockingFindings(result.findings)) {
-      const blocking = result.findings.filter((f) => f.severity === 'error_draft' || f.severity === 'error_publish');
+      const blocking = result.findings.filter((f) => f.severity === 'error_draft' || f.severity === 'error_launch');
       console.error(`${LOG} ✗ ${blocking.length} blocking finding(s) — this draft cannot be deployed.`);
       process.exit(1);
     }

@@ -27,9 +27,9 @@ function stubFetch(status: number, body: unknown): typeof fetch {
 }
 
 describe('blocking rule (the CLI exit-code contract — AC-8)', () => {
-  it('error_draft and error_publish block; warning and ai_check do not', () => {
+  it('error_draft and error_launch block; warning and ai_check do not', () => {
     expect(isBlockingFinding(finding('error_draft'))).toBe(true);
-    expect(isBlockingFinding(finding('error_publish'))).toBe(true);
+    expect(isBlockingFinding(finding('error_launch'))).toBe(true);
     expect(isBlockingFinding(finding('warning'))).toBe(false);
     expect(isBlockingFinding(finding('ai_check'))).toBe(false);
   });
@@ -37,7 +37,7 @@ describe('blocking rule (the CLI exit-code contract — AC-8)', () => {
   it('hasBlockingFindings is true iff any finding blocks', () => {
     expect(hasBlockingFindings([])).toBe(false);
     expect(hasBlockingFindings([finding('warning'), finding('ai_check')])).toBe(false);
-    expect(hasBlockingFindings([finding('warning'), finding('error_publish')])).toBe(true);
+    expect(hasBlockingFindings([finding('warning'), finding('error_launch')])).toBe(true);
     expect(hasBlockingFindings([finding('error_draft')])).toBe(true);
   });
 });
@@ -74,12 +74,12 @@ describe('fetchValidation against a stubbed /validate (AC-8)', () => {
     expect(formatFindings(result.findings)).toContain('broken');
   });
 
-  it('blocks on an error_publish finding', async () => {
+  it('blocks on an error_launch finding', async () => {
     const result = await fetchValidation(
       'http://stub',
       'cs_1',
       headers,
-      stubFetch(200, { findings: [finding('error_publish')] }),
+      stubFetch(200, { findings: [finding('error_launch')] }),
     );
     expect(hasBlockingFindings(result.findings)).toBe(true);
   });

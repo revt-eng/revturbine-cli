@@ -5,13 +5,13 @@
  * Thin client over the server's `POST /api/config/validate` — the same shared
  * `@revt-eng/schema/validators` catalog the studios and the publish gate run.
  * The endpoint returns the flat findings and does NOT decide blocking; the CLI
- * does, by the four-tier severity ladder: `error_draft` / `error_publish` block
+ * does, by the four-tier severity ladder: `error_draft` / `error_launch` block
  * (non-zero exit), `warning` / `ai_check` advise (zero exit). Kept here (not
  * inline in the CLI) so the exit-code rule and the text formatting are unit
  * tested without spawning the binary.
  */
 
-export type Severity = 'error_draft' | 'error_publish' | 'warning' | 'ai_check';
+export type Severity = 'error_draft' | 'error_launch' | 'warning' | 'ai_check';
 
 export interface ValidationFinding {
   code: string;
@@ -32,13 +32,13 @@ export interface ValidationResult {
  * The severities that block a deploy (and so drive a non-zero CLI exit). This
  * mirrors the canonical `disposition(finding, 'publish')` rule in
  * `@revt-eng/schema/validators` (spec config-validation.md §3.1): `error_draft`
- * blocks everywhere, `error_publish` blocks at the publish gate — and the CLI
+ * blocks everywhere, `error_launch` blocks at the launch gate — and the CLI
  * validates a draft pre-deploy, i.e. the publish call site. It is pinned here
  * rather than imported because the devkit CLI is a dependency-light HTTP client
  * with no `@revt-eng/*` package. Keep in sync with the ladder; the per-severity
  * test in `tests/config-validate.test.ts` fails if this set drifts from the AC.
  */
-const BLOCKING_SEVERITIES: ReadonlySet<string> = new Set(['error_draft', 'error_publish']);
+const BLOCKING_SEVERITIES: ReadonlySet<string> = new Set(['error_draft', 'error_launch']);
 
 export function isBlockingFinding(finding: { severity: string }): boolean {
   return BLOCKING_SEVERITIES.has(finding.severity);
