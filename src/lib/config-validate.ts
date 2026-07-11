@@ -1,5 +1,6 @@
 /**
- * `revt-config validate <change-set-id>` support (plan 74 TASK-7).
+ * `revturbine validate <playbook-version-id>` support (plan 74 TASK-7; renamed
+ * to the playbook-version wire in plan 130).
  *
  * Thin client over the server's `POST /api/config/validate` — the same shared
  * `@revt-eng/schema/validators` catalog the studios and the publish gate run.
@@ -60,20 +61,21 @@ export function formatFindings(findings: ReadonlyArray<ValidationFinding>): stri
 }
 
 /**
- * POST the change set id to `/api/config/validate` and return the flat findings.
- * `fetchImpl` is injectable so the command can be tested against a stubbed
- * endpoint (AC-8). Never throws on a non-OK status — the caller inspects `ok`.
+ * POST the playbook version id to `/api/config/validate` and return the flat
+ * findings. `fetchImpl` is injectable so the command can be tested against a
+ * stubbed endpoint (AC-8). Never throws on a non-OK status — the caller
+ * inspects `ok`.
  */
 export async function fetchValidation(
   baseUrl: string,
-  changeSetId: string,
+  playbookVersionId: string,
   headers: Record<string, string>,
   fetchImpl: typeof fetch = fetch,
 ): Promise<ValidationResult> {
   const res = await fetchImpl(`${baseUrl}/api/config/validate`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ changeSetId }),
+    body: JSON.stringify({ playbookVersionId }),
   });
   const json = (await res.json().catch(() => ({}))) as {
     findings?: unknown;

@@ -1,6 +1,6 @@
 /**
  * revturbine — verify RevTurbine ExportedConfig files and load them into a
- * RevTurbine instance through the Change Set lifecycle.
+ * RevTurbine instance through the playbook-version lifecycle.
  *
  * Configs are canonical ExportedConfig JSON files, addressed by path.
  *
@@ -9,8 +9,8 @@
  * tool never uploads a config it could not validate and needs no access to any
  * private schema package or source tree.
  *
- * Loading a config is a Change Set: `upload` STAGES it as a draft
- * (POST /api/config/import → change_set_id); deploying walks the lifecycle
+ * Loading a config stages a playbook version: `upload` STAGES it as a draft
+ * (POST /api/config/import → playbook_version_id); deploying walks the lifecycle
  * submit → approve → deploy so it becomes the live configuration (and stays
  * rollback-able). Auth uses a token from `login` (RFC 8628 device flow),
  * persisted at ~/.revturbine/credentials.json (0600).
@@ -141,23 +141,24 @@ async function postJson(conn: Connection, pathname: string, body: unknown): Prom
 }
 
 /**
- * Walk the Change Set lifecycle submit → approve → deploy. The deploy step is
- * async on the server (Inngest), so success means "activation requested".
+ * Walk the playbook-version lifecycle submit → approve → deploy. Deploy runs
+ * compile-and-activate synchronously in-request (plan 68), so success means
+ * the configuration is live.
  */
-async function activateChangeSet(conn: Connection, changeSetId: string): Promise<void> {
-  console.log(`\n${LOG} Activating change set ${changeSetId} (submit → approve → deploy) …`);
+async function activatePlaybookVersion(conn: Connection, playbookVersionId: string): Promise<void> {
+  console.log(`\n${LOG} Activating playbook version ${playbookVersionId} (submit → approve → deploy) …`);
   for (const step of ['submit', 'approve', 'deploy'] as const) {
-    const { res, json } = await postJson(conn, `/api/changesets/${changeSetId}/${step}`, {});
+    const { res, json } = await postJson(conn, `/api/playbook-versions/${playbookVersionId}/${step}`, {});
     if (!res.ok) {
       console.error(`${LOG} ✗ ${step} failed (${res.status}). The draft is staged but NOT live.`);
       console.error(`  ${JSON.stringify(json)}`);
-      console.error(`  Finish it from the UI (Drafts & Releases): change set ${changeSetId}`);
+      console.error(`  Finish it from the UI (Drafts & Releases): playbook version ${playbookVersionId}`);
       authHint(conn.url, res.status);
       process.exit(1);
     }
     console.log(`  ✓ ${step}`);
   }
-  console.log(`${LOG} ✓ Deploy requested — the change set is activating as the live configuration.`);
+  console.log(`${LOG} ✓ Deployed — the playbook version is now the live configuration.`);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -170,9 +171,9 @@ async function getJson(conn: Connection, pathname: string): Promise<{ res: Respo
 /** Download the tenant's live ExportedConfig JSON; returns `{}` on a non-OK status. */
 async function downloadLiveConfig(
   conn: Connection,
-  changeSetId?: string,
+  playbookVersionId?: string,
 ): Promise<{ res: Response; config: unknown }> {
-  const qs = changeSetId ? `?changeSetId=${encodeURIComponent(changeSetId)}` : '';
+  const qs = playbookVersionId ? `?playbookVersionId=${encodeURIComponent(playbookVersionId)}` : '';
   const res = await fetch(`${conn.url}/api/config/export${qs}`, { headers: conn.headers });
   const config = res.ok ? await res.json().catch(() => ({})) : {};
   return { res, config };
@@ -225,15 +226,15 @@ Common workflows:
   revturbine upload ./export-config.json --url https://app.example.com/app --deploy
 
   # Manual review flow (stage → inspect → submit → approve → deploy)
-  revturbine upload ./export-config.json    # stage a draft change set
-  revturbine preview <change-set-id>        # inspect runtime impact
-  revturbine submit  <change-set-id>
-  revturbine approve <change-set-id>
-  revturbine deploy  <change-set-id>
+  revturbine upload ./export-config.json         # stage a draft playbook version
+  revturbine preview <playbook-version-id>       # inspect runtime impact
+  revturbine submit  <playbook-version-id>
+  revturbine approve <playbook-version-id>
+  revturbine deploy  <playbook-version-id>
 
   # Inspect and roll back
   revturbine status
-  revturbine rollback <change-set-id>
+  revturbine rollback <playbook-version-id>
 
 Default instance:
   --url and the \`login\` argument default to https://revturbine.com/app —
@@ -265,7 +266,7 @@ program.hook('postAction', async (_thisCommand, actionCommand) => {
 
 program
   .name('revturbine')
-  .description('Verify ExportedConfig files and load them into a RevTurbine instance via Change Sets.')
+  .description('Verify ExportedConfig files and load them into a RevTurbine instance via playbook versions.')
   .version(`${pkgVersion} (schema ${SCHEMA_VERSION})`, '-V, --version', 'Print the revturbine and bundled schema versions')
   .showHelpAfterError()
   .addHelpText('after', HELP_AFTER);
@@ -450,7 +451,7 @@ program
 
 program
   .command('upload')
-  .description('Stage an ExportedConfig file as a draft Change Set (POST /api/config/import). Use --deploy to also activate it.')
+  .description('Stage an ExportedConfig file as a draft playbook version (POST /api/config/import). Use --deploy to also activate it.')
   .argument('<config>', 'Path to an export-config.json file')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
@@ -463,12 +464,12 @@ program
     }
 
     const conn = connect(opts.url, opts.tenantId);
-    console.log(`\n${LOG} Staging ${configFile} into a draft change set (${conn.url}/api/config/import) …`);
+    console.log(`\n${LOG} Staging ${configFile} into a draft playbook version (${conn.url}/api/config/import) …`);
     const { res, json } = await postJson(conn, '/api/config/import', config);
     if (!res.ok) {
       console.error(`${LOG} ✗ Upload failed (${res.status})`);
-      // A 409 on change_sets_one_active_draft_per_tenant means a draft is already
-      // open — deploy or discard it (Drafts & Releases) before importing.
+      // A 409 means a draft playbook version is already open for the tenant —
+      // deploy or discard it (Drafts & Releases) before importing.
       if (json && typeof json === 'object' && json.stage) {
         console.error(`  stage:  ${json.stage}`);
         console.error(`  detail: ${JSON.stringify(json.detail)}`);
@@ -479,58 +480,60 @@ program
       process.exit(1);
     }
 
-    const changeSetId = json?.change_set_id as string | undefined;
-    console.log(`${LOG} ✓ Staged ${configFile} as a draft change set (${res.status})`);
+    const playbookVersionId = json?.playbook_version_id as string | undefined;
+    console.log(`${LOG} ✓ Staged ${configFile} as a draft playbook version (${res.status})`);
     console.log(`  imported: ${JSON.stringify(json.imported ?? {})}`);
-    if (changeSetId) console.log(`  change_set_id: ${changeSetId}`);
+    if (playbookVersionId) console.log(`  playbook_version_id: ${playbookVersionId}`);
 
     if (!opts.deploy) {
       console.log(
         `\n${LOG} Staged as a draft. Activate it with:\n` +
-          (changeSetId
-            ? `  revturbine deploy ${changeSetId} --url ${conn.url}\n`
+          (playbookVersionId
+            ? `  revturbine deploy ${playbookVersionId} --url ${conn.url}\n`
             : '') +
           '  …or from the RevTurbine UI (Drafts & Releases).',
       );
       return;
     }
-    if (!changeSetId) {
-      console.warn(`${LOG} No change_set_id returned — server predates the staged-import model; nothing to deploy.`);
+    if (!playbookVersionId) {
+      console.warn(
+        `${LOG} No playbook_version_id returned — the server predates the playbook-version wire; nothing to deploy.`,
+      );
       return;
     }
-    await activateChangeSet(conn, changeSetId);
+    await activatePlaybookVersion(conn, playbookVersionId);
   });
 
 program
   .command('deploy')
-  .description('Activate a staged draft Change Set: submit → approve → deploy.')
-  .argument('<change-set-id>', 'The change_set_id returned by `upload`')
+  .description('Activate a staged draft playbook version: submit → approve → deploy.')
+  .argument('<playbook-version-id>', 'The playbook_version_id returned by `upload`')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   // Accepted for flag parity with the other mutating commands (discard/rollback);
   // deploy has no confirmation prompt, so --yes is a no-op rather than an error.
   .option('--yes', 'Accepted for parity with discard/rollback; deploy has no confirmation prompt')
-  .action(async (changeSetId: string, opts: { url: string; tenantId?: string; yes?: boolean }) => {
+  .action(async (playbookVersionId: string, opts: { url: string; tenantId?: string; yes?: boolean }) => {
     const conn = connect(opts.url, opts.tenantId);
-    await activateChangeSet(conn, changeSetId);
+    await activatePlaybookVersion(conn, playbookVersionId);
   });
 
 program
   .command('validate')
   .description('Run config-validation against a staged draft. Prints findings; exits non-zero if any block.')
-  .argument('<change-set-id>', 'The change_set_id to validate')
+  .argument('<playbook-version-id>', 'The playbook_version_id to validate')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
-  .action(async (changeSetId: string, opts: { url: string; tenantId?: string }) => {
+  .action(async (playbookVersionId: string, opts: { url: string; tenantId?: string }) => {
     const conn = connect(opts.url, opts.tenantId);
-    const result = await fetchValidation(conn.url, changeSetId, conn.headers);
+    const result = await fetchValidation(conn.url, playbookVersionId, conn.headers);
     if (!result.ok) {
       console.error(`${LOG} ✗ validate failed (${result.status})${result.error ? `: ${result.error}` : ''}`);
       authHint(conn.url, result.status);
       process.exit(1);
     }
 
-    console.log(`\n${LOG} Validation for change set ${changeSetId}:`);
+    console.log(`\n${LOG} Validation for playbook version ${playbookVersionId}:`);
     console.log(formatFindings(result.findings));
 
     if (hasBlockingFindings(result.findings)) {
@@ -548,10 +551,10 @@ program
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .addOption(new Option('-f, --format <format>', 'Representation').choices(['json', 'flatbuffer']).default('json'))
   .option('--save <file>', 'Write the downloaded config (json) or bundle (flatbuffer) to <file> instead of stdout')
-  .option('--change-set <id>', 'Export a specific change set (default: the active change set)')
-  .action(async (opts: { url: string; tenantId?: string; format: string; save?: string; changeSet?: string }) => {
+  .option('--playbook-version <id>', 'Export a specific playbook version (default: the live configuration)')
+  .action(async (opts: { url: string; tenantId?: string; format: string; save?: string; playbookVersion?: string }) => {
     const conn = connect(opts.url, opts.tenantId);
-    const qs = opts.changeSet ? `?changeSetId=${encodeURIComponent(opts.changeSet)}` : '';
+    const qs = opts.playbookVersion ? `?playbookVersionId=${encodeURIComponent(opts.playbookVersion)}` : '';
 
     if (opts.format === 'flatbuffer') {
       const res = await fetch(`${conn.url}/api/config/bundle${qs}`, { headers: conn.headers });
@@ -572,7 +575,7 @@ program
       return;
     }
 
-    const { res, config } = await downloadLiveConfig(conn, opts.changeSet);
+    const { res, config } = await downloadLiveConfig(conn, opts.playbookVersion);
     if (!res.ok) {
       console.error(`${LOG} ✗ export failed (${res.status})`);
       authHint(conn.url, res.status);
@@ -591,7 +594,7 @@ program
 
 program
   .command('status')
-  .description("Show the tenant's active draft change set and recent releases.")
+  .description("Show the tenant's active draft playbook version and recent releases.")
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .action(async (opts: { url: string; tenantId?: string }) => {
@@ -611,44 +614,44 @@ program
 
 program
   .command('discard')
-  .description('Discard (archive) an open draft change set so a new upload can proceed.')
-  .argument('<change-set-id>', 'The draft change_set_id')
+  .description('Discard (archive) an open draft playbook version so a new upload can proceed.')
+  .argument('<playbook-version-id>', 'The draft playbook_version_id')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option('--yes', 'Skip the confirmation prompt')
-  .action(async (changeSetId: string, opts: { url: string; tenantId?: string; yes?: boolean }) => {
+  .action(async (playbookVersionId: string, opts: { url: string; tenantId?: string; yes?: boolean }) => {
     const conn = connect(opts.url, opts.tenantId);
-    await confirmOrExit(`Discard draft change set ${changeSetId} on ${conn.url}?`, !!opts.yes);
-    const { res, json } = await postJson(conn, `/api/changesets/${changeSetId}/archive`, {});
+    await confirmOrExit(`Discard draft playbook version ${playbookVersionId} on ${conn.url}?`, !!opts.yes);
+    const { res, json } = await postJson(conn, `/api/playbook-versions/${playbookVersionId}/archive`, {});
     if (!res.ok) {
       console.error(`${LOG} ✗ discard failed (${res.status}): ${JSON.stringify(json)}`);
       authHint(conn.url, res.status);
       process.exit(1);
     }
-    console.log(`${LOG} ✓ Discarded change set ${changeSetId}.`);
+    console.log(`${LOG} ✓ Discarded playbook version ${playbookVersionId}.`);
   });
 
 program
   .command('rollback')
-  .description('Roll back a deployed change set to the prior configuration (creates a reverting change set).')
-  .argument('<change-set-id>', 'The deployed change_set_id to revert')
+  .description('Roll back a deployed playbook version to the prior configuration (creates a reverting playbook version).')
+  .argument('<playbook-version-id>', 'The deployed playbook_version_id to revert')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option('--yes', 'Skip the confirmation prompt')
-  .action(async (changeSetId: string, opts: { url: string; tenantId?: string; yes?: boolean }) => {
+  .action(async (playbookVersionId: string, opts: { url: string; tenantId?: string; yes?: boolean }) => {
     const conn = connect(opts.url, opts.tenantId);
     await confirmOrExit(
-      `Roll back change set ${changeSetId} on ${conn.url}? This changes the LIVE configuration.`,
+      `Roll back playbook version ${playbookVersionId} on ${conn.url}? This changes the LIVE configuration.`,
       !!opts.yes,
     );
-    const { res, json } = await postJson(conn, `/api/changesets/${changeSetId}/rollback`, {});
+    const { res, json } = await postJson(conn, `/api/playbook-versions/${playbookVersionId}/rollback`, {});
     if (!res.ok) {
       console.error(`${LOG} ✗ rollback failed (${res.status}): ${JSON.stringify(json)}`);
       authHint(conn.url, res.status);
       process.exit(1);
     }
-    console.log(`${LOG} ✓ Rollback requested for change set ${changeSetId}.`);
-    if (json?.change_set_id) console.log(`  reverting change_set_id: ${json.change_set_id}`);
+    console.log(`${LOG} ✓ Rollback requested for playbook version ${playbookVersionId}.`);
+    if (json?.playbook_version_id) console.log(`  reverting playbook_version_id: ${json.playbook_version_id}`);
   });
 
 program
@@ -681,13 +684,13 @@ program
 
 program
   .command('preview')
-  .description('Show the runtime-impact preview of a draft change set.')
-  .argument('<change-set-id>', 'The draft change_set_id')
+  .description('Show the runtime-impact preview of a draft playbook version.')
+  .argument('<playbook-version-id>', 'The draft playbook_version_id')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
-  .action(async (changeSetId: string, opts: { url: string; tenantId?: string }) => {
+  .action(async (playbookVersionId: string, opts: { url: string; tenantId?: string }) => {
     const conn = connect(opts.url, opts.tenantId);
-    const { res, json } = await getJson(conn, `/api/changesets/${changeSetId}/preview`);
+    const { res, json } = await getJson(conn, `/api/playbook-versions/${playbookVersionId}/preview`);
     if (!res.ok) {
       console.error(`${LOG} ✗ preview failed (${res.status}): ${JSON.stringify(json)}`);
       authHint(conn.url, res.status);
@@ -700,19 +703,19 @@ program
 for (const step of ['submit', 'approve', 'reject'] as const) {
   program
     .command(step)
-    .description(`Transition a change set: ${step}.`)
-    .argument('<change-set-id>', 'The change_set_id')
+    .description(`Transition a playbook version: ${step}.`)
+    .argument('<playbook-version-id>', 'The playbook_version_id')
     .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
     .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
-    .action(async (changeSetId: string, opts: { url: string; tenantId?: string }) => {
+    .action(async (playbookVersionId: string, opts: { url: string; tenantId?: string }) => {
       const conn = connect(opts.url, opts.tenantId);
-      const { res, json } = await postJson(conn, `/api/changesets/${changeSetId}/${step}`, {});
+      const { res, json } = await postJson(conn, `/api/playbook-versions/${playbookVersionId}/${step}`, {});
       if (!res.ok) {
         console.error(`${LOG} ✗ ${step} failed (${res.status}): ${JSON.stringify(json)}`);
         authHint(conn.url, res.status);
         process.exit(1);
       }
-      console.log(`${LOG} ✓ ${step} → change set ${changeSetId}`);
+      console.log(`${LOG} ✓ ${step} → playbook version ${playbookVersionId}`);
     });
 }
 
@@ -744,17 +747,17 @@ const COMMAND_EXAMPLES: Record<string, string> = {
   upload: [
     '',
     'Examples:',
-    '  revturbine upload ./export-config.json --url <url>             Stage as a draft change set',
+    '  revturbine upload ./export-config.json --url <url>             Stage as a draft playbook version',
     '  revturbine upload ./export-config.json --url <url> --deploy    Stage, then submit → approve → deploy',
   ].join('\n'),
   deploy: ['', 'Example:', '  revturbine deploy cs_1a2b3c --url <url>        Activate a staged draft'].join('\n'),
   export: [
     '',
     'Examples:',
-    '  revturbine export --url <url>                                 Active change set → stdout (JSON)',
+    '  revturbine export --url <url>                                 Active playbook version → stdout (JSON)',
     '  revturbine export --url <url> --save ./export-config.json     Write the live config to a file',
     '  revturbine export --url <url> --format flatbuffer --save ./bundle.fb  Compiled bundle → file',
-    '  revturbine export --url <url> --change-set cs_1a2b3c          A specific change set’s frozen snapshot',
+    '  revturbine export --url <url> --playbook-version cs_1a2b3c    A specific playbook version’s frozen snapshot',
   ].join('\n'),
   evaluate: [
     '',
