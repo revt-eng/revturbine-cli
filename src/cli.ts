@@ -36,10 +36,12 @@ import { fetchValidation, formatFindings, hasBlockingFindings } from './lib/conf
 
 const LOG = '[revturbine]';
 // Default RevTurbine instance. Includes the `/app` subfolder basePath (plan 85)
-// so API calls resolve to `…/app/api/…`. Uses `www` deliberately: the apex
-// `revturbine.com` 308-redirects to `www`, and a cross-origin redirect strips
-// the `Authorization` header, which would 401 every authenticated command.
-const DEFAULT_URL = 'https://www.revturbine.com/app';
+// so API calls resolve to `…/app/api/…`. Uses the bare apex `revturbine.com`,
+// which is the canonical host (2026-07-09): `www.revturbine.com` now
+// 308-redirects TO the apex, and that cross-origin redirect strips the
+// `Authorization` header, which would 401 every authenticated command — so
+// target the apex directly and never the `www` host.
+const DEFAULT_URL = 'https://revturbine.com/app';
 
 // ── Schema (vendored snapshot — mandatory, offline) ─────────────────────────────
 
@@ -212,7 +214,7 @@ Command groups:
   Runtime/ops   evaluate, promote
 
 Common workflows:
-  # Author, validate, and ship against the default instance (www.revturbine.com/app)
+  # Author, validate, and ship against the default instance (revturbine.com/app)
   revturbine login
   revturbine verify ./export-config.json
   revturbine diff ./export-config.json
@@ -234,7 +236,7 @@ Common workflows:
   revturbine rollback <change-set-id>
 
 Default instance:
-  --url and the \`login\` argument default to https://www.revturbine.com/app —
+  --url and the \`login\` argument default to https://revturbine.com/app —
   the /app subfolder is required for API routing. Pass an explicit URL (with its
   /app path) to target another instance.
 

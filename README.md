@@ -1,6 +1,6 @@
 # revturbine-cli (`revturbine`)
 
-Verify [RevTurbine](https://www.revturbine.com) **ExportedConfig** files and ship
+Verify [RevTurbine](https://revturbine.com) **ExportedConfig** files and ship
 them to a RevTurbine instance through the Change Set lifecycle — from the
 terminal, the same operations the in-app Pre-Sales Agent performs.
 
