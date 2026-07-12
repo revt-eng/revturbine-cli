@@ -63,7 +63,7 @@ Commands that read a config name the version explicitly — there is no default:
 | `upload` | Stage a Config File as the open draft. |
 | `launch` | Take a config live: validate (launch gate) → submit → approve → deploy. `launch <file>` or `launch --draft`. |
 | `discard` | Archive the open draft (`--yes`). |
-| `rollback` | Revert a deployed playbook version (creates a reverting draft; becomes `restore` once server-side entry copying lands). |
+| `restore` | Stage a draft that restores a past release from its frozen snapshot; `--launch` takes it live. Halts if a draft is open. |
 | `status` | The live Release and the open draft, side by side. |
 | `history` | The Release Version Log, newest first. |
 | `preview` | The open draft's staged changes. |

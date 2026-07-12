@@ -322,7 +322,7 @@ Command groups:
   Auth & meta   login, logout, signup, whoami, schema, docs
   Download      download
   Check         validate, diff, show
-  Stage/launch  upload, launch, discard, rollback
+  Stage/launch  upload, launch, discard, restore
   Inspect       status, history, preview, evaluate
 
 Version selectors (no defaults — a command that reads a config requires one):
@@ -348,7 +348,7 @@ Common workflows:
   # Inspect and roll back
   revturbine status
   revturbine history
-  revturbine rollback <playbook-version-id>
+  revturbine restore <playbook-version-id> --launch
 
 Exit-code classes: 0 ok · 1 unexpected · 2 usage · 3 auth · 4 validation
 blocked · 5 conflict/stale · 6 network · 7 server error.
@@ -356,7 +356,7 @@ blocked · 5 conflict/stale · 6 network · 7 server error.
 Auth:
   Most commands need a token — run \`login\` first. Credentials live at
   ~/.revturbine/credentials.json (0600); the token's tenant is used by default,
-  override with -t/--tenant-id. Mutating commands (discard, rollback) prompt
+  override with -t/--tenant-id. Mutating commands (discard, restore) prompt
   for confirmation unless --yes.
 
 Full reference: ${DOCS_URL}
@@ -750,7 +750,7 @@ program
   .option('--draft', 'Launch the already-open draft')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
-  .option('--yes', 'Accepted for parity with discard/rollback; launch has no confirmation prompt')
+  .option('--yes', 'Accepted for parity with discard/restore; launch has no confirmation prompt')
   .action(async (file: string | undefined, opts: { draft?: boolean; url: string; tenantId?: string; yes?: boolean }) => {
     const [sel] = requireSelectors(opts, file ? [file] : [], { count: 1, allowed: ['file', 'draft'], command: 'launch' });
     const conn = connect(opts.url, opts.tenantId);
@@ -792,23 +792,29 @@ program
   });
 
 program
-  .command('rollback')
-  .description('Roll back a deployed playbook version (creates a reverting draft). Becomes `restore <release>` once server-side entry copying lands (plan 131 TASK-6).')
-  .argument('<playbook-version-id>', 'The deployed playbook_version_id to revert')
+  .command('restore')
+  .description('Stage a draft that restores a past release (from its frozen snapshot); `--launch` takes it live. Halts if a draft is already open.')
+  .argument('<playbook-version-id>', 'The deployed playbook version to restore (see `history`)')
+  .option('--launch', 'Launch the restoring draft immediately (gate + submit → approve → deploy)')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option('--yes', 'Skip the confirmation prompt')
-  .action(async (playbookVersionId: string, opts: { url: string; tenantId?: string; yes?: boolean }) => {
+  .action(async (playbookVersionId: string, opts: { launch?: boolean; url: string; tenantId?: string; yes?: boolean }) => {
     const conn = connect(opts.url, opts.tenantId);
     await confirmOrExit(
-      `Roll back playbook version ${playbookVersionId} on ${conn.url}? This changes the LIVE configuration.`,
+      `Restore playbook version ${playbookVersionId} on ${conn.url}?${opts.launch ? ' --launch will take it LIVE.' : ' (stages a draft; launch separately)'}`,
       !!opts.yes,
     );
     const { res, json } = await postJson(conn, `/api/playbook-versions/${playbookVersionId}/rollback`, {});
-    if (!res.ok) httpFail(conn, 'rollback', res.status, json);
-    diag(`✓ Rollback requested for playbook version ${playbookVersionId}.`);
-    const reverting = json?.item?.id ?? json?.playbook_version_id;
-    if (reverting) diagRaw(`  reverting draft: ${reverting}`);
+    if (!res.ok) httpFail(conn, 'restore', res.status, json);
+    const reverting = (json?.item?.id ?? json?.playbook_version_id) as string | undefined;
+    diag(`✓ Staged a restoring draft from ${playbookVersionId}${reverting ? ` (${reverting})` : ''}.`);
+    if (!opts.launch) {
+      diag('Launch it with `revturbine launch --draft`, or discard it with `revturbine discard --yes`.');
+      return;
+    }
+    if (!reverting) fail(EXIT.SERVER, 'No reverting draft id returned — cannot launch.');
+    await launchDraft(conn, reverting);
   });
 
 // ── Inspect ──────────────────────────────────────────────────────────────────
