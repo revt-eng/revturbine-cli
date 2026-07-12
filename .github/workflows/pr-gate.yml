@@ -32,11 +32,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: verify a valid config (expect exit 0)
-        run: node dist/cli.js verify tests/fixtures/valid.export-config.json
-      - name: verify an invalid config (expect non-zero)
+      - name: validate a valid config (expect exit 0)
+        run: node dist/cli.js validate tests/fixtures/valid.export-config.json
+      - name: validate an invalid config (expect exit 4)
         run: |
-          if node dist/cli.js verify tests/fixtures/invalid.export-config.json; then
+          if node dist/cli.js validate tests/fixtures/invalid.export-config.json; then
             echo "::error::invalid config unexpectedly passed validation"
             exit 1
           fi
