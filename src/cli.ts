@@ -28,6 +28,7 @@ import { Command, CommanderError, Option } from 'commander';
 import { z } from 'zod';
 
 import { RevTurbineConfigSchema } from './schema/exported-config.snapshot.mjs';
+import { evaluate as evaluateOffline } from './schema/validators.snapshot.mjs';
 import { SCHEMA_VERSION } from './schema/version';
 import { getCredential, normalizeBaseUrl, removeCredential, resolveConfigDir } from './lib/credentials';
 import { deviceLogin } from './lib/device-auth';
@@ -643,9 +644,26 @@ program
     }
 
     if (!opts.draft) {
-      const failures = files.filter((file) => verifyConfig(file) === null).length;
-      if (files.length > 1) diag(`${files.length - failures}/${files.length} passed.`);
-      process.exit(failures > 0 ? EXIT.VALIDATION : 0);
+      // Fully offline (plan 131 TASK-8): the structural tier (Zod →
+      // error_draft findings) plus the vendored shared semantic engine —
+      // the file-computable subset of the same catalog the server runs.
+      // `validate --draft` remains the authoritative full-catalog check.
+      let blockedFiles = 0;
+      for (const file of files) {
+        const raw = loadConfig(file);
+        const parsed = schema.safeParse(raw);
+        const findings = evaluateOffline((parsed.success ? parsed.data : raw) as Record<string, unknown>, {
+          structuralErrors: parsed.success ? undefined : parsed.error,
+        });
+        diag(`Validation for ${file} (offline, schema ${SCHEMA_VERSION}):`);
+        process.stdout.write(`${formatFindings(findings as never)}\n`);
+        if (hasBlockingFindings(findings as never)) blockedFiles += 1;
+      }
+      if (files.length > 1) diag(`${files.length - blockedFiles}/${files.length} passed.`);
+      if (blockedFiles > 0) {
+        fail(EXIT.VALIDATION, `${blockedFiles} file(s) have blocking findings.`);
+      }
+      process.exit(0);
     }
 
     const conn = connect(opts.url, opts.tenantId);

@@ -66,6 +66,25 @@ await build({
   logLevel: 'info',
 });
 
+// The shared validation engine (plan 131 TASK-8): pure evaluate(graph) over
+// the same portable config — offline semantic rules for `validate <file>`.
+const validationEntry = path.join(scaffoldDir, 'src', 'core', 'validation', 'index.ts');
+const validatorsOut = path.join(repoRoot, 'src', 'schema', 'validators.snapshot.mjs');
+await build({
+  entryPoints: [validationEntry],
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  target: 'node20',
+  external: ['zod'],
+  outfile: validatorsOut,
+  banner: {
+    js: `// GENERATED — do not edit by hand.\n// Vendored validation engine bundled from @revt-eng/schema@${version}\n// (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:\n//   node scripts/generate-schema-snapshot.mjs\n`,
+  },
+  logLevel: 'info',
+});
+console.log(`[generate-schema] wrote ${path.relative(repoRoot, validatorsOut)} (validators ${version})`);
+
 writeFileSync(versionFile, `${version}\n`, 'utf8');
 writeFileSync(
   versionModule,
