@@ -39,6 +39,7 @@ import { fetchValidation, formatFindings, hasBlockingFindings } from './lib/conf
 import { resolveActiveDraft } from './lib/drafts';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
 import { requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
+import { resolveUploadTarget } from './lib/target';
 import { serverSchemaIsNewer } from './lib/version-trail';
 
 const DOCS_URL = 'https://github.com/revt-eng/revturbine-cli#readme';
@@ -129,6 +130,24 @@ function connect(rawUrl: string, explicitTenantId?: string): Connection {
       ...(cred ? { Authorization: `Bearer ${cred.token}` } : {}),
     },
   };
+}
+
+/**
+ * The upload/launch tenant, honoring a Config File's embedded origin
+ * (plan 131 TASK-10): explicit `-t` wins, an embedded `tenant_id` goes back
+ * where it came from, and an embedded tenant contradicting the session with
+ * no explicit choice is refused before anything is sent.
+ */
+function uploadTenantFor(rawUrl: string, config: unknown, explicit?: string): string {
+  const cred = getCredential(normalizeBaseUrl(rawUrl));
+  const target = resolveUploadTarget({
+    embedded: (config as { tenant_id?: string })?.tenant_id,
+    explicit,
+    session: cred?.tenant_id ?? 'dev-tenant-001',
+  });
+  if (!target.ok) fail(EXIT.VALIDATION, target.error);
+  if (target.note) diag(target.note);
+  return target.tenantId;
 }
 
 function authHint(url: string, status: number): void {
@@ -752,7 +771,7 @@ program
     const config = verifyConfig(configFile);
     if (config === null) fail(EXIT.VALIDATION, `Fix the issues above in ${configFile}, then re-run.`);
 
-    const conn = connect(opts.url, opts.tenantId);
+    const conn = connect(opts.url, uploadTenantFor(opts.url, config, opts.tenantId));
     diag(`Staging ${configFile} as the open draft (${conn.url}/api/config/import) …`);
     const { res, json } = await postJson(conn, '/api/config/import', config);
     if (!res.ok) {
@@ -784,12 +803,13 @@ program
   .option('--yes', 'Accepted for parity with discard/restore; launch has no confirmation prompt')
   .action(async (file: string | undefined, opts: { draft?: boolean; url: string; tenantId?: string; yes?: boolean }) => {
     const [sel] = requireSelectors(opts, file ? [file] : [], { count: 1, allowed: ['file', 'draft'], command: 'launch' });
-    const conn = connect(opts.url, opts.tenantId);
 
+    let conn: Connection;
     let playbookVersionId: string;
     if (sel.kind === 'file') {
       const config = verifyConfig(sel.path);
       if (config === null) fail(EXIT.VALIDATION, `Fix the issues above in ${sel.path}, then re-run.`);
+      conn = connect(opts.url, uploadTenantFor(opts.url, config, opts.tenantId));
       diag(`Staging ${sel.path} as the open draft …`);
       const { res, json } = await postJson(conn, '/api/config/import', config);
       if (!res.ok) {
@@ -800,6 +820,7 @@ program
       if (!playbookVersionId) fail(EXIT.SERVER, 'No playbook_version_id returned by the import — cannot launch.');
       diag(`✓ Staged (${playbookVersionId})`);
     } else {
+      conn = connect(opts.url, opts.tenantId);
       playbookVersionId = await requireOpenDraft(conn);
     }
     await launchDraft(conn, playbookVersionId);
