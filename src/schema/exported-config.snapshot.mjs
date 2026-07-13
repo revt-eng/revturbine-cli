@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.107
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.108
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -4100,6 +4100,13 @@ var RevTurbineConfigSchema = z19.object({
   // The change set this export represents: the active change set by default,
   // or a specific change set when one is requested. Null for an unscoped export.
   change_set_id: z19.string().nullable().default(null).meta({ ...Unrestricted16, readOnly: true }),
+  // Origin target identity (plan 131 TASK-10, cli.md "Target-aware, portable"):
+  // stamped by the server on export so a downloaded Config File records where
+  // it came from; upload tooling targets these by default and flags a tenant
+  // mismatch against the session before sending. Optional — hand-authored and
+  // pre-existing configs carry no target.
+  tenant_id: z19.string().optional().meta({ ...Unrestricted16, readOnly: true }),
+  environment_id: z19.string().optional().meta({ ...Unrestricted16, readOnly: true }),
   plans: z19.array(RevTurbineConfigPlansItemSchema).meta(Unrestricted16),
   // Optional for back-compat: pre-plan-88 configs (and the live export until web
   // adopts the new @revt-eng/schema) omit it. Add-on definitions only; pricing
