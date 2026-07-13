@@ -945,23 +945,59 @@ program
 
 program
   .command('evaluate')
-  .description("Run the live config's placement/entitlement decisions for a user context (from a JSON file). Draft/Release-targeted evaluation lands with plan 131 TASK-7.")
+  .description('Run placement/entitlement decisions for a user context against a config version. Requires --live, --draft, or --release <id>.')
+  .option('--live', 'Evaluate the live configuration')
+  .option('--draft', "Evaluate the tenant's open draft (clean-room: no suppression/cap history)")
+  .option('--release <id>', 'Evaluate a past release (from its frozen snapshot)')
+  .option('--entitlement <handle>', 'Check one entitlement (the checkEntitlement result)')
+  .option('--slot <id>', 'Evaluate one placement/slot (the getPlacement decision)')
+  .option('--plan-handle <handle>', 'Evaluate as if the user were on this plan (overrides the ctx file)')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
-  .requiredOption('--user <file>', 'JSON file: { user_id, customer_id?, plan_handle?, placement_ids?, entitlement_handles?, traits?, now_iso? }')
+  .requiredOption('--user <file>', 'JSON file: { user_id, customer_id?, plan_handle?, traits?, now_iso? }')
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
-  .action(async (opts: { url: string; user: string; tenantId?: string }) => {
-    const conn = connect(opts.url, opts.tenantId);
-    if (!existsSync(opts.user)) fail(EXIT.USAGE, `user file not found: ${opts.user}`);
-    let body: unknown;
-    try {
-      body = JSON.parse(readFileSync(opts.user, 'utf8'));
-    } catch (err) {
-      fail(EXIT.VALIDATION, `invalid JSON in ${opts.user}: ${(err as Error).message}`);
-    }
-    const { res, json } = await postJson(conn, '/api/sdk/evaluate', body);
-    if (!res.ok) httpFail(conn, 'evaluate', res.status, json);
-    emit(json, true);
-  });
+  .action(
+    async (opts: {
+      live?: boolean;
+      draft?: boolean;
+      release?: string;
+      entitlement?: string;
+      slot?: string;
+      planHandle?: string;
+      url: string;
+      user: string;
+      tenantId?: string;
+    }) => {
+      const [sel] = requireSelectors(opts, [], { count: 1, allowed: ['draft', 'live', 'release'], command: 'evaluate' });
+      const conn = connect(opts.url, opts.tenantId);
+      if (!existsSync(opts.user)) fail(EXIT.USAGE, `user file not found: ${opts.user}`);
+      let ctx: Record<string, unknown>;
+      try {
+        ctx = JSON.parse(readFileSync(opts.user, 'utf8')) as Record<string, unknown>;
+      } catch (err) {
+        fail(EXIT.VALIDATION, `invalid JSON in ${opts.user}: ${(err as Error).message}`);
+      }
+
+      const body: Record<string, unknown> = { ...ctx };
+      if (opts.planHandle) body.plan_handle = opts.planHandle;
+      // --entitlement / --slot narrow the ask; the ctx file's own lists apply
+      // when neither is given (bulk evaluation).
+      if (opts.entitlement && opts.slot) fail(EXIT.USAGE, 'pass exactly one of --entitlement or --slot (or neither for the ctx file lists).');
+      if (opts.entitlement) {
+        body.entitlement_handles = [opts.entitlement];
+        body.placement_ids = [];
+      }
+      if (opts.slot) {
+        body.placement_ids = [opts.slot];
+        body.entitlement_handles = [];
+      }
+      if (sel.kind === 'release') body.playbook_version_id = sel.id;
+      if (sel.kind === 'draft') body.playbook_version_id = await requireOpenDraft(conn);
+
+      const { res, json } = await postJson(conn, '/api/sdk/evaluate', body);
+      if (!res.ok) httpFail(conn, 'evaluate', res.status, json);
+      emit(json, true);
+    },
+  );
 
 // Per-command examples surfaced in `revturbine <command> --help`.
 const COMMAND_EXAMPLES: Record<string, string> = {
@@ -995,7 +1031,8 @@ const COMMAND_EXAMPLES: Record<string, string> = {
   evaluate: [
     '',
     'Example:',
-    '  revturbine evaluate --url <url> --user ./ctx.json',
+    '  revturbine evaluate --live --user ./ctx.json --entitlement seats',
+    '  revturbine evaluate --draft --user ./ctx.json --slot upgrade_banner --plan-handle pro',
     '    ctx.json: { "user_id": "u1", "plan_handle": "pro", "entitlement_handles": ["seats"] }',
   ].join('\n'),
 };
