@@ -39,6 +39,7 @@ import { fetchValidation, formatFindings, hasBlockingFindings } from './lib/conf
 import { resolveActiveDraft } from './lib/drafts';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
 import { requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
+import { serverSchemaIsNewer } from './lib/version-trail';
 
 const DOCS_URL = 'https://github.com/revt-eng/revturbine-cli#readme';
 // Default RevTurbine instance. Includes the `/app` subfolder basePath (plan 85)
@@ -165,12 +166,24 @@ async function getJson(conn: Connection, pathname: string): Promise<{ res: Respo
   return { res, json };
 }
 
+/** Warn when the server's schema stamp outruns the bundled snapshot. */
+function warnIfSchemaBehind(config: unknown): void {
+  const server = serverSchemaIsNewer(config, SCHEMA_VERSION);
+  if (server) {
+    diag(
+      `WARNING: the server's schema (${server}) is newer than this CLI's bundled snapshot (${SCHEMA_VERSION}) — offline validation may be missing rules. Update: npm i -g @revturbine/cli`,
+    );
+  }
+}
+
 /** Download a config version's JSON; `playbookVersionId` scopes a draft/Release. */
 async function downloadConfig(conn: Connection, playbookVersionId?: string): Promise<unknown> {
   const qs = playbookVersionId ? `?playbookVersionId=${encodeURIComponent(playbookVersionId)}` : '';
   const res = await request(conn, `/api/config/export${qs}`);
   if (!res.ok) httpFail(conn, 'download', res.status);
-  return res.json().catch(() => ({}));
+  const config = await res.json().catch(() => ({}));
+  warnIfSchemaBehind(config);
+  return config;
 }
 
 /** The open draft's id, or a class-4 failure when none is open. */
