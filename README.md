@@ -20,7 +20,8 @@ npx @revturbine/cli --help
 The published npm package is `@revturbine/cli`; the installed command is
 `revturbine`.
 
-Requires Node ≥ 20.
+Requires Node ≥ 22.13. Source builds use the npm 11.18.0 version declared in
+`package.json`.
 
 ## Quick start
 

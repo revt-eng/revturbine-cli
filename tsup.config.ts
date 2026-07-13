@@ -4,11 +4,11 @@ import { defineConfig } from 'tsup';
 // schema snapshot (src/schema/exported-config.snapshot.mjs) is bundled in;
 // `commander` and `zod` are bundled too so the published package needs no
 // transitive install to run. The shebang makes `dist/cli.js` directly
-// executable as the `revt-config` bin.
+// executable as the `revturbine` bin.
 export default defineConfig({
   entry: { cli: 'src/cli.ts' },
   format: ['esm'],
-  target: 'node20',
+  target: 'node22',
   platform: 'node',
   bundle: true,
   clean: true,

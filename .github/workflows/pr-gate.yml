@@ -9,43 +9,77 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
+      - name: Use the npm version pinned in package.json
+        run: |
+          NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          npm install --global "npm@$NPM_VERSION"
+          npm --version
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
       - run: npm run build
 
-  smoke:
-    # Proves the published binary validates configs with NO workspace siblings
-    # present (scaffold/demo-data absent) — i.e. fully standalone (plan 100 AC-2/AC-3).
+  package-smoke:
+    name: Packed CLI smoke (Node ${{ matrix.node }})
+    # Proves the installed package validates configs with NO workspace siblings
+    # present (scaffold/demo-data absent) at the supported floor and primary LTS.
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['22.13.0', '24']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
           cache: npm
+      - name: Use the npm version pinned in package.json
+        run: |
+          NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          npm install --global "npm@$NPM_VERSION"
+          npm --version
       - run: npm ci
       - run: npm run build
+      - name: Pack and install in a clean consumer
+        run: |
+          set -euo pipefail
+          PACK_DIR="${RUNNER_TEMP}/cli-pack"
+          SMOKE_DIR="$(mktemp -d)"
+          mkdir -p "$PACK_DIR"
+          npm pack --pack-destination "$PACK_DIR"
+          TARBALL=$(find "$PACK_DIR" -maxdepth 1 -type f -name '*.tgz' -print -quit)
+          if [ -z "$TARBALL" ]; then
+            echo "::error::npm pack did not produce a CLI tarball"
+            exit 1
+          fi
+          cd "$SMOKE_DIR"
+          npm init --yes >/dev/null
+          npm install --ignore-scripts "$TARBALL"
+          echo "CLI_BIN=$SMOKE_DIR/node_modules/.bin/revturbine" >> "$GITHUB_ENV"
       - name: validate a valid config (expect exit 0)
-        run: node dist/cli.js validate tests/fixtures/valid.export-config.json
+        run: '"$CLI_BIN" validate tests/fixtures/valid.export-config.json'
       - name: validate an invalid config (expect exit 4)
         run: |
-          if node dist/cli.js validate tests/fixtures/invalid.export-config.json; then
-            echo "::error::invalid config unexpectedly passed validation"
+          set +e
+          "$CLI_BIN" validate tests/fixtures/invalid.export-config.json
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 4 ]; then
+            echo "::error::invalid config exited $STATUS; expected 4"
             exit 1
           fi
           echo "invalid config correctly rejected"
       - name: --version reports CLI + schema versions
-        run: node dist/cli.js --version
+        run: '"$CLI_BIN" --version'
       - name: help snapshot — the 0.5.x surface, nothing retired (plan 131 AC-3)
         run: |
-          HELP=$(node dist/cli.js --help)
+          HELP=$("$CLI_BIN" --help)
           for cmd in login logout signup whoami schema docs download validate diff show upload launch discard restore status history preview evaluate; do
             echo "$HELP" | grep -qE "^  $cmd" || { echo "::error::missing command '$cmd' in --help"; exit 1; }
           done
