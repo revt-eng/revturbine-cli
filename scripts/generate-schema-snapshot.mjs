@@ -59,7 +59,7 @@ await build({
   bundle: true,
   format: 'esm',
   platform: 'node',
-  target: 'node20',
+  target: 'node22',
   external: ['zod'],
   outfile: outFile,
   banner: { js: banner },
@@ -75,7 +75,7 @@ await build({
   bundle: true,
   format: 'esm',
   platform: 'node',
-  target: 'node20',
+  target: 'node22',
   external: ['zod'],
   outfile: validatorsOut,
   banner: {

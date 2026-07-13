@@ -10,6 +10,7 @@
   "homepage": "https://github.com/revt-eng/revturbine-cli#readme",
   "bugs": "https://github.com/revt-eng/revturbine-cli/issues",
   "type": "module",
+  "packageManager": "npm@11.18.0",
   "bin": {
     "revturbine": "dist/cli.js"
   },
@@ -17,7 +18,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   },
   "scripts": {
     "build": "tsup",
@@ -32,13 +33,21 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
-    "@types/node": "^22.15.3",
-    "esbuild": "^0.28.0",
-    "eslint": "^9.13.0",
-    "tsup": "^8.3.0",
-    "typescript": "^5.6.3",
-    "typescript-eslint": "^8.62.0",
-    "vitest": "^4.1.8"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.1",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.7.0",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.64.0",
+    "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "tsup": {
+      "esbuild": "$esbuild"
+    }
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
   }
 }
