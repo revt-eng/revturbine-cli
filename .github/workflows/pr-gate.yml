@@ -43,3 +43,15 @@ jobs:
           echo "invalid config correctly rejected"
       - name: --version reports CLI + schema versions
         run: node dist/cli.js --version
+      - name: help snapshot — the 0.5.x surface, nothing retired (plan 131 AC-3)
+        run: |
+          HELP=$(node dist/cli.js --help)
+          for cmd in login logout signup whoami schema docs download validate diff show upload launch discard restore status history preview evaluate; do
+            echo "$HELP" | grep -qE "^  $cmd" || { echo "::error::missing command '$cmd' in --help"; exit 1; }
+          done
+          for gone in promote submit approve reject deploy rollback verify export; do
+            if echo "$HELP" | grep -qE "^  $gone( |\[|<)"; then
+              echo "::error::retired command '$gone' still in --help"; exit 1
+            fi
+          done
+          echo "help surface matches the 0.5.x spec"
