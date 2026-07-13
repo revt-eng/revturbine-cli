@@ -931,16 +931,27 @@ program
 
 program
   .command('preview')
-  .description("The open draft's staged changes (runtime-impact summary once plan 78 lands).")
+  .description("The open draft's Runtime Impact summary (objects affected, billing impact) + field-level changes.")
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
-  .option('--json', 'Machine-readable output (default shape is already JSON)')
+  .option('--json', 'Machine-readable output')
   .action(async (opts: { url: string; tenantId?: string; json?: boolean }) => {
     const conn = connect(opts.url, opts.tenantId);
     const playbookVersionId = await requireOpenDraft(conn);
-    const { res, json } = await getJson(conn, `/api/playbook-versions/${playbookVersionId}/preview`);
+    const { res, json } = await getJson(conn, `/api/optimization/drafts/${playbookVersionId}/changes`);
     if (!res.ok) httpFail(conn, 'preview', res.status, json);
-    emit(json, true);
+    const impact = (json?.impact ?? {}) as { byCategory?: Array<{ label: string; count: number }>; billing?: { objects?: string[] } };
+    const changes = (Array.isArray(json?.changes) ? json.changes : []) as Array<AnyRecord>;
+    const data = { playbook_version_id: playbookVersionId, impact, changes };
+    const billingObjects = impact.billing?.objects ?? [];
+    const text = [
+      `Runtime impact (draft ${playbookVersionId}):`,
+      table((impact.byCategory ?? []).map((c) => [c.label, `${c.count}`])),
+      `Billing impact: ${billingObjects.length === 0 ? '(none)' : billingObjects.join(', ')}`,
+      `Changes (${changes.length}):`,
+      table(changes.map((c) => [String(c.action ?? ''), String(c.objectType ?? ''), String(c.objectName ?? ''), String(c.summary ?? '')])),
+    ].join('\n');
+    emit(data, Boolean(opts.json), text);
   });
 
 program

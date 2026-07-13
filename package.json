@@ -1,6 +1,6 @@
 {
   "name": "@revturbine/cli",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "revturbine — verify RevTurbine ExportedConfig files and ship them to a RevTurbine instance through the Change Set lifecycle.",
   "license": "MIT",
   "repository": {
