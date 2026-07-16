@@ -36,6 +36,12 @@ import { signup } from './lib/signup';
 import { trackEvent, shouldTrackCommandExecution } from './lib/track';
 import { diffExportedConfig, formatDiff } from './lib/config-diff';
 import { fetchValidation, formatFindings, hasBlockingFindings } from './lib/config-validate';
+import {
+  assertSupportedFormat,
+  describePlaybookHeader,
+  readPlaybookHeader,
+  UnsupportedFormatError,
+} from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
 import { requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
@@ -76,9 +82,34 @@ function loadConfig(file: string): unknown {
 /** Returns the validated config, or null (logging the exact failing paths). */
 function verifyConfig(file: string): unknown | null {
   const parsed = loadConfig(file);
+  const header = readPlaybookHeader(parsed);
+
+  // plan 118 TASK-23: reject an unknown/too-new Playbook format BEFORE any
+  // network mutation (upload/launch both call verifyConfig first). The known
+  // legacy shape is allowed; the server normalizes it.
+  try {
+    assertSupportedFormat(parsed);
+  } catch (err) {
+    if (err instanceof UnsupportedFormatError) {
+      diag(`✗ ${file}: ${err.message}`);
+      return null;
+    }
+    throw err;
+  }
+
+  // A canonical Playbook is not described by the legacy RevTurbineConfigSchema
+  // snapshot (which requires `version`), so don't run it through that schema —
+  // the server validates the body on import (POST /api/config/import). The
+  // format guard above is the CLI's local pre-check.
+  if (header.shape === 'canonical') {
+    diag(`✓ ${file}: ${describePlaybookHeader(header)} — body validated server-side on import`);
+    return parsed;
+  }
+
+  // Legacy Config File → the existing snapshot-schema pre-check.
   const result = schema.safeParse(parsed);
   if (result.success) {
-    diag(`✓ ${file}: schema validation passed`);
+    diag(`✓ ${file}: schema validation passed — ${describePlaybookHeader(header)}`);
     return result.data;
   }
   diag(`✗ ${file}: schema validation FAILED:`);
@@ -648,6 +679,7 @@ program
       }
 
       const config = await downloadConfig(conn, playbookVersionId);
+      diag(`Downloaded: ${describePlaybookHeader(readPlaybookHeader(config))}`);
       const out = `${JSON.stringify(config, null, 2)}\n`;
       if (opts.save) {
         const file = path.resolve(opts.save);
