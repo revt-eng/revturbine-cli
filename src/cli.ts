@@ -18,7 +18,7 @@
  *   revturbine <command> --help
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
@@ -43,6 +43,7 @@ import {
   UnsupportedFormatError,
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
+import { detectPackageManager, detectStack, installArgs, planInstall } from './lib/init';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
 import { requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
@@ -383,6 +384,7 @@ const pkgVersion =
 // and the auth model. Mirrors the README — keep them in sync.
 const HELP_AFTER = `
 Command groups:
+  Set up        init
   Auth & meta   login, logout, signup, whoami, schema, docs
   Download      download
   Check         validate, diff, show
@@ -396,6 +398,9 @@ Version selectors (no defaults — a command that reads a config requires one):
   --release <id>    a specific playbook version / Release
 
 Common workflows:
+  # Add RevTurbine to an app (same routine as \`npm create revturbine@latest\`)
+  revturbine init
+
   # Author, validate, and ship against the default instance (revturbine.com/app)
   revturbine login
   revturbine download --live --save ./config.json
@@ -448,6 +453,91 @@ program
   .version(`${pkgVersion} (schema ${SCHEMA_VERSION})`, '-V, --version', 'Print the revturbine and bundled schema versions')
   .showHelpAfterError()
   .addHelpText('after', HELP_AFTER);
+
+// ── Set up ───────────────────────────────────────────────────────────────────
+
+/** Run a package-manager install to completion, streaming its output through. */
+function runInstall(manager: string, args: string[], cwd: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    // `shell: true` so Windows resolves the .cmd shims for pnpm/npm/yarn. The
+    // argv is built by installArgs() from a closed set of managers and package
+    // specs we construct — never interpolated user input.
+    const child = spawn(manager, args, { cwd, stdio: 'inherit', shell: true });
+    child.on('error', reject);
+    child.on('close', (code) => resolve(code ?? 1));
+  });
+}
+
+program
+  .command('init')
+  .description('Scaffold RevTurbine into this app: detect the stack, install the SDK, and pin the CLI to the repo.')
+  .option('-d, --dir <path>', 'Target directory (defaults to the current directory)')
+  .option('--dry-run', 'Report what would be installed without running the package manager')
+  .option('--json', 'Emit the scaffold plan as JSON')
+  .action(async (opts: { dir?: string; dryRun?: boolean; json?: boolean }) => {
+    const dir = path.resolve(opts.dir ?? process.cwd());
+    const manifestPath = path.join(dir, 'package.json');
+    if (!existsSync(manifestPath)) {
+      fail(EXIT.USAGE, `No package.json in ${dir} — run init inside a JavaScript project (or pass --dir).`);
+    }
+
+    let manifest: {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      packageManager?: string;
+    };
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    } catch (err) {
+      fail(EXIT.VALIDATION, `invalid JSON in ${manifestPath}: ${(err as Error).message}`);
+    }
+
+    const manager = detectPackageManager({
+      files: readdirSync(dir),
+      packageManagerField: manifest.packageManager,
+      userAgent: process.env['npm_config_user_agent'],
+    });
+    const stack = detectStack(manifest);
+    const plan = planInstall({
+      dependencies: manifest.dependencies,
+      devDependencies: manifest.devDependencies,
+      cliVersion: pkgVersion,
+    });
+
+    diag(`✓ Detected ${manager.name} (${manager.reason})`);
+    if (stack !== 'unknown') diag(`✓ Detected ${stack}`);
+    for (const note of plan.skipped) diag(`• ${note}`);
+
+    if (opts.json) {
+      emit({ dir, manager: manager.name, stack, install: plan.install, skipped: plan.skipped }, true);
+    }
+
+    if (plan.install.length === 0) {
+      diag('✓ Already set up — nothing to install.');
+      return;
+    }
+
+    if (opts.dryRun) {
+      for (const step of plan.install) {
+        diag(`would run: ${manager.name} ${installArgs(manager.name, step).join(' ')}`);
+      }
+      return;
+    }
+
+    for (const step of plan.install) {
+      const args = installArgs(manager.name, step);
+      diag(`${manager.name} ${args.join(' ')}`);
+      let code: number;
+      try {
+        code = await runInstall(manager.name, args, dir);
+      } catch (err) {
+        fail(EXIT.UNEXPECTED, `could not run ${manager.name}: ${(err as Error).message}`);
+      }
+      if (code !== 0) fail(EXIT.UNEXPECTED, `${manager.name} ${args.join(' ')} failed (exit ${code}).`);
+    }
+
+    diag(`✓ Installed the RevTurbine SDK and CLI (CLI pinned to ${pkgVersion})`);
+  });
 
 // ── Auth & meta ──────────────────────────────────────────────────────────────
 
