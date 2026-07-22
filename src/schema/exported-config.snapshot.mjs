@@ -1,19 +1,19 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.134
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.136
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
 
-// ../revturbine-scaffold/src/core/common.ts
+// ../scaffold/src/core/common.ts
 import { z as z2 } from "zod";
 
-// ../revturbine-scaffold/src/core/classification.ts
+// ../scaffold/src/core/classification.ts
 import { z } from "zod";
 
-// ../revturbine-scaffold/src/core/handle-pattern.ts
+// ../scaffold/src/core/handle-pattern.ts
 var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
 
-// ../revturbine-scaffold/src/core/classification.ts
+// ../scaffold/src/core/classification.ts
 var SchemaPersistence = {
   Persisted: "persisted",
   Transient: "transient"
@@ -111,7 +111,7 @@ function toCreateSchema(schema) {
   return writable;
 }
 
-// ../revturbine-scaffold/src/core/common.ts
+// ../scaffold/src/core/common.ts
 var { Unrestricted } = DataClassification;
 var { Transient, Persisted } = SchemaPersistence;
 var { Internal, External } = SchemaExposure;
@@ -307,7 +307,7 @@ var CtaActionTypeSchema = z2.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 
-// ../revturbine-scaffold/src/core/facets.ts
+// ../scaffold/src/core/facets.ts
 var SchemaContext = {
   Playbook: "playbook",
   Branding: "branding",
@@ -456,7 +456,7 @@ var PERSISTED_SCHEMA_FACET_EXEMPTIONS = {
   WebhookEventLogSchema: "Webhook delivery history is runtime data, not authored strategy."
 };
 
-// ../revturbine-scaffold/src/core/identity.ts
+// ../scaffold/src/core/identity.ts
 import { z as z3 } from "zod";
 var IdentityKind = {
   /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
@@ -500,10 +500,10 @@ function collectVersionedConfigEntities(allExports) {
   return out;
 }
 
-// ../revturbine-scaffold/src/plans/models/schema.ts
+// ../scaffold/src/plans/models/schema.ts
 import { z as z5 } from "zod";
 
-// ../revturbine-scaffold/src/core/openapi/helpers.ts
+// ../scaffold/src/core/openapi/helpers.ts
 import { z as z4 } from "zod";
 var ListEnvelope = (itemSchema) => z4.object({
   items: z4.array(itemSchema)
@@ -522,7 +522,7 @@ var ListQueryParamsSchema = z4.object({
   include_deleted: z4.boolean().default(false).optional()
 });
 
-// ../revturbine-scaffold/src/plans/models/schema.ts
+// ../scaffold/src/plans/models/schema.ts
 var { Unrestricted: Unrestricted2, Financial } = DataClassification;
 var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
 var { External: External2 } = SchemaExposure;
@@ -972,7 +972,7 @@ var planPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/entitlements/models/schema.ts
+// ../scaffold/src/entitlements/models/schema.ts
 import { z as z6 } from "zod";
 var { Unrestricted: Unrestricted3 } = DataClassification;
 var { Persisted: Persisted3, Transient: Transient3 } = SchemaPersistence;
@@ -1050,6 +1050,94 @@ var EntitlementRuleTargetSchema = z6.object({
 );
 var EntitlementRulePeriodUnitSchema = z6.enum(["month", "day", "week", "quarter", "year", "billing_period", "on_purchase", "hour", "six_hours"]).meta(
   { id: "EntitlementRulePeriodUnit", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
+);
+var LimitValueField = z6.union([z6.number(), z6.literal("unlimited")]).nullable().optional();
+var EntitlementTypeFieldsFeatureSchema = z6.looseObject({
+  kind: z6.literal("feature").meta(Unrestricted3),
+  enabled: z6.boolean().optional().meta(Unrestricted3)
+}).meta(
+  { id: "EntitlementTypeFieldsFeature", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
+);
+var EntitlementTypeFieldsCapabilityTierSchema = z6.looseObject({
+  kind: z6.literal("capability_tier").meta(Unrestricted3),
+  tier_name: z6.string().optional().meta(Unrestricted3),
+  tier_description: z6.string().optional().meta(Unrestricted3)
+}).meta(
+  { id: "EntitlementTypeFieldsCapabilityTier", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
+);
+var EntitlementTypeFieldsUsageLimitSchema = z6.looseObject({
+  kind: z6.literal("usage_limit").meta(Unrestricted3),
+  limit_value: LimitValueField.meta(Unrestricted3),
+  unit: z6.string().optional().meta(Unrestricted3),
+  period: UsagePeriodScopeSchema.optional().meta(Unrestricted3),
+  enforcement: EnforcementModeSchema.optional().meta(Unrestricted3)
+}).meta(
+  { id: "EntitlementTypeFieldsUsageLimit", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
+);
+var EntitlementTypeFieldsPricePerUnitSchema = z6.looseObject({
+  kind: z6.literal("price_per_unit").meta(Unrestricted3),
+  amount_cents: z6.number().optional().meta(Unrestricted3),
+  currency: z6.string().optional().meta(Unrestricted3),
+  unit: z6.string().optional().meta(Unrestricted3),
+  period: UsagePeriodScopeSchema.optional().meta(Unrestricted3)
+}).meta(
+  { id: "EntitlementTypeFieldsPricePerUnit", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
+);
+var EntitlementTypeFieldsRateLimitSchema = z6.looseObject({
+  kind: z6.literal("rate_limit").meta(Unrestricted3),
+  rate_value: z6.number().optional().meta(Unrestricted3),
+  period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted3),
+  enforcement: EnforcementModeSchema.optional().meta(Unrestricted3)
+}).meta(
+  { id: "EntitlementTypeFieldsRateLimit", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
+);
+var EntitlementTypeFieldsCreditsSchema = z6.looseObject({
+  kind: z6.literal("credits").meta(Unrestricted3),
+  allowance: LimitValueField.meta(Unrestricted3),
+  initial_grant: z6.number().optional().meta(Unrestricted3),
+  unit: z6.string().optional().meta(Unrestricted3),
+  // Wire cadence uses the `per_*` vocabulary; the persisted `reset_period`
+  // column uses the bare vocabulary (`month`). Both are declared so the
+  // translation gap is visible to the contract instead of silent (plan 109).
+  period: UsagePeriodScopeSchema.optional().meta(Unrestricted3),
+  reset_period: EntitlementRulePeriodUnitSchema.optional().meta(Unrestricted3),
+  rollover: z6.boolean().optional().meta(Unrestricted3),
+  // `max_balance` — the maximum balance allowed at any time — is the ONLY
+  // credits cap in the model (Kent, 2026-07-22). The older `max_rollover`
+  // (how much unused balance carried into the next period) was folded away
+  // when plan 28 REQ-13 renamed the column, and authored configs have since
+  // been migrated off it. Do not re-add it: it has no column, IR field, or
+  // bundle slot — plan 37 retired its FlatBuffer slot to a -1 sentinel — so
+  // declaring it would promise a round-trip the model cannot honour.
+  max_balance: LimitValueField.meta(Unrestricted3),
+  top_up_available: z6.boolean().optional().meta(Unrestricted3)
+}).meta(
+  { id: "EntitlementTypeFieldsCredits", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
+);
+var EntitlementTypeFieldsSeatSchema = z6.looseObject({
+  kind: z6.literal("seat").meta(Unrestricted3),
+  included_seats: z6.union([z6.number(), z6.literal("unlimited")]).optional().meta(Unrestricted3),
+  // Authored configs already carry `null` here; plan 72 treats null as the
+  // canonical "unlimited". The 999999 sentinel is an export-side artifact.
+  max_seats: z6.union([z6.number(), z6.literal("unlimited")]).nullable().optional().meta(Unrestricted3),
+  seat_type: z6.string().optional().meta(Unrestricted3)
+}).meta(
+  { id: "EntitlementTypeFieldsSeat", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
+);
+var EntitlementTypeFieldsUntypedSchema = z6.looseObject({}).meta(
+  { id: "EntitlementTypeFieldsUntyped", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
+);
+var ENTITLEMENT_TYPE_FIELDS_VARIANTS = [
+  EntitlementTypeFieldsFeatureSchema,
+  EntitlementTypeFieldsCapabilityTierSchema,
+  EntitlementTypeFieldsUsageLimitSchema,
+  EntitlementTypeFieldsPricePerUnitSchema,
+  EntitlementTypeFieldsRateLimitSchema,
+  EntitlementTypeFieldsCreditsSchema,
+  EntitlementTypeFieldsSeatSchema
+];
+var EntitlementTypeFieldsSchema = z6.union([...ENTITLEMENT_TYPE_FIELDS_VARIANTS, EntitlementTypeFieldsUntypedSchema]).meta(
+  { id: "EntitlementTypeFields", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
 );
 var EntitlementSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
   anchor_id: z6.string().min(1).meta({ ...Unrestricted3, readOnly: true }),
@@ -1329,7 +1417,7 @@ var entitlementPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/placements/models/schema.ts
+// ../scaffold/src/placements/models/schema.ts
 import { z as z7 } from "zod";
 var { Unrestricted: Unrestricted4 } = DataClassification;
 var { Persisted: Persisted4, Transient: Transient4 } = SchemaPersistence;
@@ -1697,7 +1785,7 @@ var placementPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/user/models/schema.ts
+// ../scaffold/src/user/models/schema.ts
 import { z as z8 } from "zod";
 var { Unrestricted: Unrestricted5, Pii } = DataClassification;
 var { Persisted: Persisted5, Transient: Transient5 } = SchemaPersistence;
@@ -1887,7 +1975,7 @@ var userContextPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/customers/models/schema.ts
+// ../scaffold/src/customers/models/schema.ts
 import { z as z9 } from "zod";
 var { Unrestricted: Unrestricted6, Pii: Pii2 } = DataClassification;
 var { Persisted: Persisted6, Transient: Transient6 } = SchemaPersistence;
@@ -2052,7 +2140,7 @@ var customerPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/segments/models/schema.ts
+// ../scaffold/src/segments/models/schema.ts
 import { z as z10 } from "zod";
 var { Unrestricted: Unrestricted7 } = DataClassification;
 var { Persisted: Persisted7, Transient: Transient7 } = SchemaPersistence;
@@ -2234,7 +2322,7 @@ var segmentPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/content/models/schema.ts
+// ../scaffold/src/content/models/schema.ts
 import { z as z11 } from "zod";
 var { Unrestricted: Unrestricted8 } = DataClassification;
 var { Persisted: Persisted8, Transient: Transient8 } = SchemaPersistence;
@@ -2457,7 +2545,7 @@ var contentPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/ui/models/schema.ts
+// ../scaffold/src/ui/models/schema.ts
 import { z as z12 } from "zod";
 var { Unrestricted: Unrestricted9, Pii: Pii3 } = DataClassification;
 var { Persisted: Persisted9, Transient: Transient9 } = SchemaPersistence;
@@ -2529,7 +2617,7 @@ var uiPreferencePaths = {
   }
 };
 
-// ../revturbine-scaffold/src/analytics/models/schema.ts
+// ../scaffold/src/analytics/models/schema.ts
 import { z as z13 } from "zod";
 var { Unrestricted: Unrestricted10, Financial: Financial2 } = DataClassification;
 var { Persisted: Persisted10, Transient: Transient10 } = SchemaPersistence;
@@ -2708,7 +2796,7 @@ var analyticsPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/events/models/schema.ts
+// ../scaffold/src/events/models/schema.ts
 import { z as z14 } from "zod";
 var { Unrestricted: Unrestricted11, Pii: Pii4 } = DataClassification;
 var { Persisted: Persisted11, Transient: Transient11 } = SchemaPersistence;
@@ -3143,7 +3231,7 @@ var eventPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/trials/models/schema.ts
+// ../scaffold/src/trials/models/schema.ts
 import { z as z15 } from "zod";
 var { Unrestricted: Unrestricted12 } = DataClassification;
 var { Persisted: Persisted12, Transient: Transient12 } = SchemaPersistence;
@@ -3525,7 +3613,7 @@ var trialPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/experiments/models/schema.ts
+// ../scaffold/src/experiments/models/schema.ts
 import { z as z16 } from "zod";
 var { Unrestricted: Unrestricted13 } = DataClassification;
 var { Persisted: Persisted13, Transient: Transient13 } = SchemaPersistence;
@@ -3701,7 +3789,7 @@ var experimentPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/promotions/models/schema.ts
+// ../scaffold/src/promotions/models/schema.ts
 import { z as z17 } from "zod";
 var { Unrestricted: Unrestricted14, Financial: Financial3 } = DataClassification;
 var { Persisted: Persisted14, Transient: Transient14 } = SchemaPersistence;
@@ -3820,7 +3908,7 @@ var promotionPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/core/runtime-api/schema.ts
+// ../scaffold/src/core/runtime-api/schema.ts
 import { z as z18 } from "zod";
 var { Unrestricted: Unrestricted15, Pii: Pii5 } = DataClassification;
 var { Persisted: Persisted15, Transient: Transient15 } = SchemaPersistence;
@@ -3903,7 +3991,7 @@ var runtimePaths = {
   }
 };
 
-// ../revturbine-scaffold/src/config/models/schema.ts
+// ../scaffold/src/config/models/schema.ts
 import { z as z19 } from "zod";
 var { Unrestricted: Unrestricted16 } = DataClassification;
 var { Persisted: Persisted16, Transient: Transient16 } = SchemaPersistence;
@@ -4241,7 +4329,10 @@ var RevTurbineConfigEntitlementRulesItemSchema = z19.object({
   // means "match all users" (replaces the singular `segment_id` field
   // and its 'all'/null sentinels).
   segment_ids: z19.array(z19.string()).default([]).meta(Unrestricted16),
-  type_fields: z19.record(z19.string(), z19.unknown()).default({}).meta(Unrestricted16),
+  // Typed per-kind wire shape (plan 141). Loose variants + an untyped tail,
+  // so every input that parsed as the former opaque record still parses and
+  // unmodelled keys survive; see EntitlementTypeFieldsSchema.
+  type_fields: EntitlementTypeFieldsSchema.default({}).meta(Unrestricted16),
   current_usage: z19.number().default(0).meta(Unrestricted16),
   /** How usage is partitioned across the identity hierarchy. */
   allocation: UsageAllocationSchema.optional().meta(Unrestricted16)
@@ -4939,7 +5030,7 @@ var configPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/changemgmt/models/changelog-schema.ts
+// ../scaffold/src/changemgmt/models/changelog-schema.ts
 import { z as z20 } from "zod";
 var { Unrestricted: Unrestricted17 } = DataClassification;
 var { Persisted: Persisted17 } = SchemaPersistence;
@@ -4986,7 +5077,7 @@ var changelogPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/core/tenant/schema.ts
+// ../scaffold/src/core/tenant/schema.ts
 import { z as z21 } from "zod";
 var { Unrestricted: Unrestricted18 } = DataClassification;
 var { Persisted: Persisted18, Transient: Transient17 } = SchemaPersistence;
@@ -5065,7 +5156,7 @@ var tenantPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/core/environment/schema.ts
+// ../scaffold/src/core/environment/schema.ts
 import { z as z22 } from "zod";
 var { Unrestricted: Unrestricted19 } = DataClassification;
 var { Persisted: Persisted19, Transient: Transient18 } = SchemaPersistence;
@@ -5184,7 +5275,7 @@ var environmentPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/decisions/models/schema.ts
+// ../scaffold/src/decisions/models/schema.ts
 import { z as z23 } from "zod";
 var { Unrestricted: Unrestricted20, Pii: Pii6 } = DataClassification;
 var { Transient: Transient19, Persisted: Persisted20 } = SchemaPersistence;
@@ -5279,7 +5370,7 @@ var ServerEvaluationPayloadSchema = z23.object({
   user_context: ServerEvaluationPayloadUserContextSchema.optional().meta(Pii6)
 }).meta({ id: "ServerEvaluationPayload", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External12 });
 
-// ../revturbine-scaffold/src/changemgmt/models/changesets-schema.ts
+// ../scaffold/src/changemgmt/models/changesets-schema.ts
 import { z as z24 } from "zod";
 var { Unrestricted: Unrestricted21 } = DataClassification;
 var { Persisted: Persisted21, Transient: Transient20 } = SchemaPersistence;
@@ -5483,7 +5574,7 @@ var playbookVersionPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/settings/models/schema.ts
+// ../scaffold/src/settings/models/schema.ts
 import { z as z25 } from "zod";
 var { Unrestricted: Unrestricted22, Pii: Pii7 } = DataClassification;
 var { Persisted: Persisted22 } = SchemaPersistence;
@@ -5731,7 +5822,7 @@ var settingsPaths = {
   }
 };
 
-// ../revturbine-scaffold/src/core/auth/schema.ts
+// ../scaffold/src/core/auth/schema.ts
 import { z as z26 } from "zod";
 var { Unrestricted: Unrestricted23, Pii: Pii8 } = DataClassification;
 var { Persisted: Persisted23, Transient: Transient21 } = SchemaPersistence;
