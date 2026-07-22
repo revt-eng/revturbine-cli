@@ -9,25 +9,36 @@
  * is the zero-friction entry, and `go-live-hosted-cutover` is the marked path
  * out of it.
  *
- * It is a legacy-shape RevTurbineConfig (`version`, not `artifact_type`),
- * matching what real configs use and what the SDK's configProvider consumes.
- * That shape is also the one the vendored snapshot validates **in full**
- * offline — a canonical Playbook defers body validation to the server, which a
- * no-account starter can't reach.
+ * It is a **canonical Playbook** (`artifact_type` + `format_version`), never the
+ * deprecated legacy `RevTurbineConfig` wire shape. `PlaybookSchema` is
+ * `PlaybookHeaderSchema.extend(PlaybookBodySchema.shape)` — a superset of the
+ * legacy body — so nothing is lost by being canonical, and a starter is read as
+ * a worked example: shipping a deprecated shape would teach one.
+ *
+ * `tenant_id` / `environment_id` are the header's only required targeting
+ * fields and an account-less starter has no real values for them, so both are
+ * `local`. That is honest rather than impersonating a real tenant, and it has a
+ * useful side effect: `resolveUploadTarget` refuses an embedded tenant that
+ * contradicts the session, so the starter cannot be pushed to a live tenant
+ * without a deliberate `-t`.
  *
  * Both plans carry an explicit rule rather than relying on absence-of-rule
- * semantics. A starter is read as a worked example, so it should not teach a
- * pattern that depends on evaluator defaults.
+ * semantics — again, worked-example discipline.
  */
 
-import { RevTurbineConfigSchema } from '../schema/exported-config.snapshot.mjs';
+import { PlaybookSchema } from '../schema/exported-config.snapshot.mjs';
 import { evaluate as evaluateOffline } from '../schema/validators.snapshot.mjs';
 
 /** Written at the target repo root; referenced by the SDK provider and `validate`. */
 export const STARTER_PLAYBOOK_FILENAME = 'revturbine.playbook.json';
 
 export const STARTER_PLAYBOOK = {
-  version: '1.0.0',
+  artifact_type: 'playbook',
+  format_version: '1.0.0',
+  playbook_handle: 'default',
+  playbook_version_id: null,
+  tenant_id: 'local',
+  environment_id: 'local',
   plans: [
     { id: 'plan_free', unique_handle: 'free', name: 'Free', tier_position: 0, sort_order: 0 },
     { id: 'plan_pro', unique_handle: 'pro', name: 'Pro', tier_position: 1, sort_order: 1 },
@@ -61,30 +72,31 @@ export const STARTER_PLAYBOOK = {
 
 export type PlaybookValidation = {
   ok: boolean;
-  /** Rendered findings from the offline evaluator, for display on failure. */
-  findings: unknown[];
+  /** Structural issues and/or blocking semantic findings, for display on failure. */
+  problems: unknown[];
 };
 
 type SnapshotSchema = {
   safeParse(value: unknown):
     | { success: true; data: unknown }
-    | { success: false; error: unknown };
+    | { success: false; error: { issues?: unknown[] } };
 };
 
 /**
- * Validate a config through the same offline path `revturbine validate <file>`
- * uses — the vendored snapshot schema plus the shared semantic engine.
+ * Validate a canonical Playbook offline: the vendored `PlaybookSchema` for
+ * structure, then the shared semantic engine for blocking findings — the same
+ * two tiers `revturbine validate <file>` applies.
  *
  * REQ-7 requires this run **in-process**: shelling out to `revturbine validate`
  * would depend on a binary installed seconds earlier and on the target repo's
  * bin resolution, neither of which is guaranteed mid-scaffold.
  */
 export function validatePlaybook(config: unknown): PlaybookValidation {
-  const schema = RevTurbineConfigSchema as SnapshotSchema;
-  const parsed = schema.safeParse(config);
-  const findings = evaluateOffline((parsed.success ? parsed.data : config) as Record<string, unknown>, {
-    structuralErrors: parsed.success ? undefined : parsed.error,
-  }) as Array<{ severity?: string }>;
+  const parsed = (PlaybookSchema as SnapshotSchema).safeParse(config);
+  if (!parsed.success) {
+    return { ok: false, problems: parsed.error.issues ?? [parsed.error] };
+  }
+  const findings = evaluateOffline(parsed.data as Record<string, unknown>, {}) as Array<{ severity?: string }>;
   const blocking = findings.filter((f) => f.severity === 'error_draft' || f.severity === 'error_launch');
-  return { ok: parsed.success && blocking.length === 0, findings: blocking };
+  return { ok: blocking.length === 0, problems: blocking };
 }
