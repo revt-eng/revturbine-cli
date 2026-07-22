@@ -44,6 +44,7 @@ import {
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
 import { detectPackageManager, detectStack, installArgs, planInstall } from './lib/init';
+import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
 import { requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
@@ -508,19 +509,33 @@ program
     if (stack !== 'unknown') diag(`✓ Detected ${stack}`);
     for (const note of plan.skipped) diag(`• ${note}`);
 
-    if (opts.json) {
-      emit({ dir, manager: manager.name, stack, install: plan.install, skipped: plan.skipped }, true);
-    }
+    // The starter Playbook is a separate axis from the installs: a repo can have
+    // the deps but a deleted playbook, so this is never gated on install work
+    // remaining.
+    const playbookPath = path.join(dir, STARTER_PLAYBOOK_FILENAME);
+    const playbookExists = existsSync(playbookPath);
+    if (playbookExists) diag(`• ${STARTER_PLAYBOOK_FILENAME} already present — left as-is`);
 
-    if (plan.install.length === 0) {
-      diag('✓ Already set up — nothing to install.');
-      return;
+    if (opts.json) {
+      emit(
+        {
+          dir,
+          manager: manager.name,
+          stack,
+          install: plan.install,
+          skipped: plan.skipped,
+          playbook: playbookExists ? 'present' : STARTER_PLAYBOOK_FILENAME,
+        },
+        true,
+      );
     }
 
     if (opts.dryRun) {
       for (const step of plan.install) {
         diag(`would run: ${manager.name} ${installArgs(manager.name, step).join(' ')}`);
       }
+      if (!playbookExists) diag(`would write: ${STARTER_PLAYBOOK_FILENAME}`);
+      if (plan.install.length === 0 && playbookExists) diag('✓ Already set up — nothing to do.');
       return;
     }
 
@@ -535,8 +550,25 @@ program
       }
       if (code !== 0) fail(EXIT.UNEXPECTED, `${manager.name} ${args.join(' ')} failed (exit ${code}).`);
     }
+    if (plan.install.length > 0) {
+      diag(`✓ Installed the RevTurbine SDK and CLI (CLI pinned to ${pkgVersion})`);
+    }
 
-    diag(`✓ Installed the RevTurbine SDK and CLI (CLI pinned to ${pkgVersion})`);
+    if (!playbookExists) {
+      // REQ-7: validate in-process, before writing — never leave a config on
+      // disk that `revturbine validate` would immediately reject.
+      const check = validatePlaybook(STARTER_PLAYBOOK);
+      if (!check.ok) {
+        fail(
+          EXIT.VALIDATION,
+          `the bundled starter Playbook failed validation against schema ${SCHEMA_VERSION} — this is a CLI bug, please report it.`,
+        );
+      }
+      writeFileSync(playbookPath, `${JSON.stringify(STARTER_PLAYBOOK, null, 2)}\n`, 'utf8');
+      diag(`✓ Added a starter playbook (${STARTER_PLAYBOOK_FILENAME} — local mode, no account needed)`);
+    }
+
+    if (plan.install.length === 0 && playbookExists) diag('✓ Already set up — nothing to do.');
   });
 
 // ── Auth & meta ──────────────────────────────────────────────────────────────
