@@ -21,8 +21,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 import { Command, CommanderError, Option } from 'commander';
 import { z } from 'zod';
@@ -43,6 +44,7 @@ import {
   UnsupportedFormatError,
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
+import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib/delegate';
 import { schemaForConfig } from './lib/offline-schema';
 import { detectPackageManager, detectStack, installArgs, planInstall } from './lib/init';
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
@@ -453,6 +455,9 @@ program
   .name('revturbine')
   .description('Validate RevTurbine Config Files and ship them through the playbook-version lifecycle (draft → Release).')
   .version(`${pkgVersion} (schema ${SCHEMA_VERSION})`, '-V, --version', 'Print the revturbine and bundled schema versions')
+  // Consumed before commander parses (see the delegation block at the bottom);
+  // declared here so it appears in --help and isn't rejected as unknown.
+  .option(NO_LOCAL_FLAG, "Ignore the repo-pinned CLI and run this installation")
   .showHelpAfterError()
   .addHelpText('after', HELP_AFTER);
 
@@ -1207,6 +1212,85 @@ const COMMAND_EXAMPLES: Record<string, string> = {
 };
 for (const [name, text] of Object.entries(COMMAND_EXAMPLES)) {
   program.commands.find((c) => c.name() === name)?.addHelpText('after', text);
+}
+
+/**
+ * Locate the CLI pinned by THIS PROJECT, walking up from cwd but stopping at
+ * the project boundary.
+ *
+ * The bound is the point. An unbounded walk resolves the way Node does — all
+ * the way to the filesystem root — and a stray `~/node_modules/@revturbine/cli`
+ * then hijacks every invocation anywhere under the home directory. That is not
+ * hypothetical: this machine had `C:/Users/kentg/node_modules/@revturbine/cli`
+ * at 0.2.1 (schema 0.1.84), and an unbounded search silently delegated to it
+ * from an unrelated temp directory. Delegating to a CLI the project never
+ * asked for is worse than not delegating at all.
+ *
+ * Boundary = the git repository root, which is also the monorepo root, so a
+ * hoisted install in a workspace still resolves. Outside a git repo, only cwd
+ * itself is considered.
+ */
+function findRepoPinnedCli(from: string): { entry: string; version: string } | null {
+  const start = path.resolve(from);
+  const stopAt = gitRootOf(start) ?? start;
+
+  let dir = start;
+  for (;;) {
+    const pkgDir = path.join(dir, 'node_modules', '@revturbine', 'cli');
+    const pkgJson = path.join(pkgDir, 'package.json');
+    if (existsSync(pkgJson)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgJson, 'utf8')) as { version?: string; bin?: unknown };
+        const rel = typeof pkg.bin === 'string' ? pkg.bin : (pkg.bin as Record<string, string>)?.revturbine;
+        if (rel) {
+          const entry = path.resolve(pkgDir, rel);
+          if (existsSync(entry)) return { entry, version: pkg.version ?? '0.0.0' };
+        }
+      } catch {
+        // A malformed pinned install must not break the global CLI — fall
+        // through and run ourselves.
+      }
+      return null;
+    }
+    // Stop AT the project boundary — never above it.
+    if (dir === stopAt) return null;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+/** Nearest ancestor containing `.git`, or null when not inside a repo. */
+function gitRootOf(from: string): string | null {
+  let dir = path.resolve(from);
+  for (;;) {
+    if (existsSync(path.join(dir, '.git'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+// Self-delegation (plan 142 REQ-14): hand off to the version this repo pins,
+// because the bundled schema snapshot is pinned with it. Everything about the
+// decision lives in lib/delegate.ts; this is only the IO.
+{
+  const ownEntry = fileURLToPath(import.meta.url);
+  const decision = planDelegation({
+    ownEntry,
+    ownVersion: pkgVersion,
+    local: findRepoPinnedCli(process.cwd()),
+    env: process.env,
+    argv: process.argv,
+  });
+  if (decision.delegate) {
+    if (decision.skew) diag(skewNotice(decision.skew));
+    const child = spawnSync(process.execPath, [decision.target, ...process.argv.slice(2)], {
+      stdio: 'inherit',
+      env: { ...process.env, [DELEGATION_ENV]: '1' },
+    });
+    process.exit(child.status ?? EXIT.UNEXPECTED);
+  }
 }
 
 program.exitOverride();
