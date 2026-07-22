@@ -389,7 +389,7 @@ const pkgVersion =
 // and the auth model. Mirrors the README — keep them in sync.
 const HELP_AFTER = `
 Command groups:
-  Set up        init
+  Set up        init (alias: create)
   Auth & meta   login, logout, signup, whoami, schema, docs
   Download      download
   Check         validate, diff, show
@@ -478,6 +478,10 @@ function runInstall(manager: string, args: string[], cwd: string): Promise<numbe
 
 program
   .command('init')
+  // `revturbine create` is a synonym for `revturbine init`, so someone who
+  // reaches for the `npm create revturbine` verb gets the same scaffold from the
+  // CLI directly. Same action, same flags.
+  .alias('create')
   .description('Scaffold RevTurbine into this app: detect the stack, install the SDK, pin the CLI, drop a starter Playbook, and install the Agent Skills.')
   .option('-d, --dir <path>', 'Target directory (defaults to the current directory)')
   .option('--dry-run', 'Report what would be installed without running the package manager')
