@@ -100,7 +100,8 @@ export function assertSupportedFormat(config: unknown): PlaybookHeaderView {
     if (!version || !SUPPORTED_FORMAT_VERSIONS.has(version)) {
       throw new UnsupportedFormatError(
         `Unsupported Playbook format_version ${version ? `"${version}"` : '(missing)'}. ` +
-          `This CLI supports: ${[...SUPPORTED_FORMAT_VERSIONS].join(', ')}. Upgrade the CLI (\`npm i -g @revturbine/cli\`).`,
+          `This CLI supports: ${[...SUPPORTED_FORMAT_VERSIONS].join(', ')}. ` +
+          `Update the CLI pinned in this repo (\`npm install -D @revturbine/cli@latest\`, or your package manager's equivalent).`,
       );
     }
     return header;

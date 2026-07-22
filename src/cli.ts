@@ -224,7 +224,7 @@ function warnIfSchemaBehind(config: unknown): void {
   const server = serverSchemaIsNewer(config, SCHEMA_VERSION);
   if (server) {
     diag(
-      `WARNING: the server's schema (${server}) is newer than this CLI's bundled snapshot (${SCHEMA_VERSION}) — offline validation may be missing rules. Update: npm i -g @revturbine/cli`,
+      `WARNING: the server's schema (${server}) is newer than this CLI's bundled snapshot (${SCHEMA_VERSION}) — offline validation may be missing rules. Update the CLI pinned in this repo: npm install -D @revturbine/cli@latest (or your package manager's equivalent).`,
     );
   }
 }
