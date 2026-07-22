@@ -11,10 +11,21 @@ every change is reviewable and rollback-able.
 
 ## Install
 
+Pin it to the repo it operates on:
+
 ```bash
-npm i -g @revturbine/cli   # global `revturbine` binary
-# or run without installing:
-npx @revturbine/cli --help
+npm install -D @revturbine/cli    # or: pnpm add -D / yarn add -D
+npx revturbine --help
+```
+
+The CLI bundles a **version-stamped snapshot** of the RevTurbine schema, so
+CLI↔config compatibility is a property of the repo rather than of the machine —
+which is why it belongs in your lockfile. Pinning also means CI and coding-agent
+sandboxes need no global install.
+
+```bash
+npm i -g @revturbine/cli   # optional: a global `revturbine` for ad-hoc use
+npx @revturbine/cli --help # or run it without installing at all
 ```
 
 The published npm package is `@revturbine/cli`; the installed command is
