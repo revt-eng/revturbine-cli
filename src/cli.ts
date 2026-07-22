@@ -43,6 +43,7 @@ import {
   UnsupportedFormatError,
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
+import { schemaForConfig } from './lib/offline-schema';
 import { detectPackageManager, detectStack, installArgs, planInstall } from './lib/init';
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
@@ -837,11 +838,14 @@ program
       let blockedFiles = 0;
       for (const file of files) {
         const raw = loadConfig(file);
-        const parsed = schema.safeParse(raw);
+        // Shape-aware: a canonical Playbook is not described by the legacy
+        // schema, so validating one against it reported "version is required".
+        const { schema: fileSchema, shape } = schemaForConfig(raw);
+        const parsed = fileSchema.safeParse(raw);
         const findings = evaluateOffline((parsed.success ? parsed.data : raw) as Record<string, unknown>, {
           structuralErrors: parsed.success ? undefined : parsed.error,
         });
-        diag(`Validation for ${file} (offline, schema ${SCHEMA_VERSION}):`);
+        diag(`Validation for ${file} (offline, ${shape} shape, schema ${SCHEMA_VERSION}):`);
         process.stdout.write(`${formatFindings(findings as never)}\n`);
         if (hasBlockingFindings(findings as never)) blockedFiles += 1;
       }
