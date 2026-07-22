@@ -35,7 +35,7 @@ Read the relevant spec before implementing. Note affected specs in the PR.
 1. **Exit codes come from `src/lib/output.ts`.** Commands never invent their own. Use `fail(EXIT.X, msg)`; the classes are 0 ok · 1 unexpected · 2 usage · 3 auth · 4 validation · 5 conflict · 6 network · 7 server.
 2. **Results → stdout, diagnostics → stderr.** `emit()` writes results (and honors `--json`); `diag()`/`diagRaw()` write diagnostics. Never `console.log` a result.
 3. **Keep `src/lib/*.ts` pure.** Detection, parsing, and decision logic take their inputs as arguments and are unit-tested without a filesystem or child process. `cli.ts` owns the IO. This is why the suite runs in seconds without spawning the binary.
-4. **`src/schema/` is generated — never hand-edit.** `exported-config.snapshot.mjs`, `validators.snapshot.mjs`, `SCHEMA_VERSION`, and `version.ts` come from `npm run generate:schema`. The snapshot is what makes validation fully offline.
+4. **`src/schema/` is generated — never hand-edit.** `exported-config.snapshot.mjs`, `validators.snapshot.mjs`, `SCHEMA_VERSION`, and `version.ts` come from `npm run generate:schema`. The snapshot is what makes validation fully offline. All four record the scaffold version they came from and `check:schema` fails if they disagree — a mismatch always means a hand-edit or a partial regeneration, so fix it by regenerating, never by editing the stamp.
 5. **Commands that read a config require an explicit version selector** — `<file>` / `--draft` / `--live` / `--release <id>`. There are no defaults; ambiguity is a usage error.
 6. **Every command is documented in three places** that must stay in sync: its commander `.description()`, the `HELP_AFTER` block in `cli.ts`, and `README.md`.
 
@@ -62,7 +62,9 @@ tests/                ← vitest; no config file, defaults apply
 
 ## CI
 
-`verify` (typecheck + lint + test), `drift` (schema snapshot), and `Packed CLI smoke` on Node 22.13 and 24. All must pass; never bypass.
+`verify` (typecheck + lint + **check:schema** + test) and `Packed CLI smoke` on Node 22.13 and 24. All must pass; never bypass.
+
+There is deliberately **no cross-repo drift check here.** This repo is public and scaffold is private, so such a check needed a credential it never had — it skipped every step while reporting green, and the snapshot silently fell 26 versions behind. Keeping the snapshot *current* is now scaffold's job: its release opens a PR here with the regenerated files (plan 143). This side runs only the part that needs no credential — `check:schema`, which proves the four generated artifacts agree with each other.
 
 ## Publishing
 

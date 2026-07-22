@@ -27,7 +27,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
-    "verify": "npm run typecheck && npm run lint && npm run test"
+    "check:schema": "node scripts/check-schema-consistency.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run check:schema && npm run test"
   },
   "dependencies": {
     "commander": "^15.0.0",
