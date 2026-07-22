@@ -1,0 +1,69 @@
+name: Auto-tag release
+
+# When a version bump to package.json lands on main, push the matching `v<x>`
+# tag if it does not already exist. The tag push fires release.yml, which
+# publishes to npm. Releasing is therefore "merge a version bump" — no hand-
+# pushed tags.
+#
+# The push MUST use REVTURBINE_GIT_TOKEN, not the default GITHUB_TOKEN: a tag
+# pushed by GITHUB_TOKEN does NOT trigger other workflows, so release.yml would
+# never fire and the version would sit tagged-but-unpublished. This mirrors
+# revturbine-sdk-internal's auto-tag-release.yml, which solved the same trap.
+#
+# Skips cleanly when the token is not visible to this repo, so a missing secret
+# degrades to "no tag pushed" (release by hand as before) rather than a failing
+# main build.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+
+permissions:
+  contents: write
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for cross-repo token
+        id: gate
+        env:
+          TOKEN: ${{ secrets.REVTURBINE_GIT_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "have_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_token=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::REVTURBINE_GIT_TOKEN not visible — skipping auto-tag. Push the v<version> tag by hand, or grant the org secret access to this repo."
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.have_token == 'true'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.REVTURBINE_GIT_TOKEN }}
+
+      - name: Tag the release on a version bump
+        if: steps.gate.outputs.have_token == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+
+          # Idempotent: re-running on an unrelated package.json change (a
+          # dependency bump, a script edit) must not fail, and must not retag.
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — nothing to release."
+            exit 0
+          fi
+
+          echo "Creating + pushing $TAG"
+          git tag "$TAG"
+          git push origin "$TAG"

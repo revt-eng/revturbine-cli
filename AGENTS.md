@@ -68,7 +68,9 @@ There is deliberately **no cross-repo drift check here.** This repo is public an
 
 ## Publishing
 
-Release is tag-driven via `.github/workflows/release.yml` (`npm publish --access public --provenance`). Never hand-publish.
+**Releasing = merging a version bump to `main`.** `auto-tag-release.yml` sees the changed `package.json`, pushes the matching `v<version>` tag, and that fires `release.yml` (`npm publish --access public --provenance`). No hand-pushed tags, and **never hand-publish** — an automation token in CI bypasses npm 2FA, which a local `npm publish` does not.
+
+The tag push must use `REVTURBINE_GIT_TOKEN`, not `GITHUB_TOKEN`: a tag pushed by `GITHUB_TOKEN` does not trigger other workflows, so the release would sit tagged-but-unpublished. Auto-tag skips with a warning if that secret isn't visible, in which case push the tag by hand.
 
 ## Memory
 
