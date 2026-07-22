@@ -23,6 +23,7 @@
   "scripts": {
     "build": "tsup",
     "generate:schema": "node scripts/generate-schema-snapshot.mjs",
+    "revt:sync": "node scripts/sync-revt-deps.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
