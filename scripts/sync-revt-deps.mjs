@@ -314,9 +314,48 @@ function readJsonVersion(pkgJsonPath) {
   }
 }
 
-function gitOut(args, cwd) {
+/**
+ * Committed build OUTPUT in scaffold that regenerates on any local build, so it
+ * is dirty in the ordinary course of work. These paths cannot influence what
+ * `generate:schema` produces: the snapshot is bundled by esbuild from
+ * `src/core/zod/index.ts` and `src/core/validation/index.ts` — TypeScript
+ * SOURCE — and never reads `dist/`.
+ *
+ * Refusing on them would fire the guard in a routine state, which is how guards
+ * get disabled. Real source edits are still caught, and the release-tag check
+ * backstops the residual risk that something under `src/` ever imports `dist/`.
+ */
+const NON_BUNDLE_DIRTY_PREFIXES = ['src/core/dist/'];
+
+/**
+ * Porcelain lines reduced to the paths that could actually change the bundle.
+ * Parsed in JS rather than via a `:(exclude)` pathspec — cmd.exe mangles the
+ * parentheses, the same class of bug as `^{commit}`.
+ */
+function dirtyPathsAffectingBundle(porcelain) {
+  return porcelain
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      // `XY <path>`, or `R  <old> -> <new>` for renames — the destination is
+      // what exists on disk now.
+      const p = line.slice(3).trim().replace(/^"|"$/g, '');
+      return p.includes(' -> ') ? p.split(' -> ')[1].replace(/^"|"$/g, '') : p;
+    })
+    .filter((p) => !NON_BUNDLE_DIRTY_PREFIXES.some((prefix) => p.startsWith(prefix)));
+}
+
+/**
+ * `trim: false` is required for `status --porcelain`: its format is
+ * `XY <path>`, where an unstaged modification renders as a LEADING SPACE
+ * (` M path`). Trimming eats that space, shifting every field left by one so a
+ * fixed-width parse slices into the path itself. Learned the hard way — it made
+ * ` M src/core/dist/x` parse as `rc/core/dist/x` and slip past the ignore list.
+ */
+function gitOut(args, cwd, { trim = true } = {}) {
   try {
-    return execSync(`git ${args}`, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const out = execSync(`git ${args}`, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return trim ? out.trim() : out;
   } catch {
     return null;
   }
@@ -354,12 +393,15 @@ function assertScaffoldReleasable(scaffoldDir) {
     return;
   }
 
-  const dirty = gitOut('status --porcelain', scaffoldDir);
+  const dirty = gitOut('status --porcelain', scaffoldDir, { trim: false });
   if (dirty === null) return; // not a git checkout (e.g. installed copy) → nothing to assert
-  if (dirty !== '') {
-    const count = dirty.split('\n').length;
+  const relevant = dirtyPathsAffectingBundle(dirty);
+  if (relevant.length > 0) {
+    const shown = relevant.slice(0, 5).join('\n    ');
+    const more = relevant.length > 5 ? `\n    …and ${relevant.length - 5} more` : '';
     console.error(
-      `[revt-sync] refusing to sync: revturbine-scaffold has ${count} uncommitted change(s).\n` +
+      `[revt-sync] refusing to sync: revturbine-scaffold has ${relevant.length} uncommitted ` +
+        `change(s) that can affect the bundle:\n    ${shown}${more}\n` +
         '  Whatever is in that working tree becomes the consumer\'s committed artifact.\n' +
         '  Commit/stash scaffold and check out its release tag, or set ' +
         'REVT_ALLOW_UNRELEASED_SCAFFOLD=1 to override.',
