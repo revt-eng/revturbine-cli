@@ -1,10 +1,10 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.134
+// Vendored validation engine bundled from @revt-eng/schema@0.1.138
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
 
-// ../revturbine-scaffold/src/core/validation/types.ts
+// ../scaffold/src/core/validation/types.ts
 import { z } from "zod";
 var SeveritySchema = z.enum([
   "error_draft",
@@ -52,7 +52,7 @@ var ValidationFindingSchema = z.object({
   spotlight: z.boolean().optional()
 });
 
-// ../revturbine-scaffold/src/core/validation/catalog.ts
+// ../scaffold/src/core/validation/catalog.ts
 var CATALOG = {
   // no-Stripe-price. Interim `warning` (does not block): a plan price that has
   // all its billing info but is entered statically rather than synced from
@@ -89,14 +89,14 @@ function listCatalogIds() {
   return Object.keys(CATALOG);
 }
 
-// ../revturbine-scaffold/src/core/validation/disposition.ts
+// ../scaffold/src/core/validation/disposition.ts
 function disposition(finding2, callSite) {
   if (finding2.severity === "error_draft") return "block";
   if (finding2.severity === "error_launch" && callSite === "publish") return "block";
   return "advise";
 }
 
-// ../revturbine-scaffold/src/core/validation/rules.ts
+// ../scaffold/src/core/validation/rules.ts
 var SEMANTIC_RULE_CODES = ["VAL-PLN-01", "VAL-PLN-05", "VAL-PLN-06"];
 function runSemanticRules(graph) {
   return [
@@ -331,7 +331,7 @@ function collectPublicCollisions(rows, objectType, parentField) {
   return findings;
 }
 
-// ../revturbine-scaffold/src/core/validation/zod-adapter.ts
+// ../scaffold/src/core/validation/zod-adapter.ts
 function fieldLabel(path) {
   if (!path || path.length === 0) return "This value";
   return String(path[path.length - 1]);
@@ -372,7 +372,7 @@ function zodErrorToFindings(error, opts = {}) {
   }));
 }
 
-// ../revturbine-scaffold/src/core/validation/evaluate.ts
+// ../scaffold/src/core/validation/evaluate.ts
 function spotlights(finding2, focus) {
   if (!focus) return false;
   const { object_type, object_id } = finding2.targetRef;
@@ -391,7 +391,7 @@ function evaluate(graph, opts = {}) {
   return findings.map((f) => spotlights(f, opts.focus) ? { ...f, spotlight: true } : f);
 }
 
-// ../revturbine-scaffold/src/core/validation/catalog-drift.ts
+// ../scaffold/src/core/validation/catalog-drift.ts
 var REFINE_RULE_CODES = [];
 var RENAMED_SEVERITIES = ["error_publish"];
 function checkCatalogDrift(ownedCodes = [...SEMANTIC_RULE_CODES, ...REFINE_RULE_CODES], catalogIds = listCatalogIds(), severityOptions = SeveritySchema.options, catalogSeverities = listCatalogIds().map(
@@ -448,7 +448,7 @@ ${issues.map((i) => `  - ${i.message}`).join("\n")}`
   );
 }
 
-// ../revturbine-scaffold/src/core/validation/error-map.ts
+// ../scaffold/src/core/validation/error-map.ts
 import { z as z2 } from "zod";
 function installValidationErrorMap() {
   z2.config({
