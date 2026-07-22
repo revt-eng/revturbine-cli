@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// GENERATED — vendored from revturbine-devkit/scripts/sync-revt-deps.mjs.
+// Do NOT edit here; edit the devkit canonical and run
+// `npm run sync:revt-sync` (drift-gated by `sync:revt-sync:check`).
+
 
 /**
  * Cross-repo `@revt-eng/*` exact-pin sync — the shared, config-driven
