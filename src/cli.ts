@@ -48,6 +48,7 @@ import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib
 import { schemaForConfig } from './lib/offline-schema';
 import { detectPackageManager, detectStack, installArgs, planInstall } from './lib/init';
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
+import { detectHarness, finalOutputLines, skillsAddArgs, SKILLS_SOURCE, type SkillsOutcome } from './lib/init-skills';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
 import { requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
@@ -477,11 +478,12 @@ function runInstall(manager: string, args: string[], cwd: string): Promise<numbe
 
 program
   .command('init')
-  .description('Scaffold RevTurbine into this app: detect the stack, install the SDK, and pin the CLI to the repo.')
+  .description('Scaffold RevTurbine into this app: detect the stack, install the SDK, pin the CLI, drop a starter Playbook, and install the Agent Skills.')
   .option('-d, --dir <path>', 'Target directory (defaults to the current directory)')
   .option('--dry-run', 'Report what would be installed without running the package manager')
+  .option('--no-skills', 'Do not install the RevTurbine Agent Skills')
   .option('--json', 'Emit the scaffold plan as JSON')
-  .action(async (opts: { dir?: string; dryRun?: boolean; json?: boolean }) => {
+  .action(async (opts: { dir?: string; dryRun?: boolean; skills?: boolean; json?: boolean }) => {
     const dir = path.resolve(opts.dir ?? process.cwd());
     const manifestPath = path.join(dir, 'package.json');
     if (!existsSync(manifestPath)) {
@@ -522,6 +524,10 @@ program
     const playbookExists = existsSync(playbookPath);
     if (playbookExists) diag(`• ${STARTER_PLAYBOOK_FILENAME} already present — left as-is`);
 
+    // Skills are installed by default; --no-skills opts out. commander stores
+    // `--no-skills` as `opts.skills === false`.
+    const installSkills = opts.skills !== false;
+
     if (opts.json) {
       emit(
         {
@@ -531,6 +537,7 @@ program
           install: plan.install,
           skipped: plan.skipped,
           playbook: playbookExists ? 'present' : STARTER_PLAYBOOK_FILENAME,
+          skills: installSkills ? SKILLS_SOURCE : 'skipped',
         },
         true,
       );
@@ -541,6 +548,7 @@ program
         diag(`would run: ${manager.name} ${installArgs(manager.name, step).join(' ')}`);
       }
       if (!playbookExists) diag(`would write: ${STARTER_PLAYBOOK_FILENAME}`);
+      if (installSkills) diag(`would run: npx ${skillsAddArgs().join(' ')}`);
       if (plan.install.length === 0 && playbookExists) diag('✓ Already set up — nothing to do.');
       return;
     }
@@ -560,7 +568,8 @@ program
       diag(`✓ Installed the RevTurbine SDK and CLI (CLI pinned to ${pkgVersion})`);
     }
 
-    if (!playbookExists) {
+    const playbookAdded = !playbookExists;
+    if (playbookAdded) {
       // REQ-7: validate in-process, before writing — never leave a config on
       // disk that `revturbine validate` would immediately reject.
       const check = validatePlaybook(STARTER_PLAYBOOK);
@@ -574,7 +583,44 @@ program
       diag(`✓ Added a starter playbook (${STARTER_PLAYBOOK_FILENAME} — local mode, no account needed)`);
     }
 
-    if (plan.install.length === 0 && playbookExists) diag('✓ Already set up — nothing to do.');
+    // Agent Skills — delegated to `npx skills` (plan 142 REQ-8). A skills
+    // failure MUST NOT fail generation (REQ-9): the SDK/CLI/playbook are already
+    // in place, so a missing skills install degrades to a printed manual command.
+    let skillsOutcome: SkillsOutcome = installSkills ? 'installed' : 'skipped';
+    if (installSkills) {
+      diag('Installing the RevTurbine Agent Skills (npx skills)…');
+      const args = skillsAddArgs();
+      let code: number;
+      try {
+        code = await runInstall('npx', args, dir);
+      } catch {
+        code = 1;
+      }
+      if (code === 0) {
+        diag('✓ Installed the RevTurbine Agent Skills (some write app code — review before running them)');
+      } else {
+        skillsOutcome = 'failed';
+        diag('⚠ Could not install the Agent Skills automatically. Add them by hand:');
+        diag(`    npx ${args.join(' ')}`);
+      }
+    } else {
+      diag('• Skipping the Agent Skills (--no-skills)');
+    }
+
+    // The last words: the harness-native entry point (plan 142 REQ-12, resolves
+    // installable-skills §12.1). Suppressed under --json so machine output stays
+    // a single object.
+    if (!opts.json) {
+      const lines = finalOutputLines({
+        managerLabel: manager.name,
+        installedSdkAndCli: plan.install.length > 0,
+        cliVersion: pkgVersion,
+        playbookAdded,
+        skills: skillsOutcome,
+        harness: detectHarness(process.env),
+      });
+      process.stdout.write(`${lines.join('\n')}\n`);
+    }
   });
 
 // ── Auth & meta ──────────────────────────────────────────────────────────────
