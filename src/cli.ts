@@ -46,7 +46,7 @@ import {
 import { resolveActiveDraft } from './lib/drafts';
 import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib/delegate';
 import { schemaForConfig } from './lib/offline-schema';
-import { detectPackageManager, detectStack, installArgs, planInstall } from './lib/init';
+import { detectPackageManager, detectStack, installArgs, newProjectManifest, planInstall } from './lib/init';
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
 import { detectHarness, finalOutputLines, skillsAddArgs, SKILLS_SOURCE, type SkillsOutcome } from './lib/init-skills';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
@@ -312,6 +312,29 @@ async function confirmOrExit(promptText: string, yes: boolean): Promise<void> {
   }
 }
 
+/**
+ * `init` in a directory with no package.json: offer to start a project rather
+ * than refuse. Proceeds immediately with `--yes`; otherwise prompts, defaulting
+ * to yes because creating a manifest in an empty directory is additive. With no
+ * TTY and no `--yes` there's nobody to ask, so it refuses and names the flag.
+ */
+async function confirmNewProject(dir: string, yes: boolean): Promise<void> {
+  if (yes) return;
+  if (!process.stdin.isTTY) {
+    fail(
+      EXIT.USAGE,
+      `No package.json in ${dir}. Re-run with --yes to start a new project here, or --dir <path> to target an existing one.`,
+    );
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  const answer = (await rl.question(`No package.json in ${dir}. Start a new project here? [Y/n] `)).trim().toLowerCase();
+  rl.close();
+  if (answer === 'n' || answer === 'no') {
+    diag('Aborted — no project created.');
+    process.exit(0);
+  }
+}
+
 // ── Rendering ─────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -482,31 +505,46 @@ program
   // reaches for the `npm create revturbine` verb gets the same scaffold from the
   // CLI directly. Same action, same flags.
   .alias('create')
-  .description('Scaffold RevTurbine into this app: detect the stack, install the SDK, pin the CLI, drop a starter Playbook, and install the Agent Skills.')
+  .description('Scaffold RevTurbine into this app: detect the stack, install the SDK, pin the CLI, drop a starter Playbook, and install the Agent Skills. Offers to start a new project when the directory has no package.json.')
   .option('-d, --dir <path>', 'Target directory (defaults to the current directory)')
+  .option('-y, --yes', 'Skip prompts — create a new project non-interactively when the directory has none')
   .option('--dry-run', 'Report what would be installed without running the package manager')
   .option('--no-skills', 'Do not install the RevTurbine Agent Skills')
   .option('--json', 'Emit the scaffold plan as JSON')
-  .action(async (opts: { dir?: string; dryRun?: boolean; skills?: boolean; json?: boolean }) => {
+  .action(async (opts: { dir?: string; yes?: boolean; dryRun?: boolean; skills?: boolean; json?: boolean }) => {
     const dir = path.resolve(opts.dir ?? process.cwd());
     const manifestPath = path.join(dir, 'package.json');
-    if (!existsSync(manifestPath)) {
-      fail(EXIT.USAGE, `No package.json in ${dir} — run init inside a JavaScript project (or pass --dir).`);
-    }
 
     let manifest: {
+      name?: string;
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
       packageManager?: string;
     };
-    try {
-      manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-    } catch (err) {
-      fail(EXIT.VALIDATION, `invalid JSON in ${manifestPath}: ${(err as Error).message}`);
+    let createdProject = false;
+
+    if (existsSync(manifestPath)) {
+      try {
+        manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      } catch (err) {
+        fail(EXIT.VALIDATION, `invalid JSON in ${manifestPath}: ${(err as Error).message}`);
+      }
+    } else {
+      // No project here yet — offer to start one instead of refusing. Creating a
+      // package.json in an empty directory is additive, so the prompt defaults to
+      // yes (unlike the destructive-action gate, which defaults to no).
+      manifest = newProjectManifest(path.basename(dir));
+      createdProject = true;
+      if (!opts.dryRun) {
+        await confirmNewProject(dir, opts.yes === true);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+        diag(`✓ Created a new project (package.json — ${manifest.name})`);
+      }
     }
 
     const manager = detectPackageManager({
-      files: readdirSync(dir),
+      files: existsSync(dir) ? readdirSync(dir) : [],
       packageManagerField: manifest.packageManager,
       userAgent: process.env['npm_config_user_agent'],
     });
@@ -536,6 +574,7 @@ program
       emit(
         {
           dir,
+          project: createdProject ? 'created' : 'existing',
           manager: manager.name,
           stack,
           install: plan.install,
@@ -548,6 +587,7 @@ program
     }
 
     if (opts.dryRun) {
+      if (createdProject) diag(`would create: package.json (new project — ${manifest.name})`);
       for (const step of plan.install) {
         diag(`would run: ${manager.name} ${installArgs(manager.name, step).join(' ')}`);
       }

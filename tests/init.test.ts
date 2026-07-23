@@ -6,7 +6,9 @@ import {
   detectPackageManager,
   detectStack,
   installArgs,
+  newProjectManifest,
   planInstall,
+  projectNameFromDir,
 } from '../src/lib/init';
 
 describe('detectPackageManager', () => {
@@ -121,5 +123,39 @@ describe('installArgs', () => {
     expect(installArgs('pnpm', cli)).toEqual(['add', '-D', '--save-exact', `${CLI_PACKAGE}@0.7.1`]);
     expect(installArgs('npm', cli)).toEqual(['install', '-D', '--save-exact', `${CLI_PACKAGE}@0.7.1`]);
     expect(installArgs('yarn', cli)).toEqual(['add', '-D', '--exact', `${CLI_PACKAGE}@0.7.1`]);
+  });
+});
+
+describe('projectNameFromDir', () => {
+  it('lowercases and replaces unsafe characters', () => {
+    expect(projectNameFromDir('My App')).toBe('my-app');
+    expect(projectNameFromDir('Cool_Thing!!')).toBe('cool_thing');
+  });
+
+  it('strips leading/trailing separators npm rejects', () => {
+    expect(projectNameFromDir('.hidden')).toBe('hidden');
+    expect(projectNameFromDir('__scoped__')).toBe('scoped');
+  });
+
+  it('falls back to my-app when nothing usable remains', () => {
+    expect(projectNameFromDir('!!!')).toBe('my-app');
+    expect(projectNameFromDir('')).toBe('my-app');
+  });
+});
+
+describe('newProjectManifest', () => {
+  it('produces a minimal, private, ESM manifest named after the directory', () => {
+    expect(newProjectManifest('my-checkout')).toEqual({
+      name: 'my-checkout',
+      version: '0.1.0',
+      private: true,
+      type: 'module',
+    });
+  });
+
+  it('is installable-ready: planInstall on it queues both packages', () => {
+    // A brand-new manifest has no deps, so the scaffold installs SDK + pinned CLI.
+    const plan = planInstall({ ...newProjectManifest('app'), cliVersion: '0.9.1' });
+    expect(plan.install.map((p) => p.spec)).toEqual([SDK_PACKAGE, `${CLI_PACKAGE}@0.9.1`]);
   });
 });

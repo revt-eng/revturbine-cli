@@ -91,6 +91,36 @@ export function detectStack(signals: {
 export const SDK_PACKAGE = '@revturbine/sdk';
 export const CLI_PACKAGE = '@revturbine/cli';
 
+/**
+ * Slugify a directory name into a valid npm package name: lowercased, only
+ * url-safe characters, never leading/trailing separators, never empty. So `init`
+ * in a fresh directory can name the project after the folder instead of refusing.
+ */
+export function projectNameFromDir(dirName: string): string {
+  const slug = dirName
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^[-_.]+|[-_.]+$/g, '');
+  return slug || 'my-app';
+}
+
+export type NewProjectManifest = {
+  name: string;
+  version: string;
+  private: true;
+  type: 'module';
+};
+
+/**
+ * A minimal, valid package.json for a brand-new project, so `init` can offer to
+ * start one rather than refusing when the directory has none. Intentionally bare
+ * — `init` adds only RevTurbine, never a framework — and ESM by default to match
+ * the SDK's module shape.
+ */
+export function newProjectManifest(dirName: string): NewProjectManifest {
+  return { name: projectNameFromDir(dirName), version: '0.1.0', private: true, type: 'module' };
+}
+
 export type PackagePlan = { spec: string; dev: boolean; exact: boolean };
 
 export type InstallPlan = {

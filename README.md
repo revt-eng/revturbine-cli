@@ -63,6 +63,7 @@ Commands that read a config name the version explicitly — there is no default:
 
 | Command | What it does |
 |---|---|
+| `init` (alias `create`) | Scaffold RevTurbine into this app: detect the package manager and stack, install the SDK, pin the CLI exactly, drop a starter Playbook, and install the Agent Skills. In a directory with no `package.json` it offers to start a new project (`--yes` to skip the prompt); `--dir`, `--dry-run`, `--no-skills`, `--json`. Runs the invoked CLI even inside a repo that pins a different one — setup establishes the pin, so it never delegates. |
 | `signup` | Create an account headlessly: email + password, then an emailed one-time code to verify, then a token is stored. |
 | `login` / `logout` | Device-flow auth; tokens stored at `~/.revturbine/credentials.json` (mode 0600). |
 | `whoami` | The resolved instance, tenant, credentials source, and whether the stored token works. |
