@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  commandFromArgv,
   DELEGATION_ENV,
   NO_LOCAL_FLAG,
   planDelegation,
   samePath,
+  SETUP_COMMANDS,
   skewNotice,
 } from '../src/lib/delegate';
 
@@ -66,6 +68,46 @@ describe('planDelegation', () => {
     // Guard must win even when every other condition argues for delegating.
     const d = planDelegation({ ...base, env: { [DELEGATION_ENV]: 'true' } });
     expect(d.delegate).toBe(false);
+  });
+
+  it.each(SETUP_COMMANDS)('never delegates `%s` — setup establishes the pin', (command) => {
+    // Even with a pinned CLI present and every other signal favouring delegation,
+    // init/create must run the invoked CLI. This is the fix for a stray ancestor
+    // pin turning `npx revturbine create` into "unknown command 'create'".
+    const d = planDelegation({ ...base, argv: ['node', 'revturbine', command, '--dir', 'app'] });
+    expect(d.delegate).toBe(false);
+    if (!d.delegate) expect(d.reason).toContain('establishes the repo pin');
+  });
+
+  it('the setup bypass wins even when --no-local is also present', () => {
+    // Both argue for not delegating; the setup reason is the more informative one.
+    const d = planDelegation({ ...base, argv: ['node', 'revturbine', '--no-local', 'init'] });
+    expect(d.delegate).toBe(false);
+    if (!d.delegate) expect(d.reason).toContain('establishes the repo pin');
+  });
+
+  it('still delegates ordinary commands that consume the pin', () => {
+    // Guard against an over-broad bypass: only setup commands are exempt.
+    const d = planDelegation({ ...base, argv: ['node', 'revturbine', 'validate', './c.json'] });
+    expect(d.delegate).toBe(true);
+  });
+});
+
+describe('commandFromArgv', () => {
+  it('returns the first non-option token as the command', () => {
+    expect(commandFromArgv(['node', 'revturbine', 'init', '--dir', 'app'])).toBe('init');
+  });
+
+  it('skips leading global flags to find the subcommand', () => {
+    expect(commandFromArgv(['node', 'revturbine', '--no-local', 'status'])).toBe('status');
+  });
+
+  it('is null when only options are present', () => {
+    expect(commandFromArgv(['node', 'revturbine', '--help'])).toBeNull();
+  });
+
+  it('is null for a bare invocation', () => {
+    expect(commandFromArgv(['node', 'revturbine'])).toBeNull();
   });
 });
 

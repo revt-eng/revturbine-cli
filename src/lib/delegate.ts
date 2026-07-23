@@ -33,6 +33,29 @@ export const DELEGATION_ENV = 'REVTURBINE_DELEGATED';
 /** Opt out for a single invocation. */
 export const NO_LOCAL_FLAG = '--no-local';
 
+/**
+ * Commands whose job is to ESTABLISH the repo pin. They must run the CLI the
+ * user actually invoked, never a version resolved from an ancestor directory —
+ * delegating them is wrong twice over: writing a pin by first honouring a
+ * different one is incoherent, and an older ancestor CLI may not even have these
+ * commands. That is exactly how a stray `~/node_modules/@revturbine/cli` turned
+ * `npx revturbine create` into "unknown command 'create'".
+ */
+export const SETUP_COMMANDS: readonly string[] = ['init', 'create'];
+
+/**
+ * The subcommand token from a full argv: the first argument after `[node, entry]`
+ * that isn't an option. Every global option that precedes a subcommand is a
+ * boolean (`--no-local`, `-V`, `-h`), so none consumes the token that follows —
+ * a plain "first non-dash wins" scan is sufficient and stays correct.
+ */
+export function commandFromArgv(argv: readonly string[]): string | null {
+  for (const arg of argv.slice(2)) {
+    if (!arg.startsWith('-')) return arg;
+  }
+  return null;
+}
+
 export function planDelegation(params: {
   /** Absolute, symlink-resolved path of the currently-running entry. */
   ownEntry: string;
@@ -47,6 +70,14 @@ export function planDelegation(params: {
   // children forever.
   if (params.env[DELEGATION_ENV]) {
     return { delegate: false, reason: 'already delegated' };
+  }
+  // `init`/`create` establish the pin — never delegate them, whatever the tree
+  // above holds. This sits right after the recursion guard so it wins over pin
+  // discovery and the skew path: those only make sense for commands that consume
+  // an existing pin.
+  const command = commandFromArgv(params.argv);
+  if (command && SETUP_COMMANDS.includes(command)) {
+    return { delegate: false, reason: `${command} establishes the repo pin — never delegated` };
   }
   if (params.argv.includes(NO_LOCAL_FLAG)) {
     return { delegate: false, reason: `${NO_LOCAL_FLAG} requested` };
