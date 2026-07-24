@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.143
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.144
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -1056,7 +1056,7 @@ var EntitlementRuleTargetSchema = z6.object({
 }).meta(
   { id: "EntitlementRuleTarget", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
 );
-var EntitlementRulePeriodUnitSchema = z6.enum(["month", "day", "week", "quarter", "year", "billing_period", "on_purchase", "hour", "six_hours"]).meta(
+var EntitlementRulePeriodUnitSchema = z6.enum(["month", "day", "week", "quarter", "year", "billing_period", "hour", "six_hours"]).meta(
   { id: "EntitlementRulePeriodUnit", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
 );
 var EntitlementSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
@@ -1101,8 +1101,11 @@ var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).
   period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted3),
   // Optional instance label, surfaced when `period_scope = 'per_instance'` (F-1).
   instance: z6.string().max(100).optional().meta(Unrestricted3),
-  // Credits reset cadence ("refills every"). `billing_period` resolves at
-  // runtime to the customer's Variation billing period; structural guard below.
+  // Credits reset cadence ("refills every"): governs only the per-period
+  // `allowance_value` refill. `billing_period` resolves at runtime to the
+  // customer's Variation billing period; structural guard below. Absent means
+  // one-time only — an `initial_grant` with no recurring refill (plan 147
+  // REQ-6; `on_purchase` retired from the enum).
   reset_period: EntitlementRulePeriodUnitSchema.optional().meta(Unrestricted3),
   // Type-specific fields (populated based on entitlement type)
   limit_value: z6.union([z6.number(), z6.literal("unlimited")]).optional().meta(Unrestricted3),
@@ -1178,6 +1181,16 @@ var EntitlementRuleValidatedSchema = EntitlementRuleSchema.superRefine(
           message: "reset_period='billing_period' requires all targets to be plan_variation or addon_variation"
         });
       }
+    }
+    const allowance = rule.allowance_value;
+    const hasRecurringAllowance = allowance === "unlimited" || typeof allowance === "number" && allowance > 0;
+    if (hasRecurringAllowance && rule.reset_period == null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reset_period"],
+        params: { code: "allowance_requires_reset_period" },
+        message: "a non-zero credits allowance_value requires a reset_period (the per-period refill cadence)"
+      });
     }
   }
 );
