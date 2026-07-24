@@ -56,7 +56,7 @@ describe('finalOutputLines', () => {
     const out = finalOutputLines(base).join('\n');
     expect(out).toContain(`/${START_HERE_SKILL}`);
     expect(out).toContain('Next step:');
-    expect(out).toContain('create playbook → billing → app wiring → verify → launch');
+    expect(out).toContain('create playbook → app wiring → billing → verify → launch');
   });
 
   it('reflects each step that actually happened', () => {

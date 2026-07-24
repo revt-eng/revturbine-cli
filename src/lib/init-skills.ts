@@ -87,7 +87,7 @@ export function finalOutputLines(params: {
   if (params.harness.label) lines.push(`  (detected ${params.harness.label})`);
 
   lines.push('', 'Your setup path:');
-  lines.push('  create playbook → billing → app wiring → verify → launch');
+  lines.push('  create playbook → app wiring → billing → verify → launch');
   lines.push('', 'Docs: https://revturbine.com/docs', '');
 
   return lines;
