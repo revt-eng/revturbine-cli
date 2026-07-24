@@ -44,6 +44,7 @@ import {
   UnsupportedFormatError,
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
+import { createIngestKey, listIngestKeys, revokeIngestKey, formatIngestKeyLine } from './lib/ingest-keys';
 import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib/delegate';
 import { schemaForConfig } from './lib/offline-schema';
 import { detectPackageManager, detectStack, installArgs, newProjectManifest, planInstall } from './lib/init';
@@ -1262,6 +1263,81 @@ program
       emit(json, true);
     },
   );
+
+// ── Ingest keys ───────────────────────────────────────────────────────────────
+// Public ingest keys are the embeddable SDK telemetry credentials a tenant hands
+// to browser code. Minting/managing them was web-UI-only; plan 152 authorizes the
+// CLI's `client` token on the endpoints so the CLI can do it too.
+
+const ingestKeys = program
+  .command('ingest-keys')
+  .description('Manage public ingest keys (embeddable SDK telemetry credentials) for the tenant.');
+
+ingestKeys
+  .command('create')
+  .description('Mint a public ingest key. The full token is printed ONCE and cannot be retrieved again.')
+  .requiredOption('--origin <url...>', 'Allowed browser origin(s), e.g. https://app.example.com (repeatable; at least one required)')
+  .option('--ip <cidr...>', 'Optional IP / CIDR allowlist (empty = no IP restriction)')
+  .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
+  .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
+  .option('--json', 'Machine-readable output (token on stdout for scripted capture)')
+  .action(async (opts: { origin: string[]; ip?: string[]; url: string; tenantId?: string; json?: boolean }) => {
+    const conn = connect(opts.url, opts.tenantId);
+    const result = await createIngestKey(conn.url, conn.headers, { originAllowlist: opts.origin, ipAllowlist: opts.ip });
+    if (!result.ok || !result.key) httpFail(conn, 'ingest-keys create', result.status, result.error);
+    const key = result.key;
+    if (opts.json) {
+      emit(key, true);
+      return;
+    }
+    // The token is the only copy — notice on stderr, token on stdout so a
+    // `--json`-less run can still be read without the diagnostics interleaving.
+    diag('✓ Minted a public ingest key. STORE THE TOKEN NOW — it is shown once and cannot be retrieved again.');
+    emit(
+      key,
+      false,
+      [
+        `  id:      ${key.id}`,
+        `  token:   ${key.token}`,
+        `  origins: ${key.originAllowlist.join(', ')}`,
+        key.ipAllowlist.length ? `  ips:     ${key.ipAllowlist.join(', ')}` : undefined,
+      ]
+        .filter((line): line is string => Boolean(line))
+        .join('\n'),
+    );
+  });
+
+ingestKeys
+  .command('list')
+  .description('List the active public ingest keys for the tenant (previews only — never the full token).')
+  .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
+  .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
+  .option('--json', 'Machine-readable output')
+  .action(async (opts: { url: string; tenantId?: string; json?: boolean }) => {
+    const conn = connect(opts.url, opts.tenantId);
+    const result = await listIngestKeys(conn.url, conn.headers);
+    if (!result.ok) httpFail(conn, 'ingest-keys list', result.status);
+    emit(
+      result.keys,
+      Boolean(opts.json),
+      result.keys.length ? result.keys.map(formatIngestKeyLine).join('\n') : '(no active ingest keys)',
+    );
+  });
+
+ingestKeys
+  .command('revoke')
+  .description('Revoke a public ingest key by id. The key stops working immediately.')
+  .argument('<id>', 'The ingest key id (see `revturbine ingest-keys list`)')
+  .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
+  .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
+  .option('--yes', 'Skip the confirmation prompt')
+  .action(async (id: string, opts: { url: string; tenantId?: string; yes?: boolean }) => {
+    const conn = connect(opts.url, opts.tenantId);
+    await confirmOrExit(`Revoke ingest key ${id} on ${conn.url}? The key stops working immediately.`, !!opts.yes);
+    const result = await revokeIngestKey(conn.url, conn.headers, id);
+    if (!result.ok) httpFail(conn, 'ingest-keys revoke', result.status);
+    diag(`✓ Revoked ingest key ${id}.`);
+  });
 
 // Per-command examples surfaced in `revturbine <command> --help`.
 const COMMAND_EXAMPLES: Record<string, string> = {
