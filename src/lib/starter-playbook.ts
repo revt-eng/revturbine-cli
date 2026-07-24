@@ -9,18 +9,19 @@
  * is the zero-friction entry, and `go-live-hosted-cutover` is the marked path
  * out of it.
  *
- * It is a **canonical Playbook** (`artifact_type` + `format_version`), never the
- * deprecated legacy `RevTurbineConfig` wire shape. `PlaybookSchema` is
- * `PlaybookHeaderSchema.extend(PlaybookBodySchema.shape)` — a superset of the
- * legacy body — so nothing is lost by being canonical, and a starter is read as
- * a worked example: shipping a deprecated shape would teach one.
+ * It is a **canonical Playbook** (`artifact_type` + `format_version`). Since
+ * plan 147 the one config schema is lenient — `PlaybookSchema` normalizes the
+ * legacy `RevTurbineConfig` wire shape into the canonical form on parse, so it
+ * absorbs legacy files unchanged — but a starter ships the canonical shape
+ * deliberately: a starter is read as a worked example, and emitting the
+ * deprecated shape would teach one.
  *
- * `tenant_id` / `environment_id` are the header's only required targeting
- * fields and an account-less starter has no real values for them, so both are
- * `local`. That is honest rather than impersonating a real tenant, and it has a
- * useful side effect: `resolveUploadTarget` refuses an embedded tenant that
- * contradicts the session, so the starter cannot be pushed to a live tenant
- * without a deliberate `-t`.
+ * `tenant_id` / `environment_id` are optional on the reconciled header, but the
+ * starter still carries them (`local`) — an account-less starter has no real
+ * values, and `local` is honest rather than impersonating a real tenant. Useful
+ * side effect: `resolveUploadTarget` refuses an embedded tenant that contradicts
+ * the session, so the starter cannot be pushed to a live tenant without a
+ * deliberate `-t`.
  *
  * Both plans carry an explicit rule rather than relying on absence-of-rule
  * semantics — again, worked-example discipline.
@@ -52,7 +53,7 @@ export const STARTER_PLAYBOOK = {
       entitlement_id: 'ent_advanced_export',
       targets: [{ kind: 'plan', id: 'plan_free' }],
       segment_ids: [],
-      type_fields: { kind: 'feature', enabled: false },
+      enabled: false,
       current_usage: 0,
     },
     {
@@ -60,7 +61,7 @@ export const STARTER_PLAYBOOK = {
       entitlement_id: 'ent_advanced_export',
       targets: [{ kind: 'plan', id: 'plan_pro' }],
       segment_ids: [],
-      type_fields: { kind: 'feature', enabled: true },
+      enabled: true,
       current_usage: 0,
     },
   ],

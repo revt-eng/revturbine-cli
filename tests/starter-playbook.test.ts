@@ -43,7 +43,7 @@ describe('the bundled starter Playbook', () => {
       (r) => r.entitlement_id === 'ent_advanced_export',
     );
     expect(rules).toHaveLength(2);
-    expect(rules.map((r) => r.type_fields.enabled).sort()).toEqual([false, true]);
+    expect(rules.map((r) => r.enabled).sort()).toEqual([false, true]);
 
     const targeted = rules.flatMap((r) => r.targets.map((t) => t.id)).sort();
     expect(targeted).toEqual(['plan_free', 'plan_pro']);
@@ -65,9 +65,11 @@ describe('the bundled starter Playbook', () => {
 });
 
 describe('validatePlaybook', () => {
-  it('rejects the deprecated legacy wire shape outright', () => {
-    // Locks in the ruling: legacy is not an acceptable starter shape, so the
-    // validator the scaffold path uses must not quietly accept one.
+  it('accepts the legacy wire shape via the reconciled lenient header', () => {
+    // Plan 147 (OQ-2): the one config schema normalizes a legacy
+    // `RevTurbineConfig` header (`version` / `change_set_id`, no `artifact_type`)
+    // into the canonical shape on parse, so `validate` no longer rejects it —
+    // legacy files parse unchanged.
     const legacy = {
       version: '1.0.0',
       plans: [],
@@ -78,13 +80,15 @@ describe('validatePlaybook', () => {
       surface_templates: [],
       placements: [],
     };
-    expect(validatePlaybook(legacy).ok).toBe(false);
+    expect(validatePlaybook(legacy).ok).toBe(true);
   });
 
-  it('rejects a canonical Playbook missing required header targeting', () => {
+  it('accepts a Playbook with no header targeting (identity is optional)', () => {
+    // Plan 147 (TASK-1): `tenant_id` / `environment_id` are optional on the
+    // reconciled header, so an untargeted config validates.
     const withoutTenant: Record<string, unknown> = { ...STARTER_PLAYBOOK };
     delete withoutTenant['tenant_id'];
-    expect(validatePlaybook(withoutTenant).ok).toBe(false);
+    expect(validatePlaybook(withoutTenant).ok).toBe(true);
   });
 
   it('rejects a structurally invalid body', () => {

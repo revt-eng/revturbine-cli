@@ -51,11 +51,15 @@ describe('schemaForConfig', () => {
     expect(result.success).toBe(true);
   });
 
-  it('does not accept a canonical Playbook under the legacy schema', () => {
-    // Guards the routing: if the shapes were interchangeable the fix would be
-    // untestable and a future refactor could collapse them.
-    const { schema: legacySchema } = schemaForConfig(LEGACY);
-    expect(legacySchema.safeParse(CANONICAL).success).toBe(false);
+  it('resolves both wire shapes to the one reconciled schema (true alias)', () => {
+    // Plan 147 collapsed the legacy + canonical schemas into one lenient config
+    // (ExportedConfig === RevTurbineConfig === Playbook). The schema the legacy
+    // branch resolves therefore accepts a canonical Playbook too — the
+    // interchangeability this previously guarded against is now the goal. The
+    // `shape` label the router returns still distinguishes them for diagnostics.
+    const { schema: legacySchema, shape } = schemaForConfig(LEGACY);
+    expect(shape).toBe('legacy');
+    expect(legacySchema.safeParse(CANONICAL).success).toBe(true);
   });
 
   it('falls back to legacy for junk input so errors stay meaningful', () => {

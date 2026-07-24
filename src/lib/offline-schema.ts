@@ -4,9 +4,10 @@
  *
  * `validate <file>` previously ran every file through the legacy
  * `RevTurbineConfigSchema`, so a canonical Playbook — the shape new artifacts
- * use — failed with "version is required". Both shapes are now validated
- * against their own schema; `PlaybookSchema` is a superset of the legacy body,
- * so canonical files get at least the coverage legacy ones did.
+ * use — failed with "version is required". Plan 147 collapsed both shapes into
+ * one lenient config schema (`ExportedConfig` === `RevTurbineConfig` ===
+ * `Playbook`) that normalizes a legacy header on parse, so either wire shape
+ * validates; the detected `shape` is retained only to label diagnostics.
  */
 
 import { PlaybookSchema, RevTurbineConfigSchema } from '../schema/exported-config.snapshot.mjs';
