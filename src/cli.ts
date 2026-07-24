@@ -36,7 +36,7 @@ import { deviceLogin } from './lib/device-auth';
 import { signup } from './lib/signup';
 import { trackEvent, shouldTrackCommandExecution } from './lib/track';
 import { diffExportedConfig, formatDiff } from './lib/config-diff';
-import { fetchValidation, formatFindings, hasBlockingFindings } from './lib/config-validate';
+import { fetchValidation, formatFindings, hasBlockingFindings, type ValidationFinding } from './lib/config-validate';
 import {
   assertSupportedFormat,
   describePlaybookHeader,
@@ -46,6 +46,7 @@ import {
 import { resolveActiveDraft } from './lib/drafts';
 import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib/delegate';
 import { schemaForConfig } from './lib/offline-schema';
+import { checkOfflineConfig, offlineAdvisories } from './lib/offline-config-check';
 import { detectPackageManager, detectStack, installArgs, newProjectManifest, planInstall } from './lib/init';
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
 import { detectHarness, finalOutputLines, skillsAddArgs, SKILLS_SOURCE, type SkillsOutcome } from './lib/init-skills';
@@ -63,16 +64,6 @@ const DOCS_URL = 'https://github.com/revt-eng/revturbine-cli#readme';
 // target the apex directly and never the `www` host.
 const DEFAULT_URL = 'https://revturbine.com/app';
 
-// ── Schema (vendored snapshot — mandatory, offline) ─────────────────────────────
-
-type ParsedSchema = {
-  safeParse(value: unknown):
-    | { success: true; data: unknown }
-    | { success: false; error: { issues: Array<{ path: Array<string | number>; message: string }> } };
-};
-
-const schema = RevTurbineConfigSchema as ParsedSchema;
-
 // ── Config loading (by explicit path) ───────────────────────────────────────────
 
 function loadConfig(file: string): unknown {
@@ -85,7 +76,17 @@ function loadConfig(file: string): unknown {
   }
 }
 
-/** Returns the validated config, or null (logging the exact failing paths). */
+/**
+ * Returns the RAW config to POST (unchanged — every field), or null on a
+ * blocking structural failure.
+ *
+ * plan 147 TASK-10 (OQ-1): the offline schema check is a DIAGNOSTIC only. It
+ * reports structural problems and warns on unknown / deprecated fields, but it
+ * never strips the body (AC-4: a legacy config uploaded via the CLI must reach
+ * the server with all fields) and unknown / deprecated fields never block — the
+ * server/SDK are the strict-reject tier. The pure decision lives in
+ * `checkOfflineConfig`; this wrapper only does the IO (diag/diagRaw).
+ */
 function verifyConfig(file: string): unknown | null {
   const parsed = loadConfig(file);
   const header = readPlaybookHeader(parsed);
@@ -103,26 +104,24 @@ function verifyConfig(file: string): unknown | null {
     throw err;
   }
 
-  // A canonical Playbook is not described by the legacy RevTurbineConfigSchema
-  // snapshot (which requires `version`), so don't run it through that schema —
-  // the server validates the body on import (POST /api/config/import). The
-  // format guard above is the CLI's local pre-check.
-  if (header.shape === 'canonical') {
-    diag(`✓ ${file}: ${describePlaybookHeader(header)} — body validated server-side on import`);
-    return parsed;
+  const check = checkOfflineConfig(parsed);
+  if (!check.ok) {
+    diag(`✗ ${file}: schema validation FAILED:`);
+    for (const issue of check.problems) {
+      diagRaw(`  ${issue.path.join('.') || '<root>'}: ${issue.message}`);
+    }
+    return null;
   }
 
-  // Legacy Config File → the existing snapshot-schema pre-check.
-  const result = schema.safeParse(parsed);
-  if (result.success) {
-    diag(`✓ ${file}: schema validation passed — ${describePlaybookHeader(header)}`);
-    return result.data;
-  }
-  diag(`✗ ${file}: schema validation FAILED:`);
-  for (const issue of result.error.issues) {
-    diagRaw(`  ${issue.path.join('.') || '<root>'}: ${issue.message}`);
-  }
-  return null;
+  diag(
+    check.shape === 'canonical'
+      ? `✓ ${file}: ${describePlaybookHeader(header)} — body validated server-side on import`
+      : `✓ ${file}: schema validation passed — ${describePlaybookHeader(header)}`,
+  );
+  // OQ-1: unknown / deprecated fields WARN (they don't block), and the RAW
+  // config — not a schema-stripped copy — is what flows to the POST body.
+  if (check.advisories.length > 0) diagRaw(formatFindings(check.advisories));
+  return check.body;
 }
 
 // ── Auth / HTTP ──────────────────────────────────────────────────────────────
@@ -940,9 +939,17 @@ program
         const findings = evaluateOffline((parsed.success ? parsed.data : raw) as Record<string, unknown>, {
           structuralErrors: parsed.success ? undefined : parsed.error,
         });
+        // plan 147 TASK-10 (OQ-1): also warn — never block — on unknown
+        // top-level fields and deprecated fields. These are `warning` findings,
+        // so they render alongside the catalog findings but leave the exit code
+        // at 0 unless a real structural/semantic rule blocks.
+        const allFindings: ValidationFinding[] = [
+          ...(findings as unknown as ValidationFinding[]),
+          ...offlineAdvisories(raw),
+        ];
         diag(`Validation for ${file} (offline, ${shape} shape, schema ${SCHEMA_VERSION}):`);
-        process.stdout.write(`${formatFindings(findings as never)}\n`);
-        if (hasBlockingFindings(findings as never)) blockedFiles += 1;
+        process.stdout.write(`${formatFindings(allFindings)}\n`);
+        if (hasBlockingFindings(allFindings)) blockedFiles += 1;
       }
       if (files.length > 1) diag(`${files.length - blockedFiles}/${files.length} passed.`);
       if (blockedFiles > 0) {
