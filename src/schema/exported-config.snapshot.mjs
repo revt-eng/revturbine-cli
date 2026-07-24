@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.138
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.143
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -556,6 +556,11 @@ var PlanSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(Ancho
   handle: HandleField.meta(Unrestricted2),
   tier_position: z5.number().int().min(0).default(0).meta(Unrestricted2),
   sort_order: z5.number().int().default(0).meta(Unrestricted2),
+  // Plan-level visibility default (plan 91 Part B). Distinct from the
+  // per-variation `PlanVariationSchema.visibility`: a free/custom tier with no
+  // priced variation can still be unlisted/legacy. Persisted so it round-trips
+  // (plan 146 found it was declared on the portable config but had no column).
+  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted2),
   metadata: MetadataField.meta(Unrestricted2)
 }).meta(
   {
@@ -596,6 +601,9 @@ var AddOnSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(Anch
   name: NameField.meta(Unrestricted2),
   handle: HandleField.meta(Unrestricted2),
   sort_order: z5.number().int().default(0).meta(Unrestricted2),
+  // Add-on visibility default — same rationale as PlanSchema (plan 91 Part B);
+  // metadata, not price, so it lives on the add-on independent of variations.
+  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted2),
   metadata: MetadataField.meta(Unrestricted2)
 }).meta(
   {
@@ -1051,94 +1059,6 @@ var EntitlementRuleTargetSchema = z6.object({
 var EntitlementRulePeriodUnitSchema = z6.enum(["month", "day", "week", "quarter", "year", "billing_period", "on_purchase", "hour", "six_hours"]).meta(
   { id: "EntitlementRulePeriodUnit", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
 );
-var LimitValueField = z6.union([z6.number(), z6.literal("unlimited")]).nullable().optional();
-var EntitlementTypeFieldsFeatureSchema = z6.looseObject({
-  kind: z6.literal("feature").meta(Unrestricted3),
-  enabled: z6.boolean().optional().meta(Unrestricted3)
-}).meta(
-  { id: "EntitlementTypeFieldsFeature", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
-);
-var EntitlementTypeFieldsCapabilityTierSchema = z6.looseObject({
-  kind: z6.literal("capability_tier").meta(Unrestricted3),
-  tier_name: z6.string().optional().meta(Unrestricted3),
-  tier_description: z6.string().optional().meta(Unrestricted3)
-}).meta(
-  { id: "EntitlementTypeFieldsCapabilityTier", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
-);
-var EntitlementTypeFieldsUsageLimitSchema = z6.looseObject({
-  kind: z6.literal("usage_limit").meta(Unrestricted3),
-  limit_value: LimitValueField.meta(Unrestricted3),
-  unit: z6.string().optional().meta(Unrestricted3),
-  period: UsagePeriodScopeSchema.optional().meta(Unrestricted3),
-  enforcement: EnforcementModeSchema.optional().meta(Unrestricted3)
-}).meta(
-  { id: "EntitlementTypeFieldsUsageLimit", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
-);
-var EntitlementTypeFieldsPricePerUnitSchema = z6.looseObject({
-  kind: z6.literal("price_per_unit").meta(Unrestricted3),
-  amount_cents: z6.number().optional().meta(Unrestricted3),
-  currency: z6.string().optional().meta(Unrestricted3),
-  unit: z6.string().optional().meta(Unrestricted3),
-  period: UsagePeriodScopeSchema.optional().meta(Unrestricted3)
-}).meta(
-  { id: "EntitlementTypeFieldsPricePerUnit", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
-);
-var EntitlementTypeFieldsRateLimitSchema = z6.looseObject({
-  kind: z6.literal("rate_limit").meta(Unrestricted3),
-  rate_value: z6.number().optional().meta(Unrestricted3),
-  period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted3),
-  enforcement: EnforcementModeSchema.optional().meta(Unrestricted3)
-}).meta(
-  { id: "EntitlementTypeFieldsRateLimit", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
-);
-var EntitlementTypeFieldsCreditsSchema = z6.looseObject({
-  kind: z6.literal("credits").meta(Unrestricted3),
-  allowance: LimitValueField.meta(Unrestricted3),
-  initial_grant: z6.number().optional().meta(Unrestricted3),
-  unit: z6.string().optional().meta(Unrestricted3),
-  // Wire cadence uses the `per_*` vocabulary; the persisted `reset_period`
-  // column uses the bare vocabulary (`month`). Both are declared so the
-  // translation gap is visible to the contract instead of silent (plan 109).
-  period: UsagePeriodScopeSchema.optional().meta(Unrestricted3),
-  reset_period: EntitlementRulePeriodUnitSchema.optional().meta(Unrestricted3),
-  rollover: z6.boolean().optional().meta(Unrestricted3),
-  // `max_balance` — the maximum balance allowed at any time — is the ONLY
-  // credits cap in the model (Kent, 2026-07-22). The older `max_rollover`
-  // (how much unused balance carried into the next period) was folded away
-  // when plan 28 REQ-13 renamed the column, and authored configs have since
-  // been migrated off it. Do not re-add it: it has no column, IR field, or
-  // bundle slot — plan 37 retired its FlatBuffer slot to a -1 sentinel — so
-  // declaring it would promise a round-trip the model cannot honour.
-  max_balance: LimitValueField.meta(Unrestricted3),
-  top_up_available: z6.boolean().optional().meta(Unrestricted3)
-}).meta(
-  { id: "EntitlementTypeFieldsCredits", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
-);
-var EntitlementTypeFieldsSeatSchema = z6.looseObject({
-  kind: z6.literal("seat").meta(Unrestricted3),
-  included_seats: z6.union([z6.number(), z6.literal("unlimited")]).optional().meta(Unrestricted3),
-  // Authored configs already carry `null` here; plan 72 treats null as the
-  // canonical "unlimited". The 999999 sentinel is an export-side artifact.
-  max_seats: z6.union([z6.number(), z6.literal("unlimited")]).nullable().optional().meta(Unrestricted3),
-  seat_type: z6.string().optional().meta(Unrestricted3)
-}).meta(
-  { id: "EntitlementTypeFieldsSeat", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
-);
-var EntitlementTypeFieldsUntypedSchema = z6.looseObject({}).meta(
-  { id: "EntitlementTypeFieldsUntyped", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
-);
-var ENTITLEMENT_TYPE_FIELDS_VARIANTS = [
-  EntitlementTypeFieldsFeatureSchema,
-  EntitlementTypeFieldsCapabilityTierSchema,
-  EntitlementTypeFieldsUsageLimitSchema,
-  EntitlementTypeFieldsPricePerUnitSchema,
-  EntitlementTypeFieldsRateLimitSchema,
-  EntitlementTypeFieldsCreditsSchema,
-  EntitlementTypeFieldsSeatSchema
-];
-var EntitlementTypeFieldsSchema = z6.union([...ENTITLEMENT_TYPE_FIELDS_VARIANTS, EntitlementTypeFieldsUntypedSchema]).meta(
-  { id: "EntitlementTypeFields", "x-revturbine-schema-persistence": Transient3, "x-revturbine-schema-exposure": External3 }
-);
 var EntitlementSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
   anchor_id: z6.string().min(1).meta({ ...Unrestricted3, readOnly: true }),
   name: NameField.meta(Unrestricted3),
@@ -1206,7 +1126,30 @@ var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).
   seat_type_id: z6.string().optional().meta(Unrestricted3),
   included_count: z6.union([z6.number().int(), z6.literal("unlimited")]).optional().meta(Unrestricted3),
   at_limit_behavior: z6.enum(["hard_cap", "auto_upgrade_at_renewal"]).optional().meta(Unrestricted3),
-  stripe_metered_price_id: z6.string().optional().meta(Unrestricted3)
+  stripe_metered_price_id: z6.string().optional().meta(Unrestricted3),
+  // ── Plan 147: columns promoted from the deleted portable `type_fields` union
+  // so the flat wire projection round-trips (REQ-3 persist verdicts). The wire
+  // (RevTurbineConfigEntitlementRulesItemSchema) mirrors these one-to-one under
+  // their canonical names; web derives `kind`/`unit`/`tier_*` from the parent
+  // entitlement instead of persisting them.
+  //
+  // feature enable/disable: a present-but-disabled feature rule is a real DENY
+  // (`entitlement-check.ts` reads `enabled !== false`), distinct from "no rule".
+  // Optional (absent = enabled) matches that evaluator semantic — replaces the
+  // hard-coded `true` the export used to emit.
+  enabled: z6.boolean().optional().meta(Unrestricted3),
+  // How this rule partitions usage across the identity hierarchy. Rule-level in
+  // the IR (`encode.ts` maps `r.allocation`); may default from the parent
+  // entitlement's `allocation` when unset.
+  allocation: UsageAllocationSchema.optional().meta(Unrestricted3),
+  // Seat ceiling. null = unlimited (plan 72); the 999999 export sentinel maps
+  // back to null at the compile boundary.
+  max_seats: z6.union([z6.number(), z6.literal("unlimited")]).nullable().optional().meta(Unrestricted3),
+  // price_per_unit content-rendering fields (OQ-7: persisted-and-rendered, NOT
+  // evaluated — no IR/evaluator branch). `unit` derives from the entitlement;
+  // `period` maps onto the existing `period_scope` column.
+  amount_cents: z6.number().int().optional().meta(Unrestricted3),
+  currency: z6.string().optional().meta(Unrestricted3)
 }).meta(
   {
     id: "EntitlementRule",
@@ -4357,10 +4300,39 @@ var RevTurbineConfigEntitlementRulesItemSchema = z19.object({
   // means "match all users" (replaces the singular `segment_id` field
   // and its 'all'/null sentinels).
   segment_ids: z19.array(z19.string()).default([]).meta(Unrestricted16),
-  // Typed per-kind wire shape (plan 141). Loose variants + an untyped tail,
-  // so every input that parsed as the former opaque record still parses and
-  // unmodelled keys survive; see EntitlementTypeFieldsSchema.
-  type_fields: EntitlementTypeFieldsSchema.default({}).meta(Unrestricted16),
+  // ── Derived denormalizations from the parent entitlement (plan 147, OQ-6).
+  // Resolved via `entitlement_id` on export; ignored on import (the entitlement
+  // is authoritative). `readOnly` → excluded from round-trip obligations: they
+  // are computed, not authored, so requiring a sentinel to preserve them would
+  // test derivation rather than authoring fidelity.
+  kind: EntitlementTypeSchema.optional().meta({ ...Unrestricted16, readOnly: true }),
+  unit: z19.string().optional().meta({ ...Unrestricted16, readOnly: true }),
+  tier_name: z19.string().optional().meta({ ...Unrestricted16, readOnly: true }),
+  tier_description: z19.string().optional().meta({ ...Unrestricted16, readOnly: true }),
+  // ── Flat per-rule fields (plan 147, OQ-6) — single-sourced from the persisted
+  // `EntitlementRuleSchema` under its canonical names (REQ-1/REQ-2), replacing
+  // the deleted nested `type_fields` union. Null-stripped on export. The
+  // evaluated subset lowers into `TypeFieldsIR`; the persisted-not-evaluated
+  // fields (`amount_cents`/`currency`/`rate_value`/`period_scope`/…) round-trip
+  // via web import/export for content rendering (OQ-7), not the bundle.
+  ...EntitlementRuleSchema.pick({
+    enabled: true,
+    limit_value: true,
+    enforcement: true,
+    tier_value: true,
+    period_scope: true,
+    included_count: true,
+    seat_type_id: true,
+    initial_grant: true,
+    allowance_value: true,
+    rollover_enabled: true,
+    max_balance: true,
+    reset_period: true,
+    max_seats: true,
+    rate_value: true,
+    amount_cents: true,
+    currency: true
+  }).shape,
   current_usage: z19.number().default(0).meta(Unrestricted16),
   /** How usage is partitioned across the identity hierarchy. */
   allocation: UsageAllocationSchema.optional().meta(Unrestricted16)
@@ -4593,23 +4565,7 @@ var RevTurbineConfigFreeTrialRuleItemSchema = IdField.merge(FreeTrialRuleCoreFie
 var RevTurbineConfigReverseTrialRuleItemSchema = IdField.merge(ReverseTrialRuleCoreFieldsSchema).meta(
   { id: "RevTurbineConfigReverseTrialRuleItem", "x-revturbine-schema-persistence": Transient16, "x-revturbine-schema-exposure": External11, ...PENDING_PLAYBOOK_FACETS4 }
 );
-var LegacyRevTurbineConfigSchema = z19.object({
-  version: z19.string().meta({ ...Unrestricted16, ...PLAYBOOK_VERSION_HEADER_FACETS }),
-  exported_at: z19.string().datetime().optional().meta({ ...Unrestricted16, ...PLAYBOOK_PROVENANCE_HEADER_FACETS, readOnly: true }),
-  // The @revt-eng/schema package version this config was generated with.
-  schema_version: z19.string().optional().meta({ ...Unrestricted16, ...PLAYBOOK_VERSION_HEADER_FACETS, readOnly: true }),
-  // The compiled-bundle wire-format SCHEMA_VERSION (core/bundle/ir.ts).
-  bundle_schema_version: z19.number().int().optional().meta({ ...Unrestricted16, ...PLAYBOOK_VERSION_HEADER_FACETS, readOnly: true }),
-  // The change set this export represents: the active change set by default,
-  // or a specific change set when one is requested. Null for an unscoped export.
-  change_set_id: z19.string().nullable().default(null).meta({ ...Unrestricted16, ...PLAYBOOK_PROVENANCE_HEADER_FACETS, readOnly: true }),
-  // Origin target identity (plan 131 TASK-10, cli.md "Target-aware, portable"):
-  // stamped by the server on export so a downloaded Config File records where
-  // it came from; upload tooling targets these by default and flags a tenant
-  // mismatch against the session before sending. Optional — hand-authored and
-  // pre-existing configs carry no target.
-  tenant_id: z19.string().optional().meta({ ...Unrestricted16, ...PLAYBOOK_TARGET_FACETS, readOnly: true }),
-  environment_id: z19.string().optional().meta({ ...Unrestricted16, ...PLAYBOOK_TARGET_FACETS, readOnly: true }),
+var PlaybookBodySchema = z19.object({
   plans: z19.array(RevTurbineConfigPlansItemSchema).meta({ ...Unrestricted16, ...PLAYBOOK_SDK_FACETS8 }),
   // Optional for back-compat: pre-plan-88 configs (and the live export until web
   // adopts the new @revt-eng/schema) omit it. Add-on definitions only; pricing
@@ -4687,19 +4643,33 @@ var LegacyRevTurbineConfigSchema = z19.object({
   enforcement_defaults: z19.array(RevTurbineConfigEnforcementDefaultsItemSchema).optional().meta({ ...Unrestricted16, ...PLAYBOOK_SDK_FACETS8 }),
   placement_settings: z19.array(RevTurbineConfigPlacementSettingsItemSchema).optional().meta({ ...Unrestricted16, ...PLAYBOOK_SDK_FACETS8 }),
   segment_dimensions: z19.array(RevTurbineConfigSegmentDimensionsItemSchema).optional().meta({ ...Unrestricted16, ...PLAYBOOK_SDK_FACETS8 }),
-  meter_bindings: z19.array(RevTurbineConfigMeterBindingsItemSchema).optional().meta({ ...Unrestricted16, ...PLAYBOOK_SDK_FACETS8 })
+  meter_bindings: z19.array(RevTurbineConfigMeterBindingsItemSchema).optional().meta({ ...Unrestricted16, ...PLAYBOOK_SDK_FACETS8 }),
+  experiments: z19.array(z19.unknown()).max(0).optional().meta({
+    ...Unrestricted16,
+    ...PENDING_PLAYBOOK_FACETS4
+  }),
+  // Reserved like `experiments` above: claim the key now, ship the
+  // semantics later. A Playbook will eventually pin the Signal Catalog
+  // version its targeting was interpreted under, so a decision stays
+  // reproducible after the event taxonomy moves on. Reserving costs one
+  // schema change; adding a top-level Playbook key after the fact costs a
+  // second breaking cascade through the IR, the CLI, demo data, and every
+  // SDK port.
+  //
+  // Empty-object-only until a consumer exists — `.strict()` rejects a
+  // populated `{ id, version }` rather than letting it round-trip as
+  // config nothing reads. Catalog *definitions* stay server-side and must
+  // never reach the browser Playbook; only the reference will live here.
+  signal_catalog: z19.object({}).strict().optional().meta({
+    ...Unrestricted16,
+    ...PENDING_PLAYBOOK_FACETS4
+  })
 }).meta(
   {
-    id: "RevTurbineConfig",
+    id: "PlaybookBody",
     "x-revturbine-schema-persistence": Transient16,
     "x-revturbine-schema-exposure": External11,
-    ...PLAYBOOK_SDK_FACETS8,
-    ...schemaDeprecation({
-      since: "0.1.111",
-      replacement: "PlaybookSchema",
-      removeAfter: "one compatibility window",
-      reason: "The legacy wire conflates format and provenance under version and change_set_id."
-    })
+    ...PLAYBOOK_SDK_FACETS8
   }
 );
 var PlaybookHeaderSchema = z19.object({
@@ -4722,12 +4692,17 @@ var PlaybookHeaderSchema = z19.object({
     ...PLAYBOOK_PROVENANCE_HEADER_FACETS,
     readOnly: true
   }),
-  tenant_id: z19.string().min(1).meta({
+  // Origin target identity (plan 131 TASK-10). Optional so a hand-authored /
+  // legacy `export-config.json` (which carries no target) parses unchanged —
+  // the plan 147 TASK-1 header reconciliation: the one config schema must
+  // absorb legacy files that predate target stamping. Stamped by the server
+  // on export when present.
+  tenant_id: z19.string().min(1).optional().meta({
     ...Unrestricted16,
     ...PLAYBOOK_TARGET_FACETS,
     readOnly: true
   }),
-  environment_id: z19.string().min(1).meta({
+  environment_id: z19.string().min(1).optional().meta({
     ...Unrestricted16,
     ...PLAYBOOK_TARGET_FACETS,
     readOnly: true
@@ -4760,55 +4735,8 @@ var PlaybookHeaderSchema = z19.object({
     ...PLAYBOOK_PROVENANCE_HEADER_FACETS
   }
 );
-var LEGACY_HEADER_KEYS = {
-  version: true,
-  exported_at: true,
-  schema_version: true,
-  bundle_schema_version: true,
-  change_set_id: true,
-  tenant_id: true,
-  environment_id: true
-};
-var PlaybookBodySchema = LegacyRevTurbineConfigSchema.omit(LEGACY_HEADER_KEYS).extend({
-  experiments: z19.array(z19.unknown()).max(0).optional().meta({
-    ...Unrestricted16,
-    ...PENDING_PLAYBOOK_FACETS4
-  }),
-  // Reserved like `experiments` above: claim the key now, ship the
-  // semantics later. A Playbook will eventually pin the Signal Catalog
-  // version its targeting was interpreted under, so a decision stays
-  // reproducible after the event taxonomy moves on. Reserving costs one
-  // schema change; adding a top-level Playbook key after the fact costs a
-  // second breaking cascade through the IR, the CLI, demo data, and every
-  // SDK port.
-  //
-  // Empty-object-only until a consumer exists — `.strict()` rejects a
-  // populated `{ id, version }` rather than letting it round-trip as
-  // config nothing reads. Catalog *definitions* stay server-side and must
-  // never reach the browser Playbook; only the reference will live here.
-  signal_catalog: z19.object({}).strict().optional().meta({
-    ...Unrestricted16,
-    ...PENDING_PLAYBOOK_FACETS4
-  })
-  // NOTE: plan_variations / addon_variations are NOT re-declared here — they
-  // now live on LegacyRevTurbineConfigSchema (plan 118) and flow through the
-  // `.omit(LEGACY_HEADER_KEYS)` above, so both the legacy and canonical shapes
-  // carry them from a single definition.
-  // NOTE: the authored-config projections (seat_types, enforcement_defaults,
-  // placement_settings, segment_dimensions, meter_bindings) are active SDK
-  // inputs and flow through from LegacyRevTurbineConfigSchema (they are not
-  // LEGACY_HEADER_KEYS, so `.omit` retains them). See plan 118 TASK-18.
-}).meta(
+var PlaybookObjectSchema = PlaybookHeaderSchema.extend(PlaybookBodySchema.shape).meta(
   {
-    id: "PlaybookBody",
-    "x-revturbine-schema-persistence": Transient16,
-    "x-revturbine-schema-exposure": External11,
-    ...PLAYBOOK_SDK_FACETS8
-  }
-);
-var PlaybookSchema = PlaybookHeaderSchema.extend(PlaybookBodySchema.shape).meta(
-  {
-    id: "Playbook",
     "x-revturbine-schema-persistence": Transient16,
     "x-revturbine-schema-exposure": External11,
     ...PLAYBOOK_SDK_FACETS8
@@ -4817,26 +4745,38 @@ var PlaybookSchema = PlaybookHeaderSchema.extend(PlaybookBodySchema.shape).meta(
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function normalizeConfigHeaderInput(input) {
+  if (!isRecord(input)) return input;
+  const next = { ...input };
+  if (!("artifact_type" in next)) {
+    next.artifact_type = "playbook";
+  }
+  if ("version" in next) {
+    if (!("format_version" in next)) next.format_version = next.version;
+    delete next.version;
+  }
+  if ("change_set_id" in next) {
+    if (!("playbook_version_id" in next)) next.playbook_version_id = next.change_set_id;
+    delete next.change_set_id;
+  }
+  return next;
+}
+var PlaybookSchema = z19.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema).meta({
+  id: "Playbook",
+  "x-revturbine-schema-persistence": Transient16,
+  "x-revturbine-schema-exposure": External11,
+  ...PLAYBOOK_SDK_FACETS8
+});
+var RevTurbineConfigSchema = PlaybookSchema;
 function normalizeLegacyConfig(input) {
   if (isRecord(input) && ("artifact_type" in input || "format_version" in input)) {
     throw new Error("normalizeLegacyConfig accepts only the legacy RevTurbineConfig wire shape");
   }
-  const legacy = LegacyRevTurbineConfigSchema.parse(input);
-  const { version, change_set_id: playbookVersionId, ...sharedHeaderAndBody } = legacy;
-  return PlaybookSchema.parse({
-    ...sharedHeaderAndBody,
-    artifact_type: "playbook",
-    format_version: version,
-    playbook_version_id: playbookVersionId
-  });
+  return PlaybookSchema.parse(input);
 }
 function parsePlaybook(input) {
-  if (isRecord(input) && ("artifact_type" in input || "format_version" in input)) {
-    return PlaybookSchema.parse(input);
-  }
-  return normalizeLegacyConfig(input);
+  return PlaybookSchema.parse(input);
 }
-var RevTurbineConfigSchema = LegacyRevTurbineConfigSchema;
 var configPaths = {
   "/api/seat-type-anchors": {
     get: operation({
@@ -6200,7 +6140,6 @@ export {
   IngestedEventSchema,
   InvitationStatusSchema,
   KpiAggregateSchema,
-  LegacyRevTurbineConfigSchema,
   McpConfigSchema,
   McpTokenScopeSchema,
   MessageBlockContentSchema,
@@ -6245,6 +6184,7 @@ export {
   PlanVisibilitySchema,
   PlaybookBodySchema,
   PlaybookHeaderSchema,
+  PlaybookObjectSchema,
   PlaybookSchema,
   PlaybookVersionDeployResultSchema,
   PlaybookVersionDiffSchema,
