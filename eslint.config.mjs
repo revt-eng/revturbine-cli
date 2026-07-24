@@ -3,8 +3,11 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    // Generated / vendored / build output — never linted.
-    ignores: ['dist/**', 'src/schema/exported-config.snapshot.mjs', 'node_modules/**'],
+    // Generated / vendored / build output — never linted. Both `*.snapshot.mjs`
+    // files (the schema bundle and the validation engine) are emitted by one
+    // `npm run generate:schema` run and carry unused intermediate bindings from
+    // esbuild's tree — lint them and every regeneration would go red.
+    ignores: ['dist/**', 'src/schema/*.snapshot.mjs', 'node_modules/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
