@@ -40,21 +40,25 @@ describe('the bundled starter Playbook', () => {
     // Explicit rules on BOTH plans: a starter must not teach a pattern that
     // leans on absence-of-rule evaluator defaults.
     const rules = STARTER_PLAYBOOK.entitlement_rules.filter(
-      (r) => r.entitlement_id === 'ent_advanced_export',
+      (r) => r.entitlement_id === 'advanced_export',
     );
     expect(rules).toHaveLength(2);
     expect(rules.map((r) => r.enabled).sort()).toEqual([false, true]);
 
     const targeted = rules.flatMap((r) => r.targets.map((t) => t.id)).sort();
-    expect(targeted).toEqual(['plan_free', 'plan_pro']);
+    expect(targeted).toEqual(['free', 'pro']);
   });
 
-  it('references only plans and entitlements it defines', () => {
-    const planIds = new Set<string>(STARTER_PLAYBOOK.plans.map((p) => p.id));
-    const entIds = new Set<string>(STARTER_PLAYBOOK.entitlements.map((e) => e.id));
+  it('references only plans and entitlements it defines — BY HANDLE', () => {
+    // Rule references resolve by handle at runtime (entitlement-check.ts), so a
+    // rule's entitlement_id / target ids must be entity unique_handles, never a
+    // synthetic id. Keying this check by `id` instead of `unique_handle` is what
+    // let the id-ref bug ship (plan-154 dogfood).
+    const planHandles = new Set<string>(STARTER_PLAYBOOK.plans.map((p) => p.unique_handle));
+    const entHandles = new Set<string>(STARTER_PLAYBOOK.entitlements.map((e) => e.unique_handle));
     for (const rule of STARTER_PLAYBOOK.entitlement_rules) {
-      expect(entIds.has(rule.entitlement_id)).toBe(true);
-      for (const target of rule.targets) expect(planIds.has(target.id)).toBe(true);
+      expect(entHandles.has(rule.entitlement_id)).toBe(true);
+      for (const target of rule.targets) expect(planHandles.has(target.id)).toBe(true);
     }
   });
 
