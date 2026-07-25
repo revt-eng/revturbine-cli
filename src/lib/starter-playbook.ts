@@ -41,25 +41,30 @@ export const STARTER_PLAYBOOK = {
   tenant_id: 'local',
   environment_id: 'local',
   plans: [
-    { id: 'plan_free', unique_handle: 'free', name: 'Free', tier_position: 0, sort_order: 0 },
-    { id: 'plan_pro', unique_handle: 'pro', name: 'Pro', tier_position: 1, sort_order: 1 },
+    { unique_handle: 'free', name: 'Free', tier_position: 0, sort_order: 0 },
+    { unique_handle: 'pro', name: 'Pro', tier_position: 1, sort_order: 1 },
   ],
   entitlements: [
-    { id: 'ent_advanced_export', unique_handle: 'advanced_export', name: 'Advanced Export', type: 'feature' },
+    { unique_handle: 'advanced_export', name: 'Advanced Export', type: 'feature' },
   ],
+  // Rules reference entities by their HANDLE, never a synthetic id: the import
+  // stores these references verbatim and the runtime resolves them by handle
+  // (entitlement-check.ts matches rule.entitlement_id / plan targets against
+  // unique_handle). Authoring `ent_*` / `plan_*` ids here would produce rules
+  // that never link — the exact bug the plan-154 dogfood surfaced.
   entitlement_rules: [
     {
       id: 'er_advanced_export_free',
-      entitlement_id: 'ent_advanced_export',
-      targets: [{ kind: 'plan', id: 'plan_free' }],
+      entitlement_id: 'advanced_export',
+      targets: [{ kind: 'plan', id: 'free' }],
       segment_ids: [],
       enabled: false,
       current_usage: 0,
     },
     {
       id: 'er_advanced_export_pro',
-      entitlement_id: 'ent_advanced_export',
-      targets: [{ kind: 'plan', id: 'plan_pro' }],
+      entitlement_id: 'advanced_export',
+      targets: [{ kind: 'plan', id: 'pro' }],
       segment_ids: [],
       enabled: true,
       current_usage: 0,
