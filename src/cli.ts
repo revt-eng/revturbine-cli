@@ -270,18 +270,28 @@ async function loadVersion(conn: Connection, sel: VersionSelector): Promise<unkn
  * submit → approve → deploy. Deploy runs compile-and-activate synchronously
  * in-request (plan 68), so success means the configuration is live.
  */
-async function launchDraft(conn: Connection, playbookVersionId: string): Promise<void> {
+async function launchDraft(conn: Connection, playbookVersionId: string, force = false): Promise<void> {
   diag(`Launch gate: validating draft ${playbookVersionId} …`);
   const validation = await fetchValidation(conn.url, playbookVersionId, conn.headers);
   if (!validation.ok) httpFail(conn, 'validate', validation.status, validation.error);
   if (validation.findings.length > 0) diagRaw(formatFindings(validation.findings));
-  if (hasBlockingFindings(validation.findings)) {
+  if (hasBlockingFindings(validation.findings, force)) {
     fail(EXIT.VALIDATION, 'blocking findings — this draft cannot launch.');
+  }
+  // Name what `--force` is overriding so the bypass is never silent. Only the
+  // launch-gate tier (`error_launch`) is relaxed; a structural `error_draft`
+  // would have blocked above, force or not.
+  const overridden = force ? validation.findings.filter((f) => f.severity === 'error_launch') : [];
+  if (overridden.length > 0) {
+    diag(`--force: overriding ${overridden.length} launch-gate finding(s) (error_launch).`);
   }
 
   diag(`Launching playbook version ${playbookVersionId} (submit → approve → deploy) …`);
   for (const step of ['submit', 'approve', 'deploy'] as const) {
-    const { res, json } = await postJson(conn, `/api/playbook-versions/${playbookVersionId}/${step}`, {});
+    // `force` is a deploy-time precondition (409 bypass + launch gate); submit
+    // and approve are plain status transitions that carry no force flag.
+    const body = step === 'deploy' ? { force } : {};
+    const { res, json } = await postJson(conn, `/api/playbook-versions/${playbookVersionId}/${step}`, body);
     if (!res.ok) {
       diag(`✗ ${step} failed (${res.status}). The draft is staged but NOT live.`);
       diagRaw(`  ${JSON.stringify(json)}`);
@@ -1059,10 +1069,11 @@ program
   .description('Take a config live as a new Release: validate (launch gate), then submit → approve → deploy. Synchronous.')
   .argument('[file]', 'Config File to upload and launch directly')
   .option('--draft', 'Launch the already-open draft')
+  .option('--force', 'Launch past incomplete-but-valid findings (error_launch); structural errors (error_draft) still block')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option('--yes', 'Accepted for parity with discard/restore; launch has no confirmation prompt')
-  .action(async (file: string | undefined, opts: { draft?: boolean; url: string; tenantId?: string; yes?: boolean }) => {
+  .action(async (file: string | undefined, opts: { draft?: boolean; force?: boolean; url: string; tenantId?: string; yes?: boolean }) => {
     const [sel] = requireSelectors(opts, file ? [file] : [], { count: 1, allowed: ['file', 'draft'], command: 'launch' });
 
     let conn: Connection;
@@ -1084,7 +1095,7 @@ program
       conn = connect(opts.url, opts.tenantId);
       playbookVersionId = await requireOpenDraft(conn);
     }
-    await launchDraft(conn, playbookVersionId);
+    await launchDraft(conn, playbookVersionId, !!opts.force);
   });
 
 program
@@ -1109,10 +1120,11 @@ program
   .description('Stage a draft that restores a past release (from its frozen snapshot); `--launch` takes it live. Halts if a draft is already open.')
   .argument('<playbook-version-id>', 'The deployed playbook version to restore (see `history`)')
   .option('--launch', 'Launch the restoring draft immediately (gate + submit → approve → deploy)')
+  .option('--force', 'With --launch, launch past incomplete-but-valid findings (error_launch); error_draft still blocks')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option('--yes', 'Skip the confirmation prompt')
-  .action(async (playbookVersionId: string, opts: { launch?: boolean; url: string; tenantId?: string; yes?: boolean }) => {
+  .action(async (playbookVersionId: string, opts: { launch?: boolean; force?: boolean; url: string; tenantId?: string; yes?: boolean }) => {
     const conn = connect(opts.url, opts.tenantId);
     await confirmOrExit(
       `Restore playbook version ${playbookVersionId} on ${conn.url}?${opts.launch ? ' --launch will take it LIVE.' : ' (stages a draft; launch separately)'}`,
@@ -1127,7 +1139,7 @@ program
       return;
     }
     if (!reverting) fail(EXIT.SERVER, 'No reverting draft id returned — cannot launch.');
-    await launchDraft(conn, reverting);
+    await launchDraft(conn, reverting, !!opts.force);
   });
 
 // ── Inspect ──────────────────────────────────────────────────────────────────

@@ -40,12 +40,24 @@ export interface ValidationResult {
  */
 const BLOCKING_SEVERITIES: ReadonlySet<string> = new Set(['error_draft', 'error_launch']);
 
-export function isBlockingFinding(finding: { severity: string }): boolean {
+/**
+ * Whether a finding blocks a launch. `force` mirrors the server's
+ * `forceLaunchGate` (plan 147 REQ-10): a deliberate `--force` relaxes the
+ * `error_launch` tier (incomplete-but-valid, e.g. a plan with no price) while
+ * `error_draft` — a structural error — STILL blocks. Without `force` the full
+ * ladder applies. Keeping the override here (not just in the command) means the
+ * CLI's pre-deploy gate and the server gate agree on what `--force` lets past.
+ */
+export function isBlockingFinding(finding: { severity: string }, force = false): boolean {
+  if (force && finding.severity === 'error_launch') return false;
   return BLOCKING_SEVERITIES.has(finding.severity);
 }
 
-export function hasBlockingFindings(findings: ReadonlyArray<{ severity: string }>): boolean {
-  return findings.some(isBlockingFinding);
+export function hasBlockingFindings(
+  findings: ReadonlyArray<{ severity: string }>,
+  force = false,
+): boolean {
+  return findings.some((f) => isBlockingFinding(f, force));
 }
 
 /**

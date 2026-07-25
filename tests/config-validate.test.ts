@@ -42,6 +42,29 @@ describe('blocking rule (the CLI exit-code contract — AC-8)', () => {
   });
 });
 
+describe('--force override (plan 147 TASK-15 — mirrors the server forceLaunchGate)', () => {
+  it('force relaxes error_launch but never error_draft', () => {
+    expect(isBlockingFinding(finding('error_launch'), true)).toBe(false);
+    expect(isBlockingFinding(finding('error_draft'), true)).toBe(true);
+  });
+
+  it('force leaves the non-blocking tiers unchanged', () => {
+    expect(isBlockingFinding(finding('warning'), true)).toBe(false);
+    expect(isBlockingFinding(finding('ai_check'), true)).toBe(false);
+  });
+
+  it('an error_launch-only draft launches under force, still blocks without', () => {
+    const findings = [finding('warning'), finding('error_launch')];
+    expect(hasBlockingFindings(findings)).toBe(true);
+    expect(hasBlockingFindings(findings, true)).toBe(false);
+  });
+
+  it('force cannot launch a draft with a structural error_draft', () => {
+    const findings = [finding('error_launch'), finding('error_draft')];
+    expect(hasBlockingFindings(findings, true)).toBe(true);
+  });
+});
+
 describe('formatFindings', () => {
   it('prints the finding message verbatim and marks blocking vs advisory', () => {
     const out = formatFindings([
