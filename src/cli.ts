@@ -36,6 +36,7 @@ import { deviceLogin } from './lib/device-auth';
 import { signup } from './lib/signup';
 import { trackEvent, shouldTrackCommandExecution } from './lib/track';
 import { diffExportedConfig, formatDiff } from './lib/config-diff';
+import { pruneQuery } from './lib/prune';
 import { fetchValidation, formatFindings, hasBlockingFindings, type ValidationFinding } from './lib/config-validate';
 import {
   assertSupportedFormat,
@@ -1032,19 +1033,30 @@ program
 
 // ── Stage & launch ───────────────────────────────────────────────────────────
 
+// Convergent-import controls (plan 155). Import is convergent by default (the
+// file is the desired state): entities absent from it are removed, guarded
+// against emptying / >50%-deleting a populated type. `--prune` confirms such a
+// mass deletion; `--no-prune` keeps the old additive behavior. `opts.prune` is
+// `undefined` with neither flag (guarded default), `true` for `--prune`,
+// `false` for `--no-prune`. See `pruneQuery` in ./lib/prune.
+const PRUNE_OPTION = ['--prune', 'Confirm a convergent delete past the mass-deletion guard (removes entities absent from the file)'] as const;
+const NO_PRUNE_OPTION = ['--no-prune', 'Additive import — keep entities that are absent from the file (disables convergent delete)'] as const;
+
 program
   .command('upload')
   .description('Stage a Config File as the open draft (POST /api/config/import).')
   .argument('<config>', 'Path to a Config File')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
-  .action(async (configFile: string, opts: { url: string; tenantId?: string }) => {
+  .option(...PRUNE_OPTION)
+  .option(...NO_PRUNE_OPTION)
+  .action(async (configFile: string, opts: { url: string; tenantId?: string; prune?: boolean }) => {
     const config = verifyConfig(configFile);
     if (config === null) fail(EXIT.VALIDATION, `Fix the issues above in ${configFile}, then re-run.`);
 
     const conn = connect(opts.url, uploadTenantFor(opts.url, config, opts.tenantId));
     diag(`Staging ${configFile} as the open draft (${conn.url}/api/config/import) …`);
-    const { res, json } = await postJson(conn, '/api/config/import', config);
+    const { res, json } = await postJson(conn, `/api/config/import${pruneQuery(opts.prune)}`, config);
     if (!res.ok) {
       // A 409 means a draft playbook version is already open for the tenant —
       // launch or discard it (Drafts & Releases) before importing.
@@ -1072,8 +1084,10 @@ program
   .option('--force', 'Launch past incomplete-but-valid findings (error_launch); structural errors (error_draft) still block')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
+  .option(...PRUNE_OPTION)
+  .option(...NO_PRUNE_OPTION)
   .option('--yes', 'Accepted for parity with discard/restore; launch has no confirmation prompt')
-  .action(async (file: string | undefined, opts: { draft?: boolean; force?: boolean; url: string; tenantId?: string; yes?: boolean }) => {
+  .action(async (file: string | undefined, opts: { draft?: boolean; force?: boolean; url: string; tenantId?: string; yes?: boolean; prune?: boolean }) => {
     const [sel] = requireSelectors(opts, file ? [file] : [], { count: 1, allowed: ['file', 'draft'], command: 'launch' });
 
     let conn: Connection;
@@ -1083,7 +1097,7 @@ program
       if (config === null) fail(EXIT.VALIDATION, `Fix the issues above in ${sel.path}, then re-run.`);
       conn = connect(opts.url, uploadTenantFor(opts.url, config, opts.tenantId));
       diag(`Staging ${sel.path} as the open draft …`);
-      const { res, json } = await postJson(conn, '/api/config/import', config);
+      const { res, json } = await postJson(conn, `/api/config/import${pruneQuery(opts.prune)}`, config);
       if (!res.ok) {
         diagRaw(`  ${JSON.stringify(json)}`);
         httpFail(conn, 'upload', res.status);
