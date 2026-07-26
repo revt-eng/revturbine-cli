@@ -1248,7 +1248,8 @@ program
   .option('--draft', "Evaluate the tenant's open draft (clean-room: no suppression/cap history)")
   .option('--release <id>', 'Evaluate a past release (from its frozen snapshot)')
   .option('--entitlement <handle>', 'Check one entitlement (the checkEntitlement result)')
-  .option('--slot <id>', 'Evaluate one placement/slot (the getPlacement decision)')
+  .option('--slot <id>', 'Evaluate one surface slot (the getPlacement decision for that slot)')
+  .option('--surface-type <type>', 'Disambiguate a slot that can render more than one surface (with --slot), or resolve by surface type alone')
   .option('--plan-handle <handle>', 'Evaluate as if the user were on this plan (overrides the ctx file)')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .requiredOption('--user <file>', 'JSON file: { user_id, customer_id?, plan_handle?, traits?, now_iso? }')
@@ -1260,6 +1261,7 @@ program
       release?: string;
       entitlement?: string;
       slot?: string;
+      surfaceType?: string;
       planHandle?: string;
       url: string;
       user: string;
@@ -1278,14 +1280,22 @@ program
       const body: Record<string, unknown> = { ...ctx };
       if (opts.planHandle) body.plan_handle = opts.planHandle;
       // --entitlement / --slot narrow the ask; the ctx file's own lists apply
-      // when neither is given (bulk evaluation).
-      if (opts.entitlement && opts.slot) fail(EXIT.USAGE, 'pass exactly one of --entitlement or --slot (or neither for the ctx file lists).');
+      // when neither is given (bulk evaluation). `--slot` (with optional
+      // `--surface-type`) resolves the surface-keyed getPlacement decision on
+      // the server (plan 147 TASK-17): it posts `slot_id` / `surface_type`, not
+      // a placement id — the server returns the winning placement in `placement`.
+      const wantsSlot = Boolean(opts.slot || opts.surfaceType);
+      if (opts.entitlement && wantsSlot) {
+        fail(EXIT.USAGE, 'pass exactly one of --entitlement or --slot/--surface-type (or neither for the ctx file lists).');
+      }
       if (opts.entitlement) {
         body.entitlement_handles = [opts.entitlement];
         body.placement_ids = [];
       }
-      if (opts.slot) {
-        body.placement_ids = [opts.slot];
+      if (wantsSlot) {
+        if (opts.slot) body.slot_id = opts.slot;
+        if (opts.surfaceType) body.surface_type = opts.surfaceType;
+        body.placement_ids = [];
         body.entitlement_handles = [];
       }
       if (sel.kind === 'release') body.playbook_version_id = sel.id;
