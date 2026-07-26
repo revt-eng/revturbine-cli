@@ -60,7 +60,7 @@ export function formatDiff(diff: ConfigDiff): string {
     const parts: string[] = [];
     if (d.added.length) parts.push(`+${d.added.length} added`);
     if (d.changed.length) parts.push(`~${d.changed.length} changed`);
-    if (d.removed.length) parts.push(`-${d.removed.length} only in tenant (import never deletes)`);
+    if (d.removed.length) parts.push(`-${d.removed.length} only in tenant (pruned on launch unless --no-prune)`);
     lines.push(`  ${coll}: ${parts.join(', ')}`);
     for (const k of d.added) lines.push(`    + ${k}`);
     for (const k of d.changed) lines.push(`    ~ ${k}`);
