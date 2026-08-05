@@ -52,8 +52,9 @@ import { checkOfflineConfig, offlineAdvisories } from './lib/offline-config-chec
 import { detectPackageManager, detectStack, installArgs, newProjectManifest, planInstall } from './lib/init';
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
 import { detectHarness, finalOutputLines, skillsAddArgs, SKILLS_SOURCE, type SkillsOutcome } from './lib/init-skills';
+import { generateHandleTypes } from './lib/handles-codegen';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
-import { requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
+import { describeSelector, requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
 import { serverSchemaIsNewer } from './lib/version-trail';
 
@@ -429,6 +430,8 @@ Command groups:
   Check         validate, diff, show
   Stage/launch  upload, launch, discard, restore
   Inspect       status, history, preview, evaluate
+  Codegen       generate types
+  Keys          ingest-keys create|list|revoke
 
 Version selectors (no defaults — a command that reads a config requires one):
   <file>            a local Config File (positional, or --file <path>)
@@ -1307,6 +1310,75 @@ program
     },
   );
 
+// ── Code generation ───────────────────────────────────────────────────────────
+// `generate types` derives a typed entitlement-handle module from a config
+// version so `can()` / `gate()` / `checkEntitlement()` call sites are
+// compile-checked against the Playbook instead of passing free strings. Pure
+// logic lives in lib/handles-codegen.ts; this action only resolves the version
+// and writes the output.
+
+const generateCmd = program
+  .command('generate')
+  .description('Code generation from a config version (see: generate types).');
+
+generateCmd
+  .command('types')
+  .description(
+    'Generate a TypeScript module of entitlement handles (namespaced by entitlement type) for type-safe can()/gate() calls.',
+  )
+  .argument('[file...]', 'Path to a Config File')
+  .option('--draft', "The tenant's open draft")
+  .option('--live', 'The current live Release')
+  .option('--release <id>', 'A specific playbook version / Release')
+  .option('-o, --out <path>', 'Write the generated module to this path (parent dirs created); default stdout')
+  .option('--json', 'Emit the handle map as JSON instead of TypeScript')
+  .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
+  .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
+  .action(
+    async (
+      files: string[],
+      opts: {
+        draft?: boolean;
+        live?: boolean;
+        release?: string;
+        out?: string;
+        json?: boolean;
+        url: string;
+        tenantId?: string;
+      },
+    ) => {
+      const [sel] = requireSelectors(opts, files, {
+        count: 1,
+        allowed: ['file', 'draft', 'live', 'release'],
+        command: 'generate types',
+      });
+      const conn = sel.kind !== 'file' ? connect(opts.url, opts.tenantId) : (null as unknown as Connection);
+      const config = await loadVersion(conn, sel);
+
+      // The regenerate command embedded in the generated header reconstructs
+      // THIS invocation (selector + --out), so the file documents its own
+      // refresh path. Deterministic — no timestamps.
+      const selectorArg = sel.kind === 'file' ? sel.path : sel.kind === 'release' ? `--release ${sel.id}` : `--${sel.kind}`;
+      const regenerate = ['revturbine generate types', selectorArg, ...(opts.out ? ['--out', opts.out] : [])].join(' ');
+      const result = generateHandleTypes(config, { source: describeSelector(sel), regenerate });
+
+      if (result.handles.length === 0) diag('No entitlement handles found in this config version.');
+      const content = opts.json
+        ? `${JSON.stringify({ source: describeSelector(sel), entitlements: result.byType }, null, 2)}\n`
+        : result.ts;
+      if (opts.out) {
+        const resolved = path.resolve(opts.out);
+        mkdirSync(path.dirname(resolved), { recursive: true });
+        writeFileSync(resolved, content);
+        diag(
+          `✓ Wrote ${result.handles.length} handle(s) across ${Object.keys(result.byType).length} type(s) to ${opts.out}`,
+        );
+      } else {
+        process.stdout.write(content);
+      }
+    },
+  );
+
 // ── Ingest keys ───────────────────────────────────────────────────────────────
 // Public ingest keys are the embeddable SDK telemetry credentials a tenant hands
 // to browser code. Minting/managing them was web-UI-only; plan 152 authorizes the
@@ -1404,6 +1476,17 @@ const COMMAND_EXAMPLES: Record<string, string> = {
     '  revturbine diff --live --draft         What the open draft would change',
   ].join('\n'),
   show: ['', 'Examples:', '  revturbine show plans --live', '  revturbine show segments --file ./config.json'].join('\n'),
+  generate: [
+    '',
+    'Examples:',
+    '  revturbine generate types revturbine.playbook.json --out src/revturbine-handles.ts',
+    '  revturbine generate types --live --out src/lib/revturbine-handles.gen.ts',
+    '  revturbine generate types --draft --json',
+    '',
+    'The generated module exports `Entitlements` (handles namespaced by',
+    'entitlement type) and the `EntitlementHandle` union for can()/gate()',
+    'call sites. Its header records the exact command to regenerate it.',
+  ].join('\n'),
   upload: ['', 'Example:', '  revturbine upload ./config.json        Stage as the open draft'].join('\n'),
   launch: [
     '',

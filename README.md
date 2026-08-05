@@ -81,6 +81,7 @@ Commands that read a config name the version explicitly — there is no default:
 | `history` | The Release Version Log, newest first. |
 | `preview` | The open draft's staged changes. |
 | `evaluate` | Run the live config's placement/entitlement decisions for a user context. |
+| `generate types` | Generate a TypeScript module of entitlement handles (namespaced by entitlement type) from any config version, for type-safe `can()`/`gate()` call sites. `--out <path>` writes the file; the generated header records the exact command to regenerate it. `--json` for the raw handle map. |
 
 `--json` on read commands emits machine-readable output. Results go to stdout,
 diagnostics to stderr.
