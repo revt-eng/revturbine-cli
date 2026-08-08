@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.145
+// Vendored validation engine bundled from @revt-eng/schema@0.1.159
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -417,7 +417,12 @@ var DataClassification = {
   Financial: { "x-revturbine-data-classification": "financial" },
   Unrestricted: { "x-revturbine-data-classification": "unrestricted" }
 };
+var SCHEMA_EXPOSURE_META_KEY = "x-revturbine-schema-exposure";
 var READ_ONLY_META_KEY = "readOnly";
+var DECISION_ONLY_META_KEY = "x-revturbine-decision-only";
+var DecisionOnly = { [DECISION_ONLY_META_KEY]: true };
+var ClientSafe = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.External };
+var ServerOnly = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.Internal };
 function toWritableSchema(schema) {
   const writableShape = {};
   for (const [fieldName, fieldSchema] of Object.entries(schema.shape)) {
@@ -2114,6 +2119,10 @@ var PlacementTestModeSchema = z9.enum(["off", "test_users", "all_traffic"]).meta
 var PlacementSettingsCapStateSchema = z9.object({
   capRules: z9.array(PlacementSettingsCapRuleSchema).default([]).meta(Unrestricted5),
   sessionCooldownMinutes: z9.number().int().min(0).default(30).meta(Unrestricted5),
+  // Tenant-level default remind-me-later (defer) window, in minutes. A
+  // per-payload `remind_later_minutes` overrides it when set (plan 167 REQ-6,
+  // Q-3). Rides in this global_frequency_cap jsonb wrapper — no column/`.fbs`.
+  remindLaterMinutes: z9.number().int().min(0).default(60).meta(Unrestricted5),
   testMode: PlacementTestModeSchema.default("off").meta(Unrestricted5)
 }).meta(
   { id: "PlacementSettingsCapState", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": Internal4 }
@@ -2128,7 +2137,8 @@ var PlacementSettingsSchema = IdField.merge(TimestampFields).merge(TenantIdField
   global_frequency_cap_period: z9.enum(["hour", "day", "week", "month", "session"]).nullable().default(null).meta(Unrestricted5),
   suppress_for_paid: z9.boolean().default(false).meta(Unrestricted5),
   suppress_for_trial: z9.boolean().default(false).meta(Unrestricted5),
-  default_dismiss_cooldown_hours: z9.number().int().min(0).default(24).meta(Unrestricted5),
+  // `default_dismiss_cooldown_hours` removed (plan 167 Q-2): the dismiss
+  // cooldown is defined per-payload in days (`cooldown_after_dismiss_days`).
   allow_stacking: z9.boolean().default(false).meta(Unrestricted5),
   priority_collision_strategy: z9.enum(["highest_priority", "most_recent", "random"]).default("highest_priority").meta(Unrestricted5)
 }).meta(
@@ -2240,7 +2250,7 @@ var RevTurbineConfigPlacementSettingsItemSchema = z9.object({
   global_frequency_cap_period: z9.enum(["hour", "day", "week", "month", "session"]).nullable().default(null).meta(Unrestricted5),
   suppress_for_paid: z9.boolean().default(false).meta(Unrestricted5),
   suppress_for_trial: z9.boolean().default(false).meta(Unrestricted5),
-  default_dismiss_cooldown_hours: z9.number().int().min(0).nullable().default(null).meta(Unrestricted5),
+  // `default_dismiss_cooldown_hours` removed (plan 167 Q-2).
   allow_stacking: z9.boolean().default(false).meta(Unrestricted5),
   priority_collision_strategy: z9.string().nullable().default(null).meta(Unrestricted5)
 }).meta(
@@ -2756,6 +2766,12 @@ function normalizeConfigHeaderInput(input) {
 }
 var PlaybookSchema = z9.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema).meta({
   id: "Playbook",
+  "x-revturbine-schema-persistence": Transient5,
+  "x-revturbine-schema-exposure": External4,
+  ...PLAYBOOK_SDK_FACETS4
+});
+var PlaybookStrictSchema = z9.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema.strict()).meta({
+  id: "PlaybookStrict",
   "x-revturbine-schema-persistence": Transient5,
   "x-revturbine-schema-exposure": External4,
   ...PLAYBOOK_SDK_FACETS4
