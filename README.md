@@ -1,6 +1,6 @@
 # revturbine-cli (`revturbine`)
 
-Validate [RevTurbine](https://revturbine.com) **Config Files** and ship them to
+Validate [RevTurbine](https://revturbine.com) **Playbooks** and ship them to
 a RevTurbine instance through the playbook-version lifecycle (draft → Release) —
 from the terminal, the same operations the in-app studios perform.
 
@@ -39,11 +39,11 @@ Requires Node ≥ 22.13. Source builds use the npm 11.18.0 version declared in
 ```bash
 revturbine signup                             # create an account (email + password + emailed code)
 revturbine login                              # authorize this machine (device flow)
-revturbine download --live --save ./config.json
-# …edit ./config.json…
-revturbine validate ./config.json             # schema-validate locally (no network)
-revturbine diff ./config.json --live          # what would change (no writes)
-revturbine launch ./config.json               # upload, gate, and go live
+revturbine download --live --save ./revturbine.playbook.json
+# …edit ./revturbine.playbook.json…
+revturbine validate ./revturbine.playbook.json             # schema-validate locally (no network)
+revturbine diff ./revturbine.playbook.json --live          # what would change (no writes)
+revturbine launch ./revturbine.playbook.json               # upload, gate, and go live
 ```
 
 `revturbine <command> --help` documents every flag.
@@ -54,7 +54,7 @@ Commands that read a config name the version explicitly — there is no default:
 
 | Selector | Meaning |
 |---|---|
-| `<file>` / `--file <path>` | a local Config File |
+| `<file>` / `--file <path>` | a local Playbook file |
 | `--draft` | the tenant's single open draft (resolved automatically) |
 | `--live` | the current live Release |
 | `--release <id>` | a specific playbook version / Release |
@@ -71,9 +71,9 @@ Commands that read a config name the version explicitly — there is no default:
 | `docs` | Print the canonical documentation URL. |
 | `download` | Fetch a config version (`--live` / `--draft` / `--release <id>`); `--save`, `--format flatbuffer`. |
 | `validate` | Offline schema validation of a `<file>`, or the full server catalog against the open draft (`--draft`). |
-| `diff` | Compare any two versions, first → second (dry-run, no writes). |
+| `diff` | Compare any two versions (dry-run, no writes). A file vs `--draft`/`--live`/`--release` previews the launch — the server side is the base, so `+`/`-` read as created/pruned on launch. |
 | `show <kind>` | Summary tables: `plans` · `entitlements` · `segments` · `placements` · `trials` for any version. |
-| `upload` | Stage a Config File as the open draft. |
+| `upload` | Stage a Playbook file as the open draft. |
 | `launch` | Take a config live: validate (launch gate) → submit → approve → deploy. `launch <file>` or `launch --draft`. |
 | `discard` | Archive the open draft (`--yes`). |
 | `restore` | Stage a draft that restores a past release from its frozen snapshot; `--launch` takes it live. Halts if a draft is open. |
@@ -81,7 +81,7 @@ Commands that read a config name the version explicitly — there is no default:
 | `history` | The Release Version Log, newest first. |
 | `preview` | The open draft's staged changes. |
 | `evaluate` | Run the live config's placement/entitlement decisions for a user context. |
-| `generate types` | Generate a TypeScript module of entitlement handles (namespaced by entitlement type) from any config version, for type-safe `can()`/`gate()` call sites. `--out <path>` writes the file; the generated header records the exact command to regenerate it. `--json` for the raw handle map. |
+| `generate types` | Generate a TypeScript module of typed Playbook handles from any config version — `Entitlements` (namespaced by type, with the `EntitlementHandle` union for type-safe `can()`/`gate()`/`checkEntitlement()` call sites), plus `Plans`, `Segments`, `SurfaceTemplates`, and `UiPathActionTypes`. Const objects + literal-union types (erasable — no enums). `--out <path>` writes the file; the generated header records the exact command to regenerate it. `--json` for the raw handle map. |
 
 `--json` on read commands emits machine-readable output. Results go to stdout,
 diagnostics to stderr.
