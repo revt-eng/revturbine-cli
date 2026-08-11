@@ -54,6 +54,7 @@ import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from '.
 import { detectHarness, finalOutputLines, skillsAddArgs, SKILLS_SOURCE, type SkillsOutcome } from './lib/init-skills';
 import { generateHandleTypes } from './lib/handles-codegen';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
+import { checkPinDrift } from './lib/pin-drift';
 import { describeSelector, requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
 import { serverSchemaIsNewer } from './lib/version-trail';
@@ -1324,7 +1325,7 @@ const generateCmd = program
 generateCmd
   .command('types')
   .description(
-    'Generate a TypeScript module of entitlement handles (namespaced by entitlement type) for type-safe can()/gate() calls.',
+    'Generate a TypeScript module of Playbook handles — entitlements (namespaced by type), plans, segments, surface-template ids, and ui-path action types — for type-safe call sites.',
   )
   .argument('[file...]', 'Path to a Config File')
   .option('--draft', "The tenant's open draft")
@@ -1583,6 +1584,24 @@ function gitRootOf(from: string): string | null {
     });
     process.exit(child.status ?? EXIT.UNEXPECTED);
   }
+}
+
+// -V/--version is answered pre-parse (same pattern as the delegation flag) so
+// the repo pin-drift warning (plan 174 TASK-12) can ride along on stderr —
+// commander's built-in .version() would print and exit before any hook.
+if (process.argv.includes('-V') || process.argv.includes('--version')) {
+  process.stdout.write(`${pkgVersion} (schema ${SCHEMA_VERSION})\n`);
+  try {
+    const pkgPath = path.resolve('package.json');
+    if (existsSync(pkgPath)) {
+      for (const warning of checkPinDrift(JSON.parse(readFileSync(pkgPath, 'utf8')))) {
+        diag(`⚠ pin drift: ${warning}`);
+      }
+    }
+  } catch {
+    // Best-effort — an unreadable package.json never breaks --version.
+  }
+  process.exit(EXIT.OK);
 }
 
 program.exitOverride();
