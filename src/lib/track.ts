@@ -12,9 +12,9 @@ import { getCredential, normalizeBaseUrl } from './credentials';
 /**
  * Commands that do NOT emit a `cli_command_executed` event: the auth commands
  * emit their own (`cli_signed_in`/`cli_signed_up`) or are local-only
- * (`logout`), and `verify` runs fully offline (no tenant/auth context).
+ * (`logout`). Offline runs are already excluded by the `hasUrl` gate below.
  */
-export const CLI_UNTRACKED_COMMANDS = new Set(['login', 'signup', 'logout', 'verify']);
+export const CLI_UNTRACKED_COMMANDS = new Set(['login', 'signup', 'logout']);
 
 /**
  * Whether a completed command should emit `cli_command_executed`. Requires an

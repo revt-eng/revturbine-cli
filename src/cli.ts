@@ -1,5 +1,5 @@
 /**
- * revturbine — verify RevTurbine Config Files and load them into a RevTurbine
+ * revturbine — validate RevTurbine Playbooks and load them into a RevTurbine
  * instance through the playbook-version lifecycle (draft → Release).
  *
  * Configs are canonical RevTurbineConfig JSON files, addressed by path.
@@ -173,7 +173,7 @@ function connect(rawUrl: string, explicitTenantId?: string): Connection {
 }
 
 /**
- * The upload/launch tenant, honoring a Config File's embedded origin
+ * The upload/launch tenant, honoring a Playbook file's embedded origin
  * (plan 131 TASK-10): explicit `-t` wins, an embedded `tenant_id` goes back
  * where it came from, and an embedded tenant contradicting the session with
  * no explicit choice is refused before anything is sent.
@@ -435,7 +435,7 @@ Command groups:
   Keys          ingest-keys create|list|revoke
 
 Version selectors (no defaults — a command that reads a config requires one):
-  <file>            a local Config File (positional, or --file <path>)
+  <file>            a local Playbook file (positional, or --file <path>)
   --draft           the tenant's single open draft (resolved automatically)
   --live            the current live Release
   --release <id>    a specific playbook version / Release
@@ -446,13 +446,13 @@ Common workflows:
 
   # Author, validate, and ship against the default instance (revturbine.com/app)
   revturbine login
-  revturbine download --live --save ./config.json
-  revturbine validate ./config.json
-  revturbine diff ./config.json --live
-  revturbine launch ./config.json
+  revturbine download --live --save ./revturbine.playbook.json
+  revturbine validate ./revturbine.playbook.json
+  revturbine diff ./revturbine.playbook.json --live
+  revturbine launch ./revturbine.playbook.json
 
   # Manual review flow (stage → inspect → launch)
-  revturbine upload ./config.json          # stage as the open draft
+  revturbine upload ./revturbine.playbook.json          # stage as the open draft
   revturbine preview                       # inspect the open draft
   revturbine validate --draft              # full server catalog
   revturbine launch --draft
@@ -492,7 +492,7 @@ program.hook('postAction', async (_thisCommand, actionCommand) => {
 
 program
   .name('revturbine')
-  .description('Validate RevTurbine Config Files and ship them through the playbook-version lifecycle (draft → Release).')
+  .description('Validate RevTurbine Playbooks and ship them through the playbook-version lifecycle (draft → Release).')
   .version(`${pkgVersion} (schema ${SCHEMA_VERSION})`, '-V, --version', 'Print the revturbine and bundled schema versions')
   // Consumed before commander parses (see the delegation block at the bottom);
   // declared here so it appears in --help and isn't rejected as unknown.
@@ -929,8 +929,8 @@ program
 
 program
   .command('validate')
-  .description('Validate a Config File offline (schema), or the open draft against the full server catalog (--draft).')
-  .argument('[file...]', 'Path(s) to a Config File (offline mode)')
+  .description('Validate a Playbook file offline (schema), or the open draft against the full server catalog (--draft).')
+  .argument('[file...]', 'Path(s) to a Playbook file (offline mode)')
   .option('--draft', 'Validate the open draft server-side (full catalog)')
   .option('-u, --url <url>', 'RevTurbine instance URL (used with --draft)', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
@@ -992,7 +992,7 @@ program
 program
   .command('diff')
   .description('Compare two config versions (first → second; a file vs --draft/--live/--release previews the launch — the server side is the base). Dry-run, no writes.')
-  .argument('[file...]', 'Local Config File path(s)')
+  .argument('[file...]', 'Local Playbook file path(s)')
   .option('--draft', "The tenant's open draft")
   .option('--live', 'The current live Release')
   .option('--release <id>', 'A specific playbook version / Release')
@@ -1015,7 +1015,7 @@ program
   .command('show')
   .description(`Render a summary view of a config version. <kind> ∈ ${SHOW_KINDS.join(' | ')}.`)
   .argument('<kind>', `One of: ${SHOW_KINDS.join(', ')}`)
-  .option('--file <path>', 'A local Config File')
+  .option('--file <path>', 'A local Playbook file')
   .option('--draft', "The tenant's open draft")
   .option('--live', 'The current live Release')
   .option('--release <id>', 'A specific playbook version / Release')
@@ -1052,8 +1052,8 @@ const NO_PRUNE_OPTION = ['--no-prune', 'Additive import — keep entities that a
 
 program
   .command('upload')
-  .description('Stage a Config File as the open draft (POST /api/config/import).')
-  .argument('<config>', 'Path to a Config File')
+  .description('Stage a Playbook file as the open draft (POST /api/config/import).')
+  .argument('<config>', 'Path to a Playbook file')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option(...PRUNE_OPTION)
@@ -1087,7 +1087,7 @@ program
 program
   .command('launch')
   .description('Take a config live as a new Release: validate (launch gate), then submit → approve → deploy. Synchronous.')
-  .argument('[file]', 'Config File to upload and launch directly')
+  .argument('[file]', 'Playbook file to upload and launch directly')
   .option('--draft', 'Launch the already-open draft')
   .option('--force', 'Launch past incomplete-but-valid findings (error_launch); structural errors (error_draft) still block')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
@@ -1331,7 +1331,7 @@ generateCmd
   .description(
     'Generate a TypeScript module of Playbook handles — entitlements (namespaced by type), plans, segments, surface-template ids, and ui-path action types — for type-safe call sites.',
   )
-  .argument('[file...]', 'Path to a Config File')
+  .argument('[file...]', 'Path to a Playbook file')
   .option('--draft', "The tenant's open draft")
   .option('--live', 'The current live Release')
   .option('--release <id>', 'A specific playbook version / Release')
@@ -1464,23 +1464,23 @@ const COMMAND_EXAMPLES: Record<string, string> = {
   download: [
     '',
     'Examples:',
-    '  revturbine download --live --save ./config.json     The live config → file',
+    '  revturbine download --live --save ./revturbine.playbook.json     The live config → file',
     '  revturbine download --draft                         The open draft (rendered on demand) → stdout',
     '  revturbine download --release cs_1a2b3c --format flatbuffer --save ./bundle.fb',
   ].join('\n'),
   validate: [
     '',
     'Examples:',
-    '  revturbine validate ./config.json      Offline schema validation (no network)',
+    '  revturbine validate ./revturbine.playbook.json      Offline schema validation (no network)',
     '  revturbine validate --draft            Full server catalog against the open draft',
   ].join('\n'),
   diff: [
     '',
     'Examples:',
-    '  revturbine diff ./config.json --live   Local edits vs the live config',
+    '  revturbine diff ./revturbine.playbook.json --live   Local edits vs the live config',
     '  revturbine diff --live --draft         What the open draft would change',
   ].join('\n'),
-  show: ['', 'Examples:', '  revturbine show plans --live', '  revturbine show segments --file ./config.json'].join('\n'),
+  show: ['', 'Examples:', '  revturbine show plans --live', '  revturbine show segments --file ./revturbine.playbook.json'].join('\n'),
   generate: [
     '',
     'Examples:',
@@ -1492,11 +1492,11 @@ const COMMAND_EXAMPLES: Record<string, string> = {
     'entitlement type) and the `EntitlementHandle` union for can()/gate()',
     'call sites. Its header records the exact command to regenerate it.',
   ].join('\n'),
-  upload: ['', 'Example:', '  revturbine upload ./config.json        Stage as the open draft'].join('\n'),
+  upload: ['', 'Example:', '  revturbine upload ./revturbine.playbook.json        Stage as the open draft'].join('\n'),
   launch: [
     '',
     'Examples:',
-    '  revturbine launch ./config.json        Upload, gate, and go live',
+    '  revturbine launch ./revturbine.playbook.json        Upload, gate, and go live',
     '  revturbine launch --draft              Launch the already-open draft',
   ].join('\n'),
   evaluate: [
