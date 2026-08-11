@@ -121,8 +121,135 @@ export function renderHandlesModule(byType: HandlesByType, opts: RenderOptions):
   return lines.join('\n');
 }
 
+// ── Additional static-handle families (plan 174 TASK-11) ─────────────────────
+//
+// Every family a Playbook carries as authored strings gets a typed module
+// section, so free-string call sites (plan targeting, segment refs, slot
+// template filters, uiPathResolvers keys) can be handle-checked at compile
+// time. Extraction is defensive over opaque records — validation, not codegen,
+// owns malformed-config findings. Canonical *event names* have no config or
+// snapshot source of truth yet; that family is a named follow-up, not emitted.
+
+function collectStrings(values: Iterable<unknown>): string[] {
+  const out = new Set<string>();
+  for (const value of values) {
+    const s = nonEmptyString(value);
+    if (s) out.add(s);
+  }
+  return [...out].sort();
+}
+
+/** `plans[].unique_handle` (falling back to `handle` / `id` for hand-authored configs). */
+export function extractPlanHandles(config: unknown): string[] {
+  if (!isRecord(config) || !Array.isArray(config.plans)) return [];
+  return collectStrings(
+    config.plans.map((p) =>
+      isRecord(p) ? (nonEmptyString(p.unique_handle) ?? nonEmptyString(p.handle) ?? p.id) : null,
+    ),
+  );
+}
+
+/** `segments[].handle` (falling back to `id`). */
+export function extractSegmentHandles(config: unknown): string[] {
+  if (!isRecord(config) || !Array.isArray(config.segments)) return [];
+  return collectStrings(
+    config.segments.map((s) => (isRecord(s) ? (nonEmptyString(s.handle) ?? s.id) : null)),
+  );
+}
+
+/**
+ * Surface-template ids: the `surface_templates` catalog plus every
+ * `template_id` a payload surface actually references (inline
+ * `placements[].payloads[].surfaces[]` and standalone
+ * `placement_payloads[].surfaces[]`) — custom templates included.
+ */
+export function extractSurfaceTemplateIds(config: unknown): string[] {
+  if (!isRecord(config)) return [];
+  const ids: unknown[] = [];
+  if (Array.isArray(config.surface_templates)) {
+    for (const t of config.surface_templates) {
+      if (isRecord(t)) ids.push(t.id ?? t.template_id);
+    }
+  }
+  const surfacesOf = (payload: unknown): void => {
+    if (!isRecord(payload) || !Array.isArray(payload.surfaces)) return;
+    for (const surface of payload.surfaces) {
+      if (isRecord(surface)) ids.push(surface.template_id);
+    }
+  };
+  if (Array.isArray(config.placements)) {
+    for (const placement of config.placements) {
+      if (!isRecord(placement) || !Array.isArray(placement.payloads)) continue;
+      for (const payload of placement.payloads) surfacesOf(payload);
+    }
+  }
+  if (Array.isArray(config.placement_payloads)) {
+    for (const payload of config.placement_payloads) surfacesOf(payload);
+  }
+  return collectStrings(ids);
+}
+
+/**
+ * `content_ui_paths[].action_type` — the authored ui-path vocabulary, i.e.
+ * exactly the key set `uiPathResolvers` must cover.
+ */
+export function extractUiPathActionTypes(config: unknown): string[] {
+  if (!isRecord(config) || !Array.isArray(config.content_ui_paths)) return [];
+  return collectStrings(
+    config.content_ui_paths.map((p) => (isRecord(p) ? p.action_type : null)),
+  );
+}
+
+function renderFlatFamily(
+  lines: string[],
+  opts: { doc: string; constName: string; typeName: string; values: string[] },
+): void {
+  lines.push('', `/** ${opts.doc} */`);
+  if (opts.values.length === 0) {
+    lines.push(`export const ${opts.constName} = {} as const;`);
+    lines.push(`export type ${opts.typeName} = never;`);
+    return;
+  }
+  lines.push(`export const ${opts.constName} = {`);
+  for (const value of opts.values) {
+    lines.push(`  ${key(value)}: ${quote(value)},`);
+  }
+  lines.push('} as const;');
+  lines.push(`export type ${opts.typeName} =`);
+  opts.values.forEach((value, i) => {
+    lines.push(`  | ${quote(value)}${i === opts.values.length - 1 ? ';' : ''}`);
+  });
+}
+
 export function generateHandleTypes(config: unknown, opts: RenderOptions): HandlesCodegenResult {
   const byType = extractEntitlementHandles(config);
   const handles = [...new Set(Object.values(byType).flat())].sort();
-  return { byType, handles, ts: renderHandlesModule(byType, opts) };
+
+  const lines = [renderHandlesModule(byType, opts).trimEnd()];
+  renderFlatFamily(lines, {
+    doc: 'Plan handles — the values plan targeting and planHandle options take.',
+    constName: 'Plans',
+    typeName: 'PlanHandle',
+    values: extractPlanHandles(config),
+  });
+  renderFlatFamily(lines, {
+    doc: 'Segment handles.',
+    constName: 'Segments',
+    typeName: 'SegmentHandle',
+    values: extractSegmentHandles(config),
+  });
+  renderFlatFamily(lines, {
+    doc: 'Surface-template ids — catalog entries plus every template a payload references.',
+    constName: 'SurfaceTemplates',
+    typeName: 'SurfaceTemplateId',
+    values: extractSurfaceTemplateIds(config),
+  });
+  renderFlatFamily(lines, {
+    doc: 'Authored ui-path action types — exactly the key set uiPathResolvers must cover.',
+    constName: 'UiPathActionTypes',
+    typeName: 'UiPathActionType',
+    values: extractUiPathActionTypes(config),
+  });
+  lines.push('');
+  return { byType, handles, ts: lines.join('\n') };
 }
