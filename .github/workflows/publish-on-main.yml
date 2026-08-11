@@ -1,0 +1,85 @@
+name: Publish on main
+
+# Publishes `@revturbine/cli` to the PUBLIC npm registry when a version bump to
+# package.json lands on main, then pushes the matching `v<version>` tag as a
+# RECORD of what shipped. Releasing is still "merge a version bump" — the
+# credential dependency is gone:
+#
+# The previous design (auto-tag-release.yml) tagged first and let the tag fire
+# release.yml. That cross-workflow trigger required a PAT — tags pushed by the
+# default GITHUB_TOKEN do not trigger other workflows — and this repo is
+# public, where the org REVTURBINE_GIT_TOKEN is withheld BY DESIGN. The token
+# gate "skipped cleanly", so 0.15.0–0.16.2 sat merged-but-unpublished until
+# hand-tagged (2026-08-11). Publish-then-tag inverts the order: nothing
+# downstream needs triggering, so GITHUB_TOKEN's suppression is irrelevant and
+# no PAT exists to expire.
+#
+# Idempotent against the REGISTRY, not the tag list: a re-run — or an
+# unrelated package.json edit (dependency bump, script change) — that finds
+# the version already on npm publishes nothing and only self-heals a missing
+# tag. release.yml (tag-triggered) remains the manual escape hatch: hand-push
+# a `v<version>` tag to publish a version missing from npm.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+
+permissions:
+  contents: write # tag push
+  id-token: write # npm provenance
+
+concurrency:
+  group: publish-on-main
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+      - name: Use the npm version pinned in package.json
+        run: |
+          NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          npm install --global "npm@$NPM_VERSION"
+          npm --version
+      - name: Resolve version state against the registry
+        id: state
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "@revturbine/cli@$VERSION" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "@revturbine/cli@$VERSION already on npm — nothing to publish."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.state.outputs.published == 'false'
+        run: npm ci
+      - if: steps.state.outputs.published == 'false'
+        run: npm run verify
+      - if: steps.state.outputs.published == 'false'
+        run: npm run build
+      - name: Publish to public npm
+        if: steps.state.outputs.published == 'false'
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Tag the shipped version (record only)
+        run: |
+          set -euo pipefail
+          TAG="v${{ steps.state.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already on origin."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"

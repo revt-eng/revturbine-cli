@@ -68,9 +68,9 @@ There is deliberately **no cross-repo drift check here.** This repo is public an
 
 ## Publishing
 
-**Releasing = merging a version bump to `main`.** `auto-tag-release.yml` sees the changed `package.json`, pushes the matching `v<version>` tag, and that fires `release.yml` (`npm publish --access public --provenance`). No hand-pushed tags, and **never hand-publish** — an automation token in CI bypasses npm 2FA, which a local `npm publish` does not.
+**Releasing = merging a version bump to `main`.** `publish-on-main.yml` sees the changed `package.json`, publishes to public npm directly (`npm publish --access public --provenance`, repo-level `NPM_TOKEN`), then pushes the matching `v<version>` tag with the default `GITHUB_TOKEN` as a **record**. Publish-then-tag is deliberate: nothing downstream is tag-triggered anymore, so no cross-workflow PAT is needed — this repo is public, and the org `REVTURBINE_GIT_TOKEN` is withheld from public repos by design (the old tag-first flow "skipped cleanly" on the missing secret and silently stranded 0.15.0–0.16.2 unpublished until hand-tagged, 2026-08-11). The publish step is idempotent against the registry: re-runs and unrelated `package.json` edits publish nothing and only self-heal a missing tag.
 
-The tag push must use `REVTURBINE_GIT_TOKEN`, not `GITHUB_TOKEN`: a tag pushed by `GITHUB_TOKEN` does not trigger other workflows, so the release would sit tagged-but-unpublished. Auto-tag skips with a warning if that secret isn't visible, in which case push the tag by hand.
+**Never hand-publish** — the CI automation token bypasses npm 2FA, which a local `npm publish` does not. `release.yml` (tag-triggered) remains the manual escape hatch: hand-push a `v<version>` tag at the version-bump commit to publish a version missing from npm.
 
 ## Memory
 
