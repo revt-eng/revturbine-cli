@@ -40,6 +40,25 @@ export function collectSelectors(opts: SelectorOpts, positionalFiles: string[] =
   return found;
 }
 
+/**
+ * Launch-preview polarity for `diff` (plan 171 TASK-11, F-46): the DEPLOYED
+ * side is the CURRENT state and the candidate is the INCOMING next — so
+ * `added` means "created on launch" and `removed` means "pruned on launch",
+ * matching `diffExportedConfig(current, next)` and `formatDiff`'s tenant
+ * legend. `collectSelectors` yields a fixed order (files, --draft, --live,
+ * --release) that can't express this, so the pair is reordered here:
+ * `--live` always diffs as the base, and a server-side version diffs as the
+ * base against a local file. Pairs with no deployed/candidate distinction
+ * (two files, --draft vs --release) keep the stated first → second reading.
+ */
+export function orderDiffSelectors(sels: VersionSelector[]): VersionSelector[] {
+  if (sels.length !== 2) return sels;
+  const [first, second] = sels;
+  if (second.kind === 'live' && first.kind !== 'live') return [second, first];
+  if (first.kind === 'file' && second.kind !== 'file') return [second, first];
+  return sels;
+}
+
 /** Human name for a selector, for messages. */
 export function describeSelector(sel: VersionSelector): string {
   switch (sel.kind) {

@@ -55,7 +55,7 @@ import { detectHarness, finalOutputLines, skillsAddArgs, SKILLS_SOURCE, type Ski
 import { generateHandleTypes } from './lib/handles-codegen';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
 import { checkPinDrift } from './lib/pin-drift';
-import { describeSelector, requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
+import { describeSelector, orderDiffSelectors, requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
 import { serverSchemaIsNewer } from './lib/version-trail';
 
@@ -991,7 +991,7 @@ program
 
 program
   .command('diff')
-  .description('Compare two config versions (first → second). Dry-run, no writes.')
+  .description('Compare two config versions (first → second; a file vs --draft/--live/--release previews the launch — the server side is the base). Dry-run, no writes.')
   .argument('[file...]', 'Local Config File path(s)')
   .option('--draft', "The tenant's open draft")
   .option('--live', 'The current live Release')
@@ -1000,10 +1000,14 @@ program
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .action(async (files: string[], opts: { draft?: boolean; live?: boolean; release?: string; url: string; tenantId?: string }) => {
     const sels = requireSelectors(opts, files, { count: 2, allowed: ['file', 'draft', 'live', 'release'], command: 'diff' });
-    const needsServer = sels.some((s) => s.kind !== 'file');
+    // Launch-preview polarity (plan 171 TASK-11): a file vs a server-side
+    // version diffs FROM the server state TO the file, so +/− read as
+    // "created/pruned on launch" — see orderDiffSelectors.
+    const ordered = orderDiffSelectors(sels);
+    const needsServer = ordered.some((s) => s.kind !== 'file');
     const conn = needsServer ? connect(opts.url, opts.tenantId) : (null as unknown as Connection);
-    const [a, b] = await Promise.all(sels.map((s) => loadVersion(conn, s)));
-    diag(`Diff (${sels.map((s) => (s.kind === 'file' ? s.path : s.kind === 'release' ? `--release ${s.id}` : `--${s.kind}`)).join(' → ')}):`);
+    const [a, b] = await Promise.all(ordered.map((s) => loadVersion(conn, s)));
+    diag(`Diff (${ordered.map((s) => (s.kind === 'file' ? s.path : s.kind === 'release' ? `--release ${s.id}` : `--${s.kind}`)).join(' → ')}):`);
     process.stdout.write(`${formatDiff(diffExportedConfig(a, b))}\n`);
   });
 
