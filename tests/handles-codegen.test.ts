@@ -83,3 +83,89 @@ describe('generateHandleTypes', () => {
     expect(result.ts).toContain("advanced_export: 'advanced_export',");
   });
 });
+
+// ── Plan 174 TASK-11 — additional static-handle families ─────────────────────
+
+import {
+  extractPlanHandles,
+  extractSegmentHandles,
+  extractSurfaceTemplateIds,
+  extractUiPathActionTypes,
+} from '../src/lib/handles-codegen';
+
+describe('additional handle families (plan 174 TASK-11)', () => {
+  const config = {
+    entitlements: [{ unique_handle: 'seats', type: 'seat' }],
+    plans: [
+      { unique_handle: 'professional', id: 'professional' },
+      { handle: 'starter' },
+      { id: 'legacy_only' },
+      { unique_handle: 'professional' },
+    ],
+    segments: [{ handle: 'new_users' }, { id: 'seg_power' }, {}],
+    surface_templates: [{ id: 'custom_wizard' }],
+    content_ui_paths: [
+      { action_type: 'open_checkout_modal' },
+      { action_type: 'navigate_to_plans' },
+      { action_type: 'open_checkout_modal' },
+      { name: 'broken' },
+    ],
+    placements: [
+      {
+        payloads: [
+          { surfaces: [{ template_id: 'modal_overlay' }, { template_id: 'banner_placement' }] },
+        ],
+      },
+    ],
+    placement_payloads: [{ surfaces: [{ template_id: 'toast_message' }] }],
+  };
+
+  it('extracts plan handles with unique_handle > handle > id fallback, sorted + deduped', () => {
+    expect(extractPlanHandles(config)).toEqual(['legacy_only', 'professional', 'starter']);
+  });
+
+  it('extracts segment handles with handle > id fallback', () => {
+    expect(extractSegmentHandles(config)).toEqual(['new_users', 'seg_power']);
+  });
+
+  it('extracts template ids from the catalog plus every referenced payload surface', () => {
+    expect(extractSurfaceTemplateIds(config)).toEqual([
+      'banner_placement',
+      'custom_wizard',
+      'modal_overlay',
+      'toast_message',
+    ]);
+  });
+
+  it('extracts authored ui-path action types (the uiPathResolvers key set)', () => {
+    expect(extractUiPathActionTypes(config)).toEqual([
+      'navigate_to_plans',
+      'open_checkout_modal',
+    ]);
+  });
+
+  it('renders every family into the module with unions, and empty families as never', () => {
+    const { ts } = generateHandleTypes(config, OPTS);
+    expect(ts).toContain('export const Plans = {');
+    expect(ts).toContain("professional: 'professional',");
+    expect(ts).toContain('export type PlanHandle =');
+    expect(ts).toContain('export const Segments = {');
+    expect(ts).toContain('export const SurfaceTemplates = {');
+    expect(ts).toContain("modal_overlay: 'modal_overlay',");
+    expect(ts).toContain('export const UiPathActionTypes = {');
+    expect(ts).toContain('export type UiPathActionType =');
+
+    const empty = generateHandleTypes({ entitlements: [] }, OPTS);
+    expect(empty.ts).toContain('export type PlanHandle = never;');
+    expect(empty.ts).toContain('export type SegmentHandle = never;');
+  });
+
+  it('tolerates non-config input across every extractor', () => {
+    for (const bad of [null, 'nope', 42, { plans: 'x', segments: 1, placements: {} }]) {
+      expect(extractPlanHandles(bad)).toEqual([]);
+      expect(extractSegmentHandles(bad)).toEqual([]);
+      expect(extractSurfaceTemplateIds(bad)).toEqual([]);
+      expect(extractUiPathActionTypes(bad)).toEqual([]);
+    }
+  });
+});
