@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { collectSelectors, requireSelectors, SelectorError } from '../src/lib/selectors';
+import { collectSelectors, orderDiffSelectors, requireSelectors, SelectorError } from '../src/lib/selectors';
 
 describe('collectSelectors', () => {
   it('orders positionals first, then --file, --draft, --live, --release', () => {
@@ -11,6 +11,45 @@ describe('collectSelectors', () => {
       { kind: 'draft' },
       { kind: 'release', id: 'rel_1' },
     ]);
+  });
+});
+
+describe('orderDiffSelectors — launch-preview polarity (plan 171 TASK-11, F-46)', () => {
+  it('reverses [file, --live] so the server side is current and the file is next', () => {
+    expect(orderDiffSelectors([{ kind: 'file', path: 'local.json' }, { kind: 'live' }])).toEqual([
+      { kind: 'live' },
+      { kind: 'file', path: 'local.json' },
+    ]);
+  });
+
+  it('reverses [file, --draft] and [file, --release] the same way', () => {
+    expect(orderDiffSelectors([{ kind: 'file', path: 'a.json' }, { kind: 'draft' }])).toEqual([
+      { kind: 'draft' },
+      { kind: 'file', path: 'a.json' },
+    ]);
+    expect(orderDiffSelectors([{ kind: 'file', path: 'a.json' }, { kind: 'release', id: 'rel_1' }])).toEqual([
+      { kind: 'release', id: 'rel_1' },
+      { kind: 'file', path: 'a.json' },
+    ]);
+  });
+
+  it('keeps two files in the stated first → second order', () => {
+    expect(orderDiffSelectors([{ kind: 'file', path: 'a.json' }, { kind: 'file', path: 'b.json' }])).toEqual([
+      { kind: 'file', path: 'a.json' },
+      { kind: 'file', path: 'b.json' },
+    ]);
+  });
+
+  it('keeps two server-side versions in the stated order', () => {
+    expect(orderDiffSelectors([{ kind: 'draft' }, { kind: 'live' }])).toEqual([
+      { kind: 'draft' },
+      { kind: 'live' },
+    ]);
+  });
+
+  it('is a no-op for anything other than an exact [file, server] pair', () => {
+    expect(orderDiffSelectors([{ kind: 'live' }])).toEqual([{ kind: 'live' }]);
+    expect(orderDiffSelectors([])).toEqual([]);
   });
 });
 

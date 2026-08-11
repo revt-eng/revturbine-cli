@@ -40,6 +40,23 @@ export function collectSelectors(opts: SelectorOpts, positionalFiles: string[] =
   return found;
 }
 
+/**
+ * Launch-preview polarity for `diff` (plan 171 TASK-11, F-46): when a local
+ * file is diffed against a server-side version, the server side is the CURRENT
+ * state and the file is the INCOMING next — so `added` means "created on
+ * launch" and `removed` means "pruned on launch", matching
+ * `diffExportedConfig(current, next)` and `formatDiff`'s tenant legend.
+ * `collectSelectors` always yields positional files first, so the
+ * [file, server] pair is reversed here; any other pair (two files, or two
+ * server versions) keeps the stated first → second reading.
+ */
+export function orderDiffSelectors(sels: VersionSelector[]): VersionSelector[] {
+  if (sels.length === 2 && sels[0].kind === 'file' && sels[1].kind !== 'file') {
+    return [sels[1], sels[0]];
+  }
+  return sels;
+}
+
 /** Human name for a selector, for messages. */
 export function describeSelector(sel: VersionSelector): string {
   switch (sel.kind) {
