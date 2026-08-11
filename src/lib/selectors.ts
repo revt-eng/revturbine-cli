@@ -41,19 +41,21 @@ export function collectSelectors(opts: SelectorOpts, positionalFiles: string[] =
 }
 
 /**
- * Launch-preview polarity for `diff` (plan 171 TASK-11, F-46): when a local
- * file is diffed against a server-side version, the server side is the CURRENT
- * state and the file is the INCOMING next — so `added` means "created on
- * launch" and `removed` means "pruned on launch", matching
- * `diffExportedConfig(current, next)` and `formatDiff`'s tenant legend.
- * `collectSelectors` always yields positional files first, so the
- * [file, server] pair is reversed here; any other pair (two files, or two
- * server versions) keeps the stated first → second reading.
+ * Launch-preview polarity for `diff` (plan 171 TASK-11, F-46): the DEPLOYED
+ * side is the CURRENT state and the candidate is the INCOMING next — so
+ * `added` means "created on launch" and `removed` means "pruned on launch",
+ * matching `diffExportedConfig(current, next)` and `formatDiff`'s tenant
+ * legend. `collectSelectors` yields a fixed order (files, --draft, --live,
+ * --release) that can't express this, so the pair is reordered here:
+ * `--live` always diffs as the base, and a server-side version diffs as the
+ * base against a local file. Pairs with no deployed/candidate distinction
+ * (two files, --draft vs --release) keep the stated first → second reading.
  */
 export function orderDiffSelectors(sels: VersionSelector[]): VersionSelector[] {
-  if (sels.length === 2 && sels[0].kind === 'file' && sels[1].kind !== 'file') {
-    return [sels[1], sels[0]];
-  }
+  if (sels.length !== 2) return sels;
+  const [first, second] = sels;
+  if (second.kind === 'live' && first.kind !== 'live') return [second, first];
+  if (first.kind === 'file' && second.kind !== 'file') return [second, first];
   return sels;
 }
 

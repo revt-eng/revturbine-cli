@@ -40,10 +40,21 @@ describe('orderDiffSelectors — launch-preview polarity (plan 171 TASK-11, F-46
     ]);
   });
 
-  it('keeps two server-side versions in the stated order', () => {
+  it('makes --live the base against the open draft ("what the draft would change")', () => {
     expect(orderDiffSelectors([{ kind: 'draft' }, { kind: 'live' }])).toEqual([
-      { kind: 'draft' },
       { kind: 'live' },
+      { kind: 'draft' },
+    ]);
+  });
+
+  it('keeps server-side pairs with no deployed/candidate distinction in the stated order', () => {
+    expect(orderDiffSelectors([{ kind: 'draft' }, { kind: 'release', id: 'rel_1' }])).toEqual([
+      { kind: 'draft' },
+      { kind: 'release', id: 'rel_1' },
+    ]);
+    expect(orderDiffSelectors([{ kind: 'live' }, { kind: 'release', id: 'rel_1' }])).toEqual([
+      { kind: 'live' },
+      { kind: 'release', id: 'rel_1' },
     ]);
   });
 
