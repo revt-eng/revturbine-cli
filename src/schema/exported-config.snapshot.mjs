@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.167
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.168
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -2153,7 +2153,14 @@ var ClientContextCapabilitiesSchema = z9.object({
 );
 var ClientContextPlanSchema = z9.object({
   /** The customer's current plan handle (`plans.unique_handle`). */
-  handle: z9.string().min(1).optional().meta({ ...Unrestricted6, ...ClientSafe })
+  handle: z9.string().min(1).optional().meta({ ...Unrestricted6, ...ClientSafe }),
+  /**
+   * The plan's display name, resolved server-side from the plan record so
+   * client UI can render it without a Playbook lookup (plan 179 TASK-1 —
+   * Q-2 ruling: `{ handle, name }`). Plan names are already client-visible
+   * in every Playbook; no new exposure.
+   */
+  name: z9.string().min(1).optional().meta({ ...Unrestricted6, ...ClientSafe })
 }).meta(
   { id: "ClientContextPlan", "x-revturbine-schema-persistence": Transient6, "x-revturbine-schema-exposure": Internal5 }
 );

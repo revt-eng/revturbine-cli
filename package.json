@@ -1,6 +1,6 @@
 {
   "name": "@revturbine/cli",
-  "version": "0.16.3",
+  "version": "0.16.4",
   "description": "revturbine — validate RevTurbine Playbooks and ship them to a RevTurbine instance through the playbook-version lifecycle (draft → Release).",
   "license": "MIT",
   "repository": {

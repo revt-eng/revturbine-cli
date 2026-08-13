@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.167
+// Vendored validation engine bundled from @revt-eng/schema@0.1.168
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -75,6 +75,18 @@ var CATALOG = {
     message: "These rules for the same entitlement target the same plan and segment \u2014 only one will apply.",
     specRef: "config-validation.md \xA75.3 (provisional \u2014 plan 73 Q-1)"
   },
+  // limit rule with unset enforcement. Promoted from §5.8 (plan 179 Q-6,
+  // Kent 2026-08-12): unset enforcement silently means "hard-block at the
+  // cap" (evaluator default since plan 34) — an author who wanted degrade or
+  // allow_overage gets a hard stop without being told. Explicitness warn on
+  // the corrected premise (the old "never blocks" mechanism was the SDK
+  // ignoring allowed:false, fixed in sdk 0.2.75).
+  "VAL-PLN-07": {
+    id: "VAL-PLN-07",
+    severity: "warning",
+    message: "This limit rule sets no enforcement \u2014 at the cap it blocks by default. Set enforcement explicitly (hard_block, soft_block, degrade, allow_overage) if that isn't the intent.",
+    specRef: "config-validation.md \xA75.8 (promoted \u2014 plan 179 Q-6)"
+  },
   // multiple public variations. Origin: `*_variation.multiple_public`.
   "VAL-PLN-06": {
     id: "VAL-PLN-06",
@@ -123,6 +135,7 @@ var SEMANTIC_RULE_CODES = [
   "VAL-PLN-01",
   "VAL-PLN-05",
   "VAL-PLN-06",
+  "VAL-PLN-07",
   "VAL-PLC-05",
   "VAL-TRL-04"
 ];
@@ -130,10 +143,32 @@ function runSemanticRules(graph) {
   return [
     ...checkPlansHaveStripePrice(graph),
     ...checkRuleOverlaps(graph),
+    ...checkLimitRuleEnforcement(graph),
     ...checkPublicVariationCollisions(graph),
     ...checkPayloadCtaOverflow(graph),
     ...checkTrialRuleWidestAudience(graph)
   ];
+}
+function checkLimitRuleEnforcement(graph) {
+  const findings = [];
+  const CAP_FIELDS = ["limit_value", "allowance_value", "included_count"];
+  for (const rule of graph.entitlement_rules ?? []) {
+    if (rule.enforcement !== void 0 && rule.enforcement !== null) continue;
+    const cappedField = CAP_FIELDS.find((f) => typeof rule[f] === "number" && Number.isFinite(rule[f]));
+    if (!cappedField) continue;
+    const id = String(rule.handle ?? rule.id ?? "");
+    const name = String(rule.name ?? id);
+    findings.push(
+      finding(
+        "VAL-PLN-07",
+        { object_type: "entitlement_rule", object_id: id, field: "enforcement", studio: "plans-entitlements" },
+        {
+          message: `Limit rule '${name}' sets no enforcement \u2014 at the cap it blocks by default. Set enforcement explicitly (hard_block, soft_block, degrade, allow_overage) if that isn't the intent.`
+        }
+      )
+    );
+  }
+  return findings;
 }
 function surfaceCtas(surface) {
   if (!surface || typeof surface !== "object") return 0;
