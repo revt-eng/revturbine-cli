@@ -1,10 +1,10 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.145
+// Vendored validation engine bundled from @revt-eng/schema@0.1.167
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
 
-// ../scaffold/src/core/validation/types.ts
+// ../validator-pair/src/core/validation/types.ts
 import { z } from "zod";
 var SeveritySchema = z.enum([
   "error_draft",
@@ -52,7 +52,7 @@ var ValidationFindingSchema = z.object({
   spotlight: z.boolean().optional()
 });
 
-// ../scaffold/src/core/validation/catalog.ts
+// ../validator-pair/src/core/validation/catalog.ts
 var CATALOG = {
   // no-Stripe-price. Interim `warning` (does not block): a plan price that has
   // all its billing info but is entered statically rather than synced from
@@ -67,11 +67,12 @@ var CATALOG = {
     message: "Plan '{plan}' has no Stripe price linked.",
     specRef: "optimization-studio-ui.md \xA73.1; plans-entitlements-studio-ui.md \xA72.2"
   },
-  // entitlement-rule overlap. Origin: the `rule.overlap` check (plan 40).
+  // entitlement-rule overlap. Origin: the `rule.overlap` check (plan 40);
+  // scoped to same-entitlement pairs per §5.8 (plan 179 / devkit #597).
   "VAL-PLN-05": {
     id: "VAL-PLN-05",
     severity: "warning",
-    message: "These entitlement rules target the same plan and segment \u2014 only one will apply.",
+    message: "These rules for the same entitlement target the same plan and segment \u2014 only one will apply.",
     specRef: "config-validation.md \xA75.3 (provisional \u2014 plan 73 Q-1)"
   },
   // multiple public variations. Origin: `*_variation.multiple_public`.
@@ -80,6 +81,27 @@ var CATALOG = {
     severity: "error_draft",
     message: "Only one public variation is allowed per billing period and segment.",
     specRef: "config-validation.md \xA75.3 (provisional \u2014 plan 73 Q-1)"
+  },
+  // more-than-two CTAs on a payload surface. Promoted from §5.8 (plan 174
+  // TASK-7 / devkit #584): the decision output carries ONE cta_path (from
+  // ctas[0]); ctas[1] contributes secondary_cta_label only; ctas[2..] are
+  // dropped at resolution with no finding.
+  "VAL-PLC-05": {
+    id: "VAL-PLC-05",
+    severity: "warning",
+    message: "Payload '{payload}' authors {count} CTAs, but the decision output carries one primary path and one secondary label \u2014 the third and later CTAs are dropped at resolution.",
+    specRef: "config-validation.md \xA75.8 (promoted \u2014 plan 174 TASK-7)"
+  },
+  // widest-possible-audience trial rule. Promoted from §5.8 (plan 174 TASK-7 /
+  // devkit #584): plan and segment on a free trial rule NARROW, so null on
+  // both means every user on every plan — legal and occasionally intended,
+  // but indistinguishable from an unfinished rule after authoring. Reverse
+  // trial rules can't hit this (premium_plan_id is required).
+  "VAL-TRL-04": {
+    id: "VAL-TRL-04",
+    severity: "warning",
+    message: "Trial rule '{rule}' targets every user on every plan (no plan, no segment). Confirm the widest possible audience is intended.",
+    specRef: "config-validation.md \xA75.8 (promoted \u2014 plan 174 TASK-7)"
   }
 };
 function getCatalogEntry(id) {
@@ -89,21 +111,81 @@ function listCatalogIds() {
   return Object.keys(CATALOG);
 }
 
-// ../scaffold/src/core/validation/disposition.ts
+// ../validator-pair/src/core/validation/disposition.ts
 function disposition(finding2, callSite) {
   if (finding2.severity === "error_draft") return "block";
   if (finding2.severity === "error_launch" && callSite === "publish") return "block";
   return "advise";
 }
 
-// ../scaffold/src/core/validation/rules.ts
-var SEMANTIC_RULE_CODES = ["VAL-PLN-01", "VAL-PLN-05", "VAL-PLN-06"];
+// ../validator-pair/src/core/validation/rules.ts
+var SEMANTIC_RULE_CODES = [
+  "VAL-PLN-01",
+  "VAL-PLN-05",
+  "VAL-PLN-06",
+  "VAL-PLC-05",
+  "VAL-TRL-04"
+];
 function runSemanticRules(graph) {
   return [
     ...checkPlansHaveStripePrice(graph),
     ...checkRuleOverlaps(graph),
-    ...checkPublicVariationCollisions(graph)
+    ...checkPublicVariationCollisions(graph),
+    ...checkPayloadCtaOverflow(graph),
+    ...checkTrialRuleWidestAudience(graph)
   ];
+}
+function surfaceCtas(surface) {
+  if (!surface || typeof surface !== "object") return 0;
+  const ctas = surface.ctas;
+  return Array.isArray(ctas) ? ctas.length : 0;
+}
+function checkPayloadCtaOverflow(graph) {
+  const findings = [];
+  const flag = (payloadId, count, objectType) => {
+    findings.push(
+      finding("VAL-PLC-05", { object_type: objectType, object_id: payloadId, field: "ctas", studio: "placements" }, {
+        message: `Payload '${payloadId}' authors ${count} CTAs, but the decision output carries one primary path and one secondary label \u2014 the third and later CTAs are dropped at resolution.`
+      })
+    );
+  };
+  for (const placement of graph.placements ?? []) {
+    const payloads = Array.isArray(placement.payloads) ? placement.payloads : [];
+    for (const payload of payloads) {
+      const payloadId = String(payload.id ?? placement.id ?? "");
+      const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+      for (const surface of surfaces) {
+        const count = surfaceCtas(surface);
+        if (count > 2) flag(payloadId, count, "placement_payload");
+      }
+    }
+  }
+  for (const payload of graph.placement_payloads ?? []) {
+    const payloadId = String(payload.payload_id ?? payload.id ?? "");
+    const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+    for (const surface of surfaces) {
+      const count = surfaceCtas(surface);
+      if (count > 2) flag(payloadId, count, "placement_payload");
+    }
+  }
+  return findings;
+}
+function checkTrialRuleWidestAudience(graph) {
+  const findings = [];
+  for (const rule of graph.free_trial_rules ?? []) {
+    const planId = rule.plan_id;
+    const segmentId = rule.segment_id;
+    const planUnset = planId === null || planId === void 0 || planId === "";
+    const segmentUnset = segmentId === null || segmentId === void 0 || segmentId === "";
+    if (!planUnset || !segmentUnset) continue;
+    const ruleId = String(rule.handle ?? rule.id ?? "");
+    findings.push(
+      finding("VAL-TRL-04", { object_type: "free_trial_rule", object_id: ruleId, studio: "trials" }, {
+        message: `Trial rule '${ruleId || "unnamed"}' targets every user on every plan (no plan, no segment). Confirm the widest possible audience is intended.`
+      })
+    );
+  }
+  return findings;
 }
 var ID_HANDLE_PARITY_TABLES = [
   { table: "plans", handleField: "unique_handle", objectType: "plan" },
@@ -199,6 +281,7 @@ function checkRuleOverlaps(graph) {
   const sigs = [];
   for (const rule of rules) {
     const id = String(rule.handle ?? rule.id ?? "");
+    const entitlementId = typeof rule.entitlement_id === "string" ? rule.entitlement_id : "";
     const targetIds = /* @__PURE__ */ new Set();
     if (Array.isArray(rule.targets)) {
       for (const t of rule.targets) {
@@ -226,6 +309,7 @@ function checkRuleOverlaps(graph) {
     sigs.push({
       rule,
       id,
+      entitlementId,
       targetIds,
       segmentPairs,
       matchesAllSegments: segmentIds.length === 0
@@ -236,6 +320,7 @@ function checkRuleOverlaps(graph) {
     for (let j = i + 1; j < sigs.length; j++) {
       const a = sigs[i];
       const b = sigs[j];
+      if (!a.entitlementId || a.entitlementId !== b.entitlementId) continue;
       let sharedTarget = false;
       for (const t of a.targetIds) {
         if (b.targetIds.has(t)) {
@@ -274,7 +359,7 @@ function checkRuleOverlaps(graph) {
           studio: "plans-entitlements"
         },
         {
-          message: `Entitlement rule '${name}' overlaps another rule on a shared target and segment \u2014 only one will apply.`,
+          message: `Entitlement rule '${name}' overlaps another rule for the same entitlement on a shared target and segment \u2014 only one will apply.`,
           detail: "Where rules overlap, the most permissive value applies (plans-entitlements-studio-ui.md \xA72.3.2). Adjust the segment selection if this is unintended."
         }
       )
@@ -331,7 +416,7 @@ function collectPublicCollisions(rows, objectType, parentField) {
   return findings;
 }
 
-// ../scaffold/src/core/validation/zod-adapter.ts
+// ../validator-pair/src/core/validation/zod-adapter.ts
 function fieldLabel(path) {
   if (!path || path.length === 0) return "This value";
   return String(path[path.length - 1]);
@@ -341,8 +426,12 @@ function messageForZodIssue(issue) {
   switch (issue.code) {
     case "invalid_type":
       return issue.input === void 0 ? `${field} is required.` : `${field} must be a ${issue.expected ?? "valid value"}.`;
-    case "invalid_value":
-      return `${field} must be one of the allowed values.`;
+    case "invalid_value": {
+      const values = (issue.values ?? []).filter(
+        (v) => ["string", "number", "boolean"].includes(typeof v)
+      );
+      return values.length > 0 ? `${field} must be one of: ${values.map((v) => `'${String(v)}'`).join(", ")}.` : `${field} must be one of the allowed values.`;
+    }
     case "invalid_format":
       return `${field} isn't in a valid format.`;
     case "too_small":
@@ -372,7 +461,7 @@ function zodErrorToFindings(error, opts = {}) {
   }));
 }
 
-// ../scaffold/src/core/validation/evaluate.ts
+// ../validator-pair/src/core/validation/evaluate.ts
 function spotlights(finding2, focus) {
   if (!focus) return false;
   const { object_type, object_id } = finding2.targetRef;
@@ -391,19 +480,19 @@ function evaluate(graph, opts = {}) {
   return findings.map((f) => spotlights(f, opts.focus) ? { ...f, spotlight: true } : f);
 }
 
-// ../scaffold/src/config/models/schema.ts
+// ../validator-pair/src/config/models/schema.ts
 import { z as z9 } from "zod";
 
-// ../scaffold/src/core/common.ts
+// ../validator-pair/src/core/common.ts
 import { z as z3 } from "zod";
 
-// ../scaffold/src/core/classification.ts
+// ../validator-pair/src/core/classification.ts
 import { z as z2 } from "zod";
 
-// ../scaffold/src/core/handle-pattern.ts
+// ../validator-pair/src/core/handle-pattern.ts
 var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
 
-// ../scaffold/src/core/classification.ts
+// ../validator-pair/src/core/classification.ts
 var SchemaPersistence = {
   Persisted: "persisted",
   Transient: "transient"
@@ -417,7 +506,12 @@ var DataClassification = {
   Financial: { "x-revturbine-data-classification": "financial" },
   Unrestricted: { "x-revturbine-data-classification": "unrestricted" }
 };
+var SCHEMA_EXPOSURE_META_KEY = "x-revturbine-schema-exposure";
 var READ_ONLY_META_KEY = "readOnly";
+var DECISION_ONLY_META_KEY = "x-revturbine-decision-only";
+var DecisionOnly = { [DECISION_ONLY_META_KEY]: true };
+var ClientSafe = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.External };
+var ServerOnly = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.Internal };
 function toWritableSchema(schema) {
   const writableShape = {};
   for (const [fieldName, fieldSchema] of Object.entries(schema.shape)) {
@@ -440,7 +534,7 @@ function toCreateSchema(schema) {
   return writable;
 }
 
-// ../scaffold/src/core/common.ts
+// ../validator-pair/src/core/common.ts
 var { Unrestricted } = DataClassification;
 var { Transient, Persisted } = SchemaPersistence;
 var { Internal, External } = SchemaExposure;
@@ -623,7 +717,7 @@ var CtaActionTypeSchema = z3.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 
-// ../scaffold/src/core/identity.ts
+// ../validator-pair/src/core/identity.ts
 import { z as z4 } from "zod";
 var IdentityKind = {
   /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
@@ -639,7 +733,7 @@ function mintedIdentity(handleField = "handle") {
   return { [SCHEMA_IDENTITY_META_KEY]: { kind: IdentityKind.Minted, handleField } };
 }
 
-// ../scaffold/src/core/facets.ts
+// ../validator-pair/src/core/facets.ts
 var SchemaContext = {
   Playbook: "playbook",
   Branding: "branding",
@@ -703,10 +797,10 @@ function getSchemaDeprecation(schema) {
   };
 }
 
-// ../scaffold/src/entitlements/models/schema.ts
+// ../validator-pair/src/entitlements/models/schema.ts
 import { z as z6 } from "zod";
 
-// ../scaffold/src/core/openapi/helpers.ts
+// ../validator-pair/src/core/openapi/helpers.ts
 import { z as z5 } from "zod";
 var ListEnvelope = (itemSchema) => z5.object({
   items: z5.array(itemSchema)
@@ -725,7 +819,7 @@ var ListQueryParamsSchema = z5.object({
   include_deleted: z5.boolean().default(false).optional()
 });
 
-// ../scaffold/src/entitlements/models/schema.ts
+// ../validator-pair/src/entitlements/models/schema.ts
 var { Unrestricted: Unrestricted2 } = DataClassification;
 var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
 var { Internal: Internal2, External: External2 } = SchemaExposure;
@@ -1117,7 +1211,7 @@ var entitlementPaths = {
   }
 };
 
-// ../scaffold/src/trials/models/schema.ts
+// ../validator-pair/src/trials/models/schema.ts
 import { z as z7 } from "zod";
 var { Unrestricted: Unrestricted3 } = DataClassification;
 var { Persisted: Persisted3, Transient: Transient3 } = SchemaPersistence;
@@ -1499,7 +1593,7 @@ var trialPaths = {
   }
 };
 
-// ../scaffold/src/plans/models/schema.ts
+// ../validator-pair/src/plans/models/schema.ts
 import { z as z8 } from "zod";
 var { Unrestricted: Unrestricted4, Financial } = DataClassification;
 var { Persisted: Persisted4, Transient: Transient4 } = SchemaPersistence;
@@ -1956,7 +2050,7 @@ var planPaths = {
   }
 };
 
-// ../scaffold/src/config/models/schema.ts
+// ../validator-pair/src/config/models/schema.ts
 var { Unrestricted: Unrestricted5 } = DataClassification;
 var { Persisted: Persisted5, Transient: Transient5 } = SchemaPersistence;
 var { Internal: Internal4, External: External4 } = SchemaExposure;
@@ -2114,6 +2208,10 @@ var PlacementTestModeSchema = z9.enum(["off", "test_users", "all_traffic"]).meta
 var PlacementSettingsCapStateSchema = z9.object({
   capRules: z9.array(PlacementSettingsCapRuleSchema).default([]).meta(Unrestricted5),
   sessionCooldownMinutes: z9.number().int().min(0).default(30).meta(Unrestricted5),
+  // Tenant-level default remind-me-later (defer) window, in minutes. A
+  // per-payload `remind_later_minutes` overrides it when set (plan 167 REQ-6,
+  // Q-3). Rides in this global_frequency_cap jsonb wrapper — no column/`.fbs`.
+  remindLaterMinutes: z9.number().int().min(0).default(60).meta(Unrestricted5),
   testMode: PlacementTestModeSchema.default("off").meta(Unrestricted5)
 }).meta(
   { id: "PlacementSettingsCapState", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": Internal4 }
@@ -2128,7 +2226,8 @@ var PlacementSettingsSchema = IdField.merge(TimestampFields).merge(TenantIdField
   global_frequency_cap_period: z9.enum(["hour", "day", "week", "month", "session"]).nullable().default(null).meta(Unrestricted5),
   suppress_for_paid: z9.boolean().default(false).meta(Unrestricted5),
   suppress_for_trial: z9.boolean().default(false).meta(Unrestricted5),
-  default_dismiss_cooldown_hours: z9.number().int().min(0).default(24).meta(Unrestricted5),
+  // `default_dismiss_cooldown_hours` removed (plan 167 Q-2): the dismiss
+  // cooldown is defined per-payload in days (`cooldown_after_dismiss_days`).
   allow_stacking: z9.boolean().default(false).meta(Unrestricted5),
   priority_collision_strategy: z9.enum(["highest_priority", "most_recent", "random"]).default("highest_priority").meta(Unrestricted5)
 }).meta(
@@ -2240,7 +2339,7 @@ var RevTurbineConfigPlacementSettingsItemSchema = z9.object({
   global_frequency_cap_period: z9.enum(["hour", "day", "week", "month", "session"]).nullable().default(null).meta(Unrestricted5),
   suppress_for_paid: z9.boolean().default(false).meta(Unrestricted5),
   suppress_for_trial: z9.boolean().default(false).meta(Unrestricted5),
-  default_dismiss_cooldown_hours: z9.number().int().min(0).nullable().default(null).meta(Unrestricted5),
+  // `default_dismiss_cooldown_hours` removed (plan 167 Q-2).
   allow_stacking: z9.boolean().default(false).meta(Unrestricted5),
   priority_collision_strategy: z9.string().nullable().default(null).meta(Unrestricted5)
 }).meta(
@@ -2382,7 +2481,11 @@ var RevTurbineConfigUiPathActionTypeSchema = z9.enum([
   "verify_work_email",
   "update_payment_method",
   "enable_auto_renewal",
-  "manage_subscription"
+  "manage_subscription",
+  // Authored `snooze` resolves through to the SDK's remind-later path
+  // (plan 167 windows); previously it fell through as an invalid type
+  // (plan 174 TASK-6 / Q-5, spec-check F-65a).
+  "snooze"
 ]).meta(
   { id: "RevTurbineConfigUiPathActionType", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4 }
 );
@@ -2491,6 +2594,8 @@ var RevTurbineConfigStudioPayloadSchema = z9.object({
   caps: RevTurbineConfigStudioPayloadCapsSchema.optional().meta(Unrestricted5),
   // Optional slot targeting (spec §3.1.1): empty/absent = any compatible slot.
   surface_slot_ids: z9.array(z9.string()).optional().meta(Unrestricted5),
+  // Per-payload remind-me-later override (minutes); absent = inherit tenant default (plan 167 Q-3).
+  remind_later_minutes: z9.number().int().min(0).nullable().optional().meta(Unrestricted5),
   created_at: z9.string().optional().meta({ ...Unrestricted5, readOnly: true }),
   recommendation_strategy: z9.enum(["next_tier_up", "best_value", "custom"]).optional().default("next_tier_up").meta(Unrestricted5),
   recommendation_plan_override: z9.string().optional().meta(Unrestricted5)
@@ -2530,6 +2635,8 @@ var RevTurbineConfigPlacementPayloadItemSchema = z9.object({
   placement_id: z9.string().min(1).meta(Unrestricted5),
   target: RevTurbineConfigStudioPayloadTargetSchema.meta(Unrestricted5),
   caps: RevTurbineConfigStudioPayloadCapsSchema.optional().meta(Unrestricted5),
+  // Per-payload remind-me-later override (minutes); absent = inherit tenant default (plan 167 Q-3).
+  remind_later_minutes: z9.number().int().min(0).nullable().optional().meta(Unrestricted5),
   created_at: z9.string().meta({ ...Unrestricted5, readOnly: true }),
   updated_at: z9.string().datetime().optional().meta({ ...Unrestricted5, readOnly: true }),
   source_mode: z9.enum(["inline", "content_linked"]).meta(Unrestricted5),
@@ -2756,6 +2863,12 @@ function normalizeConfigHeaderInput(input) {
 }
 var PlaybookSchema = z9.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema).meta({
   id: "Playbook",
+  "x-revturbine-schema-persistence": Transient5,
+  "x-revturbine-schema-exposure": External4,
+  ...PLAYBOOK_SDK_FACETS4
+});
+var PlaybookStrictSchema = z9.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema.strict()).meta({
+  id: "PlaybookStrict",
   "x-revturbine-schema-persistence": Transient5,
   "x-revturbine-schema-exposure": External4,
   ...PLAYBOOK_SDK_FACETS4
@@ -2997,7 +3110,7 @@ var configPaths = {
   }
 };
 
-// ../scaffold/src/core/validation/deprecation-repair.ts
+// ../validator-pair/src/core/validation/deprecation-repair.ts
 var DEPRECATED_FIELD_REPAIR_CODE = "VAL-DEP-01";
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -3036,7 +3149,7 @@ function repairDeprecatedFields(config, schema = PlaybookObjectSchema) {
   return { config: repaired ?? config, findings };
 }
 
-// ../scaffold/src/core/validation/catalog-drift.ts
+// ../validator-pair/src/core/validation/catalog-drift.ts
 var REFINE_RULE_CODES = [];
 var RENAMED_SEVERITIES = ["error_publish"];
 function checkCatalogDrift(ownedCodes = [...SEMANTIC_RULE_CODES, ...REFINE_RULE_CODES], catalogIds = listCatalogIds(), severityOptions = SeveritySchema.options, catalogSeverities = listCatalogIds().map(
@@ -3093,7 +3206,7 @@ ${issues.map((i) => `  - ${i.message}`).join("\n")}`
   );
 }
 
-// ../scaffold/src/core/validation/error-map.ts
+// ../validator-pair/src/core/validation/error-map.ts
 import { z as z10 } from "zod";
 function installValidationErrorMap() {
   z10.config({
