@@ -141,14 +141,12 @@ export const CONSUMERS = {
     // (gap that blocked sdk#70) and plan 48 (npm→pnpm migration).
     postUpdateSubInstalls: ['pages-build'],
   },
-  'revturbine-external': {
-    packages: ['@revt-eng/schema'],
-    manifests: ['package.json'],
-    // Verification-only repo (verify-config is its gate); no generated
-    // artifacts to refresh after a bump.
-    regen: null,
-    stagePaths: ['package.json'],
-  },
+  // `revturbine-external` was here. Removed 2026-08-15: the repo is ARCHIVED
+  // and read-only — GitHub refuses a push with
+  // "This repository was archived so it is read-only" (403). Keeping it listed
+  // meant every vendor/sync run targeted a repo that can never accept the
+  // result, and its vendored copy could never be brought back in step. Do not
+  // re-add it unless the repo is unarchived.
   // Regen-only consumer (plan 143). The CLI depends on NO @revt-eng package —
   // it vendors a bundled snapshot of scaffold's schema + validation engine so
   // it can validate offline with zero private access (plan 100). Its "pin" is
