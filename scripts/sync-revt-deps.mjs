@@ -141,23 +141,25 @@ export const CONSUMERS = {
     // (gap that blocked sdk#70) and plan 48 (npm→pnpm migration).
     postUpdateSubInstalls: ['pages-build'],
   },
-  'revturbine-external': {
-    packages: ['@revt-eng/schema'],
-    manifests: ['package.json'],
-    // Verification-only repo (verify-config is its gate); no generated
-    // artifacts to refresh after a bump.
-    regen: null,
-    stagePaths: ['package.json'],
-  },
+  // `revturbine-external` was here. Removed 2026-08-15: the repo is ARCHIVED
+  // and read-only — GitHub refuses a push with
+  // "This repository was archived so it is read-only" (403). Keeping it listed
+  // meant every vendor/sync run targeted a repo that can never accept the
+  // result, and its vendored copy could never be brought back in step. Do not
+  // re-add it unless the repo is unarchived.
   // Regen-only consumer (plan 143). The CLI depends on NO @revt-eng package —
   // it vendors a bundled snapshot of scaffold's schema + validation engine so
   // it can validate offline with zero private access (plan 100). Its "pin" is
   // therefore that vendored artifact, refreshed by regen rather than by
   // rewriting a version string, hence empty `packages`/`manifests`.
   //
-  // This is what lets `revturbine-cli` drop SCHEMA_SYNC_TOKEN: the snapshot is
-  // refreshed here, locally, against the scaffold sibling — no credential and
-  // no private checkout in the public repo's CI.
+  // This is the LOCAL/manual refresh path. Routine delivery is automatic:
+  // scaffold's release regenerates the snapshot and opens a PR against the CLI
+  // (plan 143 TASK-2, `auto-publish.yml` → `deliver-cli-snapshot`). Use this for
+  // catch-up, testing, or an out-of-band refresh — and note it regenerates from
+  // whatever the scaffold SIBLING currently is, which is why
+  // assertScaffoldReleasable() below refuses anything but a clean tree parked on
+  // its release tag.
   //
   // NOTE: this repo is **npm**, not pnpm. The install step below is skipped for
   // regen-only consumers, which matters — a `pnpm install` here would create a
@@ -291,6 +293,24 @@ export function planRepinsForManifest(pkgObj, packages, referenceFor) {
  * package's specifier becomes the exact target. Only the targeted
  * `"<pkg>": "<spec>"` entries change. Pure → unit-testable.
  */
+/**
+ * The `latest` version from an npm PACKUMENT body, or null.
+ *
+ * Separated out (and exported) because the endpoint choice is the whole defect:
+ * GitHub Packages 405s on `/<pkg>/latest` but serves `GET /<pkg>`, so the
+ * portable read is `dist-tags.latest` off the packument. Tolerates a
+ * `{ version }` body too, so a registry that only serves the dist-tag document
+ * still resolves. Pure → unit-testable without a network.
+ */
+export function latestFromPackument(body) {
+  if (!body || typeof body !== 'object') return null;
+  const tagged = body['dist-tags']?.latest;
+  if (typeof tagged === 'string' && tagged) return tagged;
+  // `/<pkg>/latest` (npmjs) returns the manifest for that tag directly.
+  if (typeof body.version === 'string' && body.version) return body.version;
+  return null;
+}
+
 export function repinManifestText(pkgJsonText, repins) {
   let out = pkgJsonText;
   for (const { pkg, to } of repins) {
@@ -451,14 +471,30 @@ function makeRegistryFetcher() {
   const canFetch = token || !registry.includes('pkg.github.com');
   return async function fetchLatest(pkg) {
     if (!canFetch) return null;
-    const url = `${registry}/${pkg.replace('/', '%2F')}/latest`;
+    // Read the PACKUMENT and take `dist-tags.latest` — not `/<pkg>/latest`.
+    //
+    // GitHub Packages does not implement the dist-tag endpoint: it answers
+    // `405 Method Not Allowed`, while `GET /<pkg>` returns 200 with the full
+    // packument. npmjs serves both, so the packument is the portable form.
+    //
+    // The `/latest` form made this fallback dead code against the registry we
+    // actually publish to. Every call warned "registry 405 — skipping" and
+    // returned null, so whenever the producer sibling was absent (CI, a
+    // worktree, a fresh clone) the pin silently never advanced — which is how
+    // revturbine-web sat 31 versions behind @revt-eng/sdk until 2026-08-14.
+    const url = `${registry}/${pkg.replace('/', '%2F')}`;
     try {
       const res = await fetch(url, token ? { headers: { authorization: `Bearer ${token}` } } : {});
       if (!res.ok) {
         console.warn(`[revt-sync] ${pkg}: registry ${res.status} — skipping`);
         return null;
       }
-      return (await res.json()).version ?? null;
+      const latest = latestFromPackument(await res.json());
+      if (!latest) {
+        console.warn(`[revt-sync] ${pkg}: packument carries no dist-tags.latest — skipping`);
+        return null;
+      }
+      return latest;
     } catch (err) {
       console.warn(`[revt-sync] ${pkg}: fetch failed — ${err?.message ?? err}`);
       return null;
@@ -527,6 +563,16 @@ async function main() {
   const referenceFor = (pkg) =>
     referenceVersionFor(pkg, { scaffoldVersion, sdkVersion });
 
+  // A reference version that resolved from NEITHER the producer sibling nor the
+  // registry means this run cannot verify anything — every pin it leaves alone
+  // is unverified, not confirmed. Reporting that as "already exact-pinned" is
+  // what let the @revt-eng/sdk pin sit 31 versions stale while every run looked
+  // clean, so the no-op path below says so explicitly.
+  const unresolved = [
+    scaffoldVersion ? null : 'scaffold-produced packages (@revt-eng/core, /schema, /schema-drizzle)',
+    sdkVersion ? null : '@revt-eng/sdk',
+  ].filter(Boolean);
+
   const touchedManifests = [];
   for (const manifest of config.manifests) {
     const manifestPath = path.join(consumerRoot, manifest);
@@ -556,6 +602,14 @@ async function main() {
   // circuit the regen. Pinned consumers keep their existing early-out.
   const regenOnly = config.manifests.length === 0;
   if (touchedManifests.length === 0 && !regenOnly) {
+    if (unresolved.length > 0) {
+      console.warn(
+        `[revt-sync] NOTHING VERIFIED — no reference version resolved for: ${unresolved.join('; ')}. `
+          + 'Pins were left untouched and may be stale. See the registry warnings above '
+          + '(GitHub Packages needs NODE_AUTH_TOKEN/GITHUB_TOKEN), or check out the producer sibling.',
+      );
+      return;
+    }
     console.log('[revt-sync] all @revt-eng/* specifiers already exact-pinned to reference');
     return;
   }
