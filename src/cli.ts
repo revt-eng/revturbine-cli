@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
 
-import { Command, CommanderError, Option } from 'commander';
+import { Command, CommanderError } from 'commander';
 import { z } from 'zod';
 
 import { RevTurbineConfigSchema } from './schema/exported-config.snapshot.mjs';
@@ -878,7 +878,6 @@ program
   .option('--draft', "The tenant's open draft (rendered on demand)")
   .option('--live', 'The current live Release')
   .option('--release <id>', 'A specific playbook version / Release')
-  .addOption(new Option('-f, --format <format>', 'Representation').choices(['json', 'flatbuffer']).default('json'))
   .option('--save <file>', 'Write to <file> instead of stdout')
   .action(
     async (opts: {
@@ -887,29 +886,12 @@ program
       draft?: boolean;
       live?: boolean;
       release?: string;
-      format: string;
       save?: string;
     }) => {
       const [sel] = requireSelectors(opts, [], { count: 1, allowed: ['draft', 'live', 'release'], command: 'download' });
       const conn = connect(opts.url, opts.tenantId);
       const playbookVersionId =
         sel.kind === 'release' ? sel.id : sel.kind === 'draft' ? await requireOpenDraft(conn) : undefined;
-
-      if (opts.format === 'flatbuffer') {
-        const qs = playbookVersionId ? `?playbookVersionId=${encodeURIComponent(playbookVersionId)}` : '';
-        const res = await request(conn, `/api/config/bundle${qs}`);
-        if (!res.ok) httpFail(conn, 'bundle download', res.status);
-        const bytes = Buffer.from(await res.arrayBuffer());
-        if (opts.save) {
-          const out = path.resolve(opts.save);
-          mkdirSync(path.dirname(out), { recursive: true });
-          writeFileSync(out, bytes);
-          diag(`✓ Wrote ${bytes.length} bytes → ${out}`);
-        } else {
-          process.stdout.write(`${bytes.toString('base64')}\n`);
-        }
-        return;
-      }
 
       const config = await downloadConfig(conn, playbookVersionId);
       diag(`Downloaded: ${describePlaybookHeader(readPlaybookHeader(config))}`);
@@ -1466,7 +1448,7 @@ const COMMAND_EXAMPLES: Record<string, string> = {
     'Examples:',
     '  revturbine download --live --save ./revturbine.playbook.json     The live config → file',
     '  revturbine download --draft                         The open draft (rendered on demand) → stdout',
-    '  revturbine download --release cs_1a2b3c --format flatbuffer --save ./bundle.fb',
+    '  revturbine download --release cs_1a2b3c --save ./release.playbook.json',
   ].join('\n'),
   validate: [
     '',
