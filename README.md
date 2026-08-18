@@ -69,7 +69,7 @@ Commands that read a config name the version explicitly — there is no default:
 | `whoami` | The resolved instance, tenant, credentials source, and whether the stored token works. |
 | `schema` | Emit the bundled `RevTurbineConfig` JSON schema (for agents to author against). |
 | `docs` | Print the canonical documentation URL. |
-| `download` | Fetch a config version (`--live` / `--draft` / `--release <id>`); `--save`, `--format flatbuffer`. |
+| `download` | Fetch a config version (`--live` / `--draft` / `--release <id>`); `--save`. |
 | `validate` | Offline schema validation of a `<file>`, or the full server catalog against the open draft (`--draft`). |
 | `diff` | Compare any two versions (dry-run, no writes). A file vs `--draft`/`--live`/`--release` previews the launch — the server side is the base, so `+`/`-` read as created/pruned on launch. |
 | `show <kind>` | Summary tables: `plans` · `entitlements` · `segments` · `placements` · `trials` for any version. |
