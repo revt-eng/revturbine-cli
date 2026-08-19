@@ -1,0 +1,70 @@
+{
+  "artifact_type": "playbook",
+  "format_version": "1.0.0",
+  "playbook_handle": "evaluate-local-fixture",
+  "playbook_version_id": null,
+  "tenant_id": "local",
+  "environment_id": "local",
+  "plans": [
+    {
+      "id": "plan_free",
+      "unique_handle": "free",
+      "name": "Free",
+      "tier_position": 0,
+      "sort_order": 0
+    },
+    {
+      "id": "plan_pro",
+      "unique_handle": "pro",
+      "name": "Pro",
+      "tier_position": 1,
+      "sort_order": 1
+    }
+  ],
+  "entitlements": [
+    {
+      "id": "ent_advanced_export",
+      "unique_handle": "advanced_export",
+      "name": "Advanced Export",
+      "type": "feature"
+    }
+  ],
+  "entitlement_rules": [
+    {
+      "id": "er_advanced_export_free",
+      "entitlement_id": "advanced_export",
+      "targets": [
+        {
+          "kind": "plan",
+          "id": "free"
+        }
+      ],
+      "segment_ids": [],
+      "type_fields": {
+        "kind": "feature",
+        "enabled": false
+      },
+      "current_usage": 0
+    },
+    {
+      "id": "er_advanced_export_pro",
+      "entitlement_id": "advanced_export",
+      "targets": [
+        {
+          "kind": "plan",
+          "id": "pro"
+        }
+      ],
+      "segment_ids": [],
+      "type_fields": {
+        "kind": "feature",
+        "enabled": true
+      },
+      "current_usage": 0
+    }
+  ],
+  "segments": [],
+  "content_ui_paths": [],
+  "surface_templates": [],
+  "placements": []
+}

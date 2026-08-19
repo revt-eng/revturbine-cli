@@ -45,6 +45,7 @@ import {
   UnsupportedFormatError,
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
+import { evaluateLocal } from './lib/evaluate-local';
 import { createIngestKey, listIngestKeys, revokeIngestKey, formatIngestKeyLine } from './lib/ingest-keys';
 import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib/delegate';
 import { schemaForConfig } from './lib/offline-schema';
@@ -1233,9 +1234,11 @@ program
 
 program
   .command('evaluate')
-  .description('Run placement/entitlement decisions for a user context against a config version. Requires --live, --draft, or --release <id>.')
-  .option('--live', 'Evaluate the live configuration')
-  .option('--draft', "Evaluate the tenant's open draft (clean-room: no suppression/cap history)")
+  .description(
+    'Run placement/entitlement decisions for a user context against a config version — evaluated LOCALLY: the CLI fetches the version\'s Playbook and runs the SDK engine in-process (plan 192; clean-room, no suppression/cap history). Requires --live, --draft, or --release <id>.',
+  )
+  .option('--live', 'Evaluate the live (deployed) configuration')
+  .option('--draft', "Evaluate the tenant's open draft")
   .option('--release <id>', 'Evaluate a past release (from its frozen snapshot)')
   .option('--entitlement <handle>', 'Check one entitlement (the checkEntitlement result)')
   .option('--slot <id>', 'Evaluate one surface slot (the getPlacement decision for that slot)')
@@ -1267,33 +1270,66 @@ program
         fail(EXIT.VALIDATION, `invalid JSON in ${opts.user}: ${(err as Error).message}`);
       }
 
-      const body: Record<string, unknown> = { ...ctx };
-      if (opts.planHandle) body.plan_handle = opts.planHandle;
+      // Plan 192: no hosted decision endpoint — evaluation is a pure function
+      // of (UserContext, Playbook). Fetch the selected version's Playbook via
+      // config export (web acting as playbook host) and evaluate LOCALLY
+      // through the public SDK's headless engine. Clean-room for every
+      // selector: in-memory state, no suppression/cap history.
+      //
       // --entitlement / --slot narrow the ask; the ctx file's own lists apply
       // when neither is given (bulk evaluation). `--slot` (with optional
-      // `--surface-type`) resolves the surface-keyed getPlacement decision on
-      // the server (plan 147 TASK-17): it posts `slot_id` / `surface_type`, not
-      // a placement id — the server returns the winning placement in `placement`.
+      // `--surface-type`) resolves the surface-keyed getPlacement decision
+      // (plan 147 TASK-17) from the fetched Playbook's `placement_slots`.
       const wantsSlot = Boolean(opts.slot || opts.surfaceType);
       if (opts.entitlement && wantsSlot) {
         fail(EXIT.USAGE, 'pass exactly one of --entitlement or --slot/--surface-type (or neither for the ctx file lists).');
       }
-      if (opts.entitlement) {
-        body.entitlement_handles = [opts.entitlement];
-        body.placement_ids = [];
+      const userId = typeof ctx.user_id === 'string' && ctx.user_id.length > 0 ? ctx.user_id : undefined;
+      if (!userId) fail(EXIT.VALIDATION, `user file must carry a non-empty string "user_id" (${opts.user})`);
+      if (typeof ctx.now_iso === 'string') {
+        diag('WARNING: now_iso is ignored — local evaluation uses the real clock.');
       }
-      if (wantsSlot) {
-        if (opts.slot) body.slot_id = opts.slot;
-        if (opts.surfaceType) body.surface_type = opts.surfaceType;
-        body.placement_ids = [];
-        body.entitlement_handles = [];
+      if (typeof ctx.customer_id === 'string') {
+        diag(
+          'WARNING: customer_id is ignored — supply plan_handle in the ctx file (or --plan-handle). The server-side customer→plan lookup was retired with the decision endpoint (plan 192).',
+        );
       }
-      if (sel.kind === 'release') body.playbook_version_id = sel.id;
-      if (sel.kind === 'draft') body.playbook_version_id = await requireOpenDraft(conn);
 
-      const { res, json } = await postJson(conn, '/api/sdk/evaluate', body);
-      if (!res.ok) httpFail(conn, 'evaluate', res.status, json);
-      emit(json, true);
+      let playbookVersionId: string | undefined;
+      if (sel.kind === 'release') playbookVersionId = sel.id;
+      if (sel.kind === 'draft') playbookVersionId = await requireOpenDraft(conn);
+      const config = await downloadConfig(conn, playbookVersionId);
+
+      const planHandle = opts.planHandle ?? (typeof ctx.plan_handle === 'string' ? ctx.plan_handle : undefined);
+      const bulk = !opts.entitlement && !wantsSlot;
+      const asStringArray = (v: unknown): string[] =>
+        Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+      const traits =
+        typeof ctx.traits === 'object' && ctx.traits !== null && !Array.isArray(ctx.traits)
+          ? (ctx.traits as Record<string, string | number | boolean>)
+          : undefined;
+
+      const result = await evaluateLocal(config, {
+        userId,
+        planHandle,
+        traits,
+        entitlementHandles: opts.entitlement ? [opts.entitlement] : bulk ? asStringArray(ctx.entitlement_handles) : [],
+        placementIds: bulk ? asStringArray(ctx.placement_ids) : [],
+        slot: wantsSlot ? { slotId: opts.slot, surfaceType: opts.surfaceType } : undefined,
+      });
+
+      emit(
+        {
+          tenant_id: conn.tenantId,
+          user_id: userId,
+          ...(playbookVersionId ? { playbook_version_id: playbookVersionId } : {}),
+          evaluated_at: new Date().toISOString(),
+          // Provenance: decided in-process by the SDK engine, not by a server.
+          evaluation: 'local',
+          ...result,
+        },
+        true,
+      );
     },
   );
 
