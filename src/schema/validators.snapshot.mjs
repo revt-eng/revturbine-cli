@@ -1,10 +1,10 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.168
+// Vendored validation engine bundled from @revt-eng/schema@0.1.205
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
 
-// ../validator-pair/src/core/validation/types.ts
+// ../scaffold-205/src/core/validation/types.ts
 import { z } from "zod";
 var SeveritySchema = z.enum([
   "error_draft",
@@ -52,7 +52,7 @@ var ValidationFindingSchema = z.object({
   spotlight: z.boolean().optional()
 });
 
-// ../validator-pair/src/core/validation/catalog.ts
+// ../scaffold-205/src/core/validation/catalog.ts
 var CATALOG = {
   // no-Stripe-price. Interim `warning` (does not block): a plan price that has
   // all its billing info but is entered statically rather than synced from
@@ -84,8 +84,15 @@ var CATALOG = {
   "VAL-PLN-07": {
     id: "VAL-PLN-07",
     severity: "warning",
-    message: "This limit rule sets no enforcement \u2014 at the cap it blocks by default. Set enforcement explicitly (hard_block, soft_block, degrade, allow_overage) if that isn't the intent.",
+    message: "This limit rule sets no enforcement \u2014 at the cap it blocks by default. Set enforcement explicitly (hard_block, block_with_upsell, degrade, allow_overage) if that isn't the intent.",
     specRef: "config-validation.md \xA75.8 (promoted \u2014 plan 179 Q-6)"
+  },
+  // segment → experiment reference (plan 183). Handle, not id.
+  "VAL-SEG-01": {
+    id: "VAL-SEG-01",
+    severity: "warning",
+    message: "This segment enrols users into an experiment that does not exist.",
+    specRef: "config-validation.md \xA75.3 (plan 183)"
   },
   // multiple public variations. Origin: `*_variation.multiple_public`.
   "VAL-PLN-06": {
@@ -123,21 +130,22 @@ function listCatalogIds() {
   return Object.keys(CATALOG);
 }
 
-// ../validator-pair/src/core/validation/disposition.ts
+// ../scaffold-205/src/core/validation/disposition.ts
 function disposition(finding2, callSite) {
   if (finding2.severity === "error_draft") return "block";
   if (finding2.severity === "error_launch" && callSite === "publish") return "block";
   return "advise";
 }
 
-// ../validator-pair/src/core/validation/rules.ts
+// ../scaffold-205/src/core/validation/rules.ts
 var SEMANTIC_RULE_CODES = [
   "VAL-PLN-01",
   "VAL-PLN-05",
   "VAL-PLN-06",
   "VAL-PLN-07",
   "VAL-PLC-05",
-  "VAL-TRL-04"
+  "VAL-TRL-04",
+  "VAL-SEG-01"
 ];
 function runSemanticRules(graph) {
   return [
@@ -146,7 +154,8 @@ function runSemanticRules(graph) {
     ...checkLimitRuleEnforcement(graph),
     ...checkPublicVariationCollisions(graph),
     ...checkPayloadCtaOverflow(graph),
-    ...checkTrialRuleWidestAudience(graph)
+    ...checkTrialRuleWidestAudience(graph),
+    ...checkSegmentExperimentRefs(graph)
   ];
 }
 function checkLimitRuleEnforcement(graph) {
@@ -163,7 +172,7 @@ function checkLimitRuleEnforcement(graph) {
         "VAL-PLN-07",
         { object_type: "entitlement_rule", object_id: id, field: "enforcement", studio: "plans-entitlements" },
         {
-          message: `Limit rule '${name}' sets no enforcement \u2014 at the cap it blocks by default. Set enforcement explicitly (hard_block, soft_block, degrade, allow_overage) if that isn't the intent.`
+          message: `Limit rule '${name}' sets no enforcement \u2014 at the cap it blocks by default. Set enforcement explicitly (hard_block, block_with_upsell, degrade, allow_overage) if that isn't the intent.`
         }
       )
     );
@@ -250,6 +259,33 @@ function checkIdHandleParity(graph) {
         detail: "Plan 120 collapses the config id and handle into a single identifier. Converge them (id === handle) so the redundant one can be dropped losslessly."
       });
     }
+  }
+  return findings;
+}
+function checkSegmentExperimentRefs(graph) {
+  const segments = graph.segments;
+  if (!segments?.length) return [];
+  const knownHandles = /* @__PURE__ */ new Set();
+  for (const exp of graph.experiments ?? []) {
+    const handle = typeof exp.handle === "string" ? exp.handle : "";
+    if (handle) knownHandles.add(handle);
+  }
+  const findings = [];
+  for (const segment of segments) {
+    const ref = segment.experiment_id;
+    if (typeof ref !== "string" || ref.length === 0) continue;
+    if (knownHandles.has(ref)) continue;
+    const segmentId = String(segment.handle ?? segment.id ?? "");
+    findings.push(
+      finding(
+        "VAL-SEG-01",
+        { object_type: "segment", object_id: segmentId, field: "experiment_id", studio: "targeting" },
+        {
+          message: `Segment '${segmentId}' enrols users into experiment '${ref}', which no experiment declares.`,
+          detail: "`experiment_id` must be an experiment's handle, not its id. A reference that matches nothing never enrols anyone, so the experiment appears live and silently collects no traffic."
+        }
+      )
+    );
   }
   return findings;
 }
@@ -451,7 +487,7 @@ function collectPublicCollisions(rows, objectType, parentField) {
   return findings;
 }
 
-// ../validator-pair/src/core/validation/zod-adapter.ts
+// ../scaffold-205/src/core/validation/zod-adapter.ts
 function fieldLabel(path) {
   if (!path || path.length === 0) return "This value";
   return String(path[path.length - 1]);
@@ -496,7 +532,7 @@ function zodErrorToFindings(error, opts = {}) {
   }));
 }
 
-// ../validator-pair/src/core/validation/evaluate.ts
+// ../scaffold-205/src/core/validation/evaluate.ts
 function spotlights(finding2, focus) {
   if (!focus) return false;
   const { object_type, object_id } = finding2.targetRef;
@@ -515,19 +551,19 @@ function evaluate(graph, opts = {}) {
   return findings.map((f) => spotlights(f, opts.focus) ? { ...f, spotlight: true } : f);
 }
 
-// ../validator-pair/src/config/models/schema.ts
+// ../scaffold-205/src/config/models/schema.ts
 import { z as z9 } from "zod";
 
-// ../validator-pair/src/core/common.ts
+// ../scaffold-205/src/core/common.ts
 import { z as z3 } from "zod";
 
-// ../validator-pair/src/core/classification.ts
+// ../scaffold-205/src/core/classification.ts
 import { z as z2 } from "zod";
 
-// ../validator-pair/src/core/handle-pattern.ts
+// ../scaffold-205/src/core/handle-pattern.ts
 var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
 
-// ../validator-pair/src/core/classification.ts
+// ../scaffold-205/src/core/classification.ts
 var SchemaPersistence = {
   Persisted: "persisted",
   Transient: "transient"
@@ -539,7 +575,16 @@ var SchemaExposure = {
 var DataClassification = {
   Pii: { "x-revturbine-data-classification": "pii" },
   Financial: { "x-revturbine-data-classification": "financial" },
-  Unrestricted: { "x-revturbine-data-classification": "unrestricted" }
+  Unrestricted: { "x-revturbine-data-classification": "unrestricted" },
+  /**
+   * Machine-generated evaluation exhaust — supersession records, entitlement
+   * grants, placement decision traces. Carries no personal or financial data
+   * itself, but describes what the engine decided about a user, so it is not
+   * `Unrestricted` either. Applied at the MODEL level (plan 182 REQ-7); it was
+   * already in use as a raw string literal on four schemas before being
+   * declared here, which left `DataClassificationValue` unable to represent it.
+   */
+  Operational: { "x-revturbine-data-classification": "operational" }
 };
 var SCHEMA_EXPOSURE_META_KEY = "x-revturbine-schema-exposure";
 var READ_ONLY_META_KEY = "readOnly";
@@ -569,7 +614,7 @@ function toCreateSchema(schema) {
   return writable;
 }
 
-// ../validator-pair/src/core/common.ts
+// ../scaffold-205/src/core/common.ts
 var { Unrestricted } = DataClassification;
 var { Transient, Persisted } = SchemaPersistence;
 var { Internal, External } = SchemaExposure;
@@ -643,6 +688,10 @@ var SurfaceTypeSchema = z3.enum([
   "custom"
 ]).meta(
   { id: "SurfaceType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External }
+);
+var ENTITLEMENT_STATUS_VALUES = ["allowed", "limited", "denied"];
+var PresentationOutcomeSchema = z3.enum(["presented", "clicked", "converted", "dismissed", "reminded", "suppressed"]).meta(
+  { id: "PresentationOutcome", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External }
 );
 var EntitlementTypeSchema = z3.enum([
   "feature",
@@ -752,7 +801,7 @@ var CtaActionTypeSchema = z3.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 
-// ../validator-pair/src/core/identity.ts
+// ../scaffold-205/src/core/identity.ts
 import { z as z4 } from "zod";
 var IdentityKind = {
   /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
@@ -768,7 +817,7 @@ function mintedIdentity(handleField = "handle") {
   return { [SCHEMA_IDENTITY_META_KEY]: { kind: IdentityKind.Minted, handleField } };
 }
 
-// ../validator-pair/src/core/facets.ts
+// ../scaffold-205/src/core/facets.ts
 var SchemaContext = {
   Playbook: "playbook",
   Branding: "branding",
@@ -832,10 +881,10 @@ function getSchemaDeprecation(schema) {
   };
 }
 
-// ../validator-pair/src/entitlements/models/schema.ts
+// ../scaffold-205/src/entitlements/models/schema.ts
 import { z as z6 } from "zod";
 
-// ../validator-pair/src/core/openapi/helpers.ts
+// ../scaffold-205/src/core/openapi/helpers.ts
 import { z as z5 } from "zod";
 var ListEnvelope = (itemSchema) => z5.object({
   items: z5.array(itemSchema)
@@ -854,7 +903,7 @@ var ListQueryParamsSchema = z5.object({
   include_deleted: z5.boolean().default(false).optional()
 });
 
-// ../validator-pair/src/entitlements/models/schema.ts
+// ../scaffold-205/src/entitlements/models/schema.ts
 var { Unrestricted: Unrestricted2 } = DataClassification;
 var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
 var { Internal: Internal2, External: External2 } = SchemaExposure;
@@ -869,13 +918,13 @@ var UsagePeriodScopeSchema = z6.enum(["per_month", "per_year", "per_billing_peri
 var UsageAllocationSchema = z6.enum(["account_pool", "per_instance", "per_user", "per_user_pooled"]).meta(
   { id: "UsageAllocation", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
 );
-var EntitlementGrantStatusSchema = z6.enum(["allowed", "limited", "denied"]).meta(
+var EntitlementGrantStatusSchema = z6.enum(ENTITLEMENT_STATUS_VALUES).meta(
   { id: "EntitlementGrantStatus", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
 );
 var EntitlementGrantSourceSchema = z6.enum(["rule", "user_context", "override"]).meta(
   { id: "EntitlementGrantSource", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
 );
-var EnforcementModeSchema = z6.enum(["hard_block", "soft_block", "degrade", "allow_overage"]).meta(
+var EnforcementModeSchema = z6.enum(["hard_block", "block_with_upsell", "degrade", "allow_overage"]).meta(
   { id: "EnforcementMode", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
 );
 var EntitlementGrantSchema = z6.object({
@@ -902,7 +951,7 @@ var EntitlementGrantSchema = z6.object({
     id: "EntitlementGrant",
     "x-revturbine-schema-persistence": Transient2,
     "x-revturbine-schema-exposure": External2,
-    "x-revturbine-data-classification": "operational"
+    ...DataClassification.Operational
   }
 );
 var EntitlementGrantSetSchema = z6.object({
@@ -914,7 +963,7 @@ var EntitlementGrantSetSchema = z6.object({
     id: "EntitlementGrantSet",
     "x-revturbine-schema-persistence": Transient2,
     "x-revturbine-schema-exposure": External2,
-    "x-revturbine-data-classification": "operational"
+    ...DataClassification.Operational
   }
 );
 var RuleVisibilitySchema = z6.enum(["public", "non_public"]).meta(
@@ -1246,7 +1295,7 @@ var entitlementPaths = {
   }
 };
 
-// ../validator-pair/src/trials/models/schema.ts
+// ../scaffold-205/src/trials/models/schema.ts
 import { z as z7 } from "zod";
 var { Unrestricted: Unrestricted3 } = DataClassification;
 var { Persisted: Persisted3, Transient: Transient3 } = SchemaPersistence;
@@ -1628,7 +1677,7 @@ var trialPaths = {
   }
 };
 
-// ../validator-pair/src/plans/models/schema.ts
+// ../scaffold-205/src/plans/models/schema.ts
 import { z as z8 } from "zod";
 var { Unrestricted: Unrestricted4, Financial } = DataClassification;
 var { Persisted: Persisted4, Transient: Transient4 } = SchemaPersistence;
@@ -2085,7 +2134,7 @@ var planPaths = {
   }
 };
 
-// ../validator-pair/src/config/models/schema.ts
+// ../scaffold-205/src/config/models/schema.ts
 var { Unrestricted: Unrestricted5 } = DataClassification;
 var { Persisted: Persisted5, Transient: Transient5 } = SchemaPersistence;
 var { Internal: Internal4, External: External4 } = SchemaExposure;
@@ -2289,7 +2338,12 @@ var RevTurbineConfigSegmentsItemSchema = z9.object({
   // apply intra-dimension OR + cross-dimension AND per spec §2.5; when
   // missing across all of a rule's segment_ids, the evaluator falls
   // back to flat-OR (legacy single-segment behaviour).
-  dimension_id: z9.string().optional().meta(Unrestricted5)
+  dimension_id: z9.string().optional().meta(Unrestricted5),
+  // Experiment enrollment (plan 183). Carries the experiment's HANDLE — the
+  // canonical, version-stable identifier — matched against the assignments an
+  // ExperimentProvider resolved for the user. Optional: most segments are
+  // trait-based and never reference an experiment.
+  experiment_id: z9.string().min(1).optional().meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigSegmentsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
@@ -2861,6 +2915,17 @@ var PlaybookHeaderSchema = z9.object({
     ...Unrestricted5,
     ...PLAYBOOK_VERSION_HEADER_FACETS,
     readOnly: true
+  }),
+  // Plan 177 TASK-3: the writer's declaration of the oldest reader
+  // `SCHEMA_VERSION` that can correctly evaluate this payload. A runtime
+  // refuses the payload when this floor exceeds the version it supports,
+  // instead of partially applying config it cannot fully parse. Stamped by
+  // the payload producer (`buildPlaybookPayload`); absent on hand-authored
+  // configs, where readers treat the floor as `bundle_schema_version`.
+  bundle_min_readable_schema_version: z9.number().int().nonnegative().optional().meta({
+    ...Unrestricted5,
+    ...PLAYBOOK_VERSION_HEADER_FACETS,
+    readOnly: true
   })
 }).meta(
   {
@@ -3145,7 +3210,7 @@ var configPaths = {
   }
 };
 
-// ../validator-pair/src/core/validation/deprecation-repair.ts
+// ../scaffold-205/src/core/validation/deprecation-repair.ts
 var DEPRECATED_FIELD_REPAIR_CODE = "VAL-DEP-01";
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -3184,7 +3249,7 @@ function repairDeprecatedFields(config, schema = PlaybookObjectSchema) {
   return { config: repaired ?? config, findings };
 }
 
-// ../validator-pair/src/core/validation/catalog-drift.ts
+// ../scaffold-205/src/core/validation/catalog-drift.ts
 var REFINE_RULE_CODES = [];
 var RENAMED_SEVERITIES = ["error_publish"];
 function checkCatalogDrift(ownedCodes = [...SEMANTIC_RULE_CODES, ...REFINE_RULE_CODES], catalogIds = listCatalogIds(), severityOptions = SeveritySchema.options, catalogSeverities = listCatalogIds().map(
@@ -3241,7 +3306,7 @@ ${issues.map((i) => `  - ${i.message}`).join("\n")}`
   );
 }
 
-// ../validator-pair/src/core/validation/error-map.ts
+// ../scaffold-205/src/core/validation/error-map.ts
 import { z as z10 } from "zod";
 function installValidationErrorMap() {
   z10.config({
