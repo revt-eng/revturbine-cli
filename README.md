@@ -82,6 +82,7 @@ Commands that read a config name the version explicitly — there is no default:
 | `preview` | The open draft's staged changes. |
 | `evaluate` | Run the live config's placement/entitlement decisions for a user context. |
 | `generate types` | Generate a TypeScript module of typed Playbook handles from any config version — `Entitlements` (namespaced by type, with the `EntitlementHandle` union for type-safe `can()`/`gate()`/`checkEntitlement()` call sites), plus `Plans`, `Segments`, `SurfaceTemplates`, and `UiPathActionTypes`. Const objects + literal-union types (erasable — no enums). `--out <path>` writes the file; the generated header records the exact command to regenerate it. `--json` for the raw handle map. |
+| `analytics catalog\|templates\|views\|view\|create\|preview\|query` | Work with the hosted Semantic Catalog and canonical analytics-view documents. Create and preview pass the document through unchanged to the same server contract used by the web editor and MCP tools; preview remains subject to the server's query limits. |
 
 `--json` on read commands emits machine-readable output. Results go to stdout,
 diagnostics to stderr.

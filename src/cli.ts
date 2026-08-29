@@ -59,6 +59,15 @@ import { checkPinDrift } from './lib/pin-drift';
 import { describeSelector, orderDiffSelectors, requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
 import { serverSchemaIsNewer } from './lib/version-trail';
+import {
+  createAnalyticsView,
+  getAnalyticsCatalog,
+  getAnalyticsView,
+  listAnalyticsTemplates,
+  listAnalyticsViews,
+  previewAnalyticsView,
+  queryAnalyticsView,
+} from './lib/analytics';
 
 const DOCS_URL = 'https://github.com/revt-eng/revturbine-cli#readme';
 // Default RevTurbine instance. Includes the `/app` subfolder basePath (plan 85)
@@ -433,6 +442,7 @@ Command groups:
   Stage/launch  upload, launch, discard, restore
   Inspect       status, history, preview, evaluate
   Codegen       generate types
+  Analytics     analytics catalog|templates|views|view|create|preview|query
   Keys          ingest-keys create|list|revoke
 
 Version selectors (no defaults — a command that reads a config requires one):
@@ -1401,6 +1411,131 @@ generateCmd
       }
     },
   );
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+type AnalyticsOptions = { url: string; tenantId?: string; json?: boolean };
+
+function parseFilterState(raw?: string): unknown[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const value = JSON.parse(raw) as unknown;
+    if (!Array.isArray(value)) throw new Error('expected a JSON array');
+    return value;
+  } catch (error) {
+    fail(EXIT.USAGE, `--filter-state must be a JSON array: ${(error as Error).message}`);
+  }
+}
+
+function analyticsConnectionOptions(command: Command): Command {
+  return command
+    .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
+    .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
+    .option('--json', 'Machine-readable output');
+}
+
+function emitAnalyticsResult(conn: Connection, what: string, result: { ok: boolean; status: number; data: unknown }, json?: boolean): void {
+  if (!result.ok) httpFail(conn, what, result.status, result.data);
+  emit(result.data, Boolean(json));
+}
+
+async function runAnalyticsRequest<T>(conn: Connection, operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (isNetworkError(error)) fail(EXIT.NETWORK, `network failure reaching ${conn.url}: ${(error as Error).message}`);
+    throw error;
+  }
+}
+
+const analytics = program
+  .command('analytics')
+  .description('Inspect, save, preview, and query canonical analytics views through the hosted view contract.');
+
+analyticsConnectionOptions(analytics.command('catalog').description('Get the Semantic Catalog.'))
+  .action(async (opts: AnalyticsOptions) => {
+    const conn = connect(opts.url, opts.tenantId);
+    emitAnalyticsResult(conn, 'analytics catalog', await runAnalyticsRequest(conn, () => getAnalyticsCatalog(conn.url, conn.headers)), opts.json);
+  });
+
+analyticsConnectionOptions(analytics.command('templates').description('List shipped analytics view templates.'))
+  .action(async (opts: AnalyticsOptions) => {
+    const conn = connect(opts.url, opts.tenantId);
+    emitAnalyticsResult(conn, 'analytics templates', await runAnalyticsRequest(conn, () => listAnalyticsTemplates(conn.url, conn.headers)), opts.json);
+  });
+
+analyticsConnectionOptions(analytics.command('views').description('List saved analytics views explicitly granted to this principal.'))
+  .action(async (opts: AnalyticsOptions) => {
+    const conn = connect(opts.url, opts.tenantId);
+    emitAnalyticsResult(conn, 'analytics views', await runAnalyticsRequest(conn, () => listAnalyticsViews(conn.url, conn.headers)), opts.json);
+  });
+
+analyticsConnectionOptions(analytics.command('view').description('Get a system or accessible saved view.').argument('<id>', 'View id'))
+  .action(async (id: string, opts: AnalyticsOptions) => {
+    const conn = connect(opts.url, opts.tenantId);
+    emitAnalyticsResult(conn, 'analytics view', await runAnalyticsRequest(conn, () => getAnalyticsView(conn.url, conn.headers, id)), opts.json);
+  });
+
+analyticsConnectionOptions(
+  analytics.command('create')
+    .description('Save a canonical analytics view document. The server is the sole schema validator.')
+    .argument('<file>', 'Canonical analytics view JSON')
+    .option('--name <name>', 'Saved-view display name')
+    .option('--visibility <visibility>', 'private, team, or tenant', 'private')
+    .option('--idempotency-key <key>', 'Stable retry key (defaults to cli:<document id>)')
+    .option('--base-template <id>', 'Source template id, when this is an explicit fork')
+    .option('--base-template-version <number>', 'Source template revision', (value) => Number(value)),
+).action(async (file: string, opts: AnalyticsOptions & {
+  name?: string; visibility: string; idempotencyKey?: string; baseTemplate?: string; baseTemplateVersion?: number;
+}) => {
+  if (!['private', 'team', 'tenant'].includes(opts.visibility)) fail(EXIT.USAGE, '--visibility must be private, team, or tenant.');
+  const document = loadConfig(file) as { id?: unknown };
+  if (typeof document.id !== 'string' || !document.id) fail(EXIT.USAGE, 'The canonical view document must contain an id.');
+  const conn = connect(opts.url, opts.tenantId);
+  const result = await runAnalyticsRequest(conn, () => createAnalyticsView(conn.url, conn.headers, {
+    document,
+    name: opts.name,
+    visibility: opts.visibility as 'private' | 'team' | 'tenant',
+    idempotency_key: opts.idempotencyKey ?? `cli:${document.id}`,
+    base_template_id: opts.baseTemplate,
+    base_template_version: opts.baseTemplateVersion,
+  }));
+  emitAnalyticsResult(conn, 'analytics create', result, opts.json);
+});
+
+analyticsConnectionOptions(
+  analytics.command('preview')
+    .description('Validate and execute a canonical view under the hosted preview limits.')
+    .argument('<file>', 'Canonical analytics view JSON')
+    .option('--block <id...>', 'Execute only these block ids')
+    .option('--filter-state <json>', 'Transient filter-state JSON array'),
+).action(async (file: string, opts: AnalyticsOptions & { block?: string[]; filterState?: string }) => {
+  const conn = connect(opts.url, opts.tenantId);
+  const result = await runAnalyticsRequest(conn, () => previewAnalyticsView(conn.url, conn.headers, {
+    document: loadConfig(file),
+    block_ids: opts.block,
+    filter_state: parseFilterState(opts.filterState),
+  }));
+  emitAnalyticsResult(conn, 'analytics preview', result, opts.json);
+});
+
+analyticsConnectionOptions(
+  analytics.command('query')
+    .description('Execute an accessible saved or system view by id.')
+    .argument('<id>', 'View id')
+    .option('--revision <number>', 'Expected revision', (value) => Number(value))
+    .option('--block <id...>', 'Execute only these block ids')
+    .option('--filter-state <json>', 'Transient filter-state JSON array'),
+).action(async (id: string, opts: AnalyticsOptions & { revision?: number; block?: string[]; filterState?: string }) => {
+  const conn = connect(opts.url, opts.tenantId);
+  const result = await runAnalyticsRequest(conn, () => queryAnalyticsView(conn.url, conn.headers, {
+    view_id: id,
+    revision: opts.revision,
+    block_ids: opts.block,
+    filter_state: parseFilterState(opts.filterState),
+  }));
+  emitAnalyticsResult(conn, 'analytics query', result, opts.json);
+});
 
 // ── Ingest keys ───────────────────────────────────────────────────────────────
 // Public ingest keys are the embeddable SDK telemetry credentials a tenant hands
