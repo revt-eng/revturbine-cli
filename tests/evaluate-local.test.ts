@@ -7,7 +7,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { evaluateLocal } from '../src/lib/evaluate-local';
+import { evaluateLocal, resolvePlacementComponentType } from '../src/lib/evaluate-local';
 
 const playbook = JSON.parse(
   readFileSync(new URL('./fixtures/evaluate-playbook.json', import.meta.url), 'utf8'),
@@ -30,6 +30,14 @@ afterEach(() => {
 });
 
 describe('evaluateLocal', () => {
+  it('uses componentType canonically and keeps surfaceType as an alias', () => {
+    expect(resolvePlacementComponentType({ componentType: 'modal' })).toBe('modal');
+    expect(resolvePlacementComponentType({ surfaceType: 'banner' })).toBe('banner');
+    expect(
+      resolvePlacementComponentType({ componentType: 'modal', surfaceType: 'banner' }),
+    ).toBe('modal');
+  });
+
   it('resolves an entitlement from the playbook — pro plan is allowed', async () => {
     const { entitlements } = await evaluateLocal(playbook, {
       userId: 'u1',

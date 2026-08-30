@@ -45,7 +45,7 @@ import {
   UnsupportedFormatError,
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
-import { evaluateLocal } from './lib/evaluate-local';
+import { evaluateLocal, resolvePlacementComponentType } from './lib/evaluate-local';
 import { createIngestKey, listIngestKeys, revokeIngestKey, formatIngestKeyLine } from './lib/ingest-keys';
 import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib/delegate';
 import { schemaForConfig } from './lib/offline-schema';
@@ -1252,7 +1252,8 @@ program
   .option('--release <id>', 'Evaluate a past release (from its frozen snapshot)')
   .option('--entitlement <handle>', 'Check one entitlement (the checkEntitlement result)')
   .option('--slot <id>', 'Evaluate one surface slot (the getPlacement decision for that slot)')
-  .option('--surface-type <type>', 'Disambiguate a slot that can render more than one surface (with --slot), or resolve by surface type alone')
+  .option('--component-type <type>', 'Disambiguate a slot that can render more than one component, or resolve by component type alone')
+  .option('--surface-type <type>', 'Deprecated alias for --component-type')
   .option('--plan-handle <handle>', 'Evaluate as if the user were on this plan (overrides the ctx file)')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .requiredOption('--user <file>', 'JSON file: { user_id, customer_id?, plan_handle?, traits?, now_iso? }')
@@ -1264,6 +1265,7 @@ program
       release?: string;
       entitlement?: string;
       slot?: string;
+      componentType?: string;
       surfaceType?: string;
       planHandle?: string;
       url: string;
@@ -1288,11 +1290,13 @@ program
       //
       // --entitlement / --slot narrow the ask; the ctx file's own lists apply
       // when neither is given (bulk evaluation). `--slot` (with optional
-      // `--surface-type`) resolves the surface-keyed getPlacement decision
+      // `--component-type`, or deprecated `--surface-type`) resolves the
+      // slot-keyed getPlacement decision
       // (plan 147 TASK-17) from the fetched Playbook's `placement_slots`.
-      const wantsSlot = Boolean(opts.slot || opts.surfaceType);
+      const componentType = resolvePlacementComponentType(opts);
+      const wantsSlot = Boolean(opts.slot || componentType);
       if (opts.entitlement && wantsSlot) {
-        fail(EXIT.USAGE, 'pass exactly one of --entitlement or --slot/--surface-type (or neither for the ctx file lists).');
+        fail(EXIT.USAGE, 'pass exactly one of --entitlement or --slot/--component-type (or neither for the ctx file lists).');
       }
       const userId = typeof ctx.user_id === 'string' && ctx.user_id.length > 0 ? ctx.user_id : undefined;
       if (!userId) fail(EXIT.VALIDATION, `user file must carry a non-empty string "user_id" (${opts.user})`);
@@ -1325,7 +1329,7 @@ program
         traits,
         entitlementHandles: opts.entitlement ? [opts.entitlement] : bulk ? asStringArray(ctx.entitlement_handles) : [],
         placementIds: bulk ? asStringArray(ctx.placement_ids) : [],
-        slot: wantsSlot ? { slotId: opts.slot, surfaceType: opts.surfaceType } : undefined,
+        slot: wantsSlot ? { slotId: opts.slot, componentType } : undefined,
       });
 
       emit(
@@ -1656,7 +1660,7 @@ const COMMAND_EXAMPLES: Record<string, string> = {
     '',
     'Example:',
     '  revturbine evaluate --live --user ./ctx.json --entitlement seats',
-    '  revturbine evaluate --draft --user ./ctx.json --slot upgrade_banner --plan-handle pro',
+    '  revturbine evaluate --draft --user ./ctx.json --slot upgrade_banner --component-type banner --plan-handle pro',
     '    ctx.json: { "user_id": "u1", "plan_handle": "pro", "entitlement_handles": ["seats"] }',
   ].join('\n'),
 };
