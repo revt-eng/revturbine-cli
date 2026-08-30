@@ -1,19 +1,19 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.205
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.261
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
 
-// ../scaffold-205/src/core/common.ts
+// ../scaffold/src/core/common.ts
 import { z as z2 } from "zod";
 
-// ../scaffold-205/src/core/classification.ts
+// ../scaffold/src/core/classification.ts
 import { z } from "zod";
 
-// ../scaffold-205/src/core/handle-pattern.ts
+// ../scaffold/src/core/handle-pattern.ts
 var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
 
-// ../scaffold-205/src/core/classification.ts
+// ../scaffold/src/core/classification.ts
 var SchemaPersistence = {
   Persisted: "persisted",
   Transient: "transient"
@@ -53,9 +53,9 @@ var DecisionOnly = { [DECISION_ONLY_META_KEY]: true };
 var ClientSafe = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.External };
 var ServerOnly = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.Internal };
 function getSchemaClassification(schema) {
-  const meta4 = schema.meta();
-  const persistence = meta4?.[SCHEMA_PERSISTENCE_META_KEY];
-  const exposure = meta4?.[SCHEMA_EXPOSURE_META_KEY];
+  const meta6 = schema.meta();
+  const persistence = meta6?.[SCHEMA_PERSISTENCE_META_KEY];
+  const exposure = meta6?.[SCHEMA_EXPOSURE_META_KEY];
   if ((persistence === SchemaPersistence.Persisted || persistence === SchemaPersistence.Transient) && (exposure === SchemaExposure.Internal || exposure === SchemaExposure.External)) {
     return {
       persistence,
@@ -65,8 +65,8 @@ function getSchemaClassification(schema) {
   return void 0;
 }
 function getFieldClassification(schema) {
-  const meta4 = schema.meta();
-  const classification = meta4?.[DATA_CLASSIFICATION_META_KEY];
+  const meta6 = schema.meta();
+  const classification = meta6?.[DATA_CLASSIFICATION_META_KEY];
   return typeof classification === "string" ? classification : void 0;
 }
 function getObjectFieldClassifications(schema) {
@@ -77,16 +77,16 @@ function getObjectFieldClassifications(schema) {
   return result;
 }
 function getSchemaExposure(schema) {
-  const meta4 = schema.meta();
-  const exposure = meta4?.[SCHEMA_EXPOSURE_META_KEY];
+  const meta6 = schema.meta();
+  const exposure = meta6?.[SCHEMA_EXPOSURE_META_KEY];
   if (exposure === SchemaExposure.Internal || exposure === SchemaExposure.External) {
     return exposure;
   }
   return void 0;
 }
 function getSchemaPersistence(schema) {
-  const meta4 = schema.meta();
-  const persistence = meta4?.[SCHEMA_PERSISTENCE_META_KEY];
+  const meta6 = schema.meta();
+  const persistence = meta6?.[SCHEMA_PERSISTENCE_META_KEY];
   if (persistence === SchemaPersistence.Persisted || persistence === SchemaPersistence.Transient) {
     return persistence;
   }
@@ -146,15 +146,15 @@ function unwrapSchema(schema) {
   return cursor;
 }
 function getFieldVisibility(schema) {
-  const meta4 = schema.meta() ?? {};
-  if (meta4[DECISION_ONLY_META_KEY] === true) {
+  const meta6 = schema.meta() ?? {};
+  if (meta6[DECISION_ONLY_META_KEY] === true) {
     return ContextVisibility.DecisionOnly;
   }
-  const dataClass = meta4[DATA_CLASSIFICATION_META_KEY];
+  const dataClass = meta6[DATA_CLASSIFICATION_META_KEY];
   if (dataClass === "pii" || dataClass === "financial") {
     return ContextVisibility.ServerOnly;
   }
-  if (meta4[SCHEMA_EXPOSURE_META_KEY] === SchemaExposure.External) {
+  if (meta6[SCHEMA_EXPOSURE_META_KEY] === SchemaExposure.External) {
     return ContextVisibility.ClientSafe;
   }
   return ContextVisibility.ServerOnly;
@@ -191,7 +191,7 @@ function getObjectFieldVisibilities(schema) {
   return result;
 }
 
-// ../scaffold-205/src/core/common.ts
+// ../scaffold/src/core/common.ts
 var { Unrestricted } = DataClassification;
 var { Transient, Persisted } = SchemaPersistence;
 var { Internal, External } = SchemaExposure;
@@ -259,7 +259,7 @@ var BillingCadenceSchema = z2.enum([
     "x-revturbine-schema-exposure": External
   }
 );
-var SurfaceTypeSchema = z2.enum([
+var COMPONENT_TYPE_VALUES = [
   "banner",
   "modal",
   "tooltip",
@@ -276,10 +276,71 @@ var SurfaceTypeSchema = z2.enum([
   "agent",
   "cli",
   "custom"
-]).meta(
-  { id: "SurfaceType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External }
-);
+];
+var ComponentTypeSchema = z2.enum(COMPONENT_TYPE_VALUES).meta({ id: "ComponentType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var SurfaceTypeSchema = ComponentTypeSchema;
+var DEFAULT_TEMPLATE_IDS = [
+  "button",
+  "plans_page_ctas",
+  "plans_page_full",
+  "inline_gate_message",
+  "tooltip",
+  "in_page_card",
+  "usage_counter",
+  "credit_counter",
+  "trial_counter",
+  "banner",
+  "modal_optional",
+  "modal_blocking",
+  "toast",
+  "email",
+  "sms",
+  "push",
+  "cli",
+  "agent_connector",
+  "custom_in_app"
+];
+var DefaultTemplateIdsSchema = z2.enum(DEFAULT_TEMPLATE_IDS).meta({ id: "DefaultTemplateIds", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
+var StudioSurfaceTypeSchema = DefaultTemplateIdsSchema;
+var DEFAULT_TEMPLATE_COMPONENT_TYPES = {
+  button: "button",
+  plans_page_ctas: "in_page",
+  plans_page_full: "full_page",
+  inline_gate_message: "inline",
+  tooltip: "tooltip",
+  in_page_card: "in_page",
+  usage_counter: "in_page",
+  credit_counter: "in_page",
+  trial_counter: "in_page",
+  banner: "banner",
+  modal_optional: "modal",
+  modal_blocking: "modal",
+  toast: "toast",
+  email: "email",
+  sms: "sms",
+  push: "push",
+  cli: "cli",
+  agent_connector: "agent",
+  custom_in_app: "custom"
+};
+var BUILT_IN_TEMPLATE_COMPONENT_TYPES = Object.freeze({
+  ...DEFAULT_TEMPLATE_COMPONENT_TYPES,
+  modal_overlay: "modal",
+  banner_placement: "banner",
+  full_page: "full_page"
+});
+function resolveComponentType(value) {
+  const componentType = ComponentTypeSchema.safeParse(value);
+  if (componentType.success) return componentType.data;
+  return DEFAULT_TEMPLATE_COMPONENT_TYPES[value];
+}
 var ENTITLEMENT_STATUS_VALUES = ["allowed", "limited", "denied"];
+var DEFAULT_ACTIVITY_THRESHOLDS = {
+  window_days: 30,
+  high_min: 10,
+  medium_min: 3,
+  low_min: 1
+};
 var PresentationOutcomeSchema = z2.enum(["presented", "clicked", "converted", "dismissed", "reminded", "suppressed"]).meta(
   { id: "PresentationOutcome", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External }
 );
@@ -350,27 +411,6 @@ function makeAnchor(id) {
   });
 }
 var SeveritySchema = z2.enum(["info", "warning", "critical"]).meta({ id: "Severity", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
-var StudioSurfaceTypeSchema = z2.enum([
-  "button",
-  "plans_page_ctas",
-  "plans_page_full",
-  "inline_gate_message",
-  "tooltip",
-  "in_page_card",
-  "usage_counter",
-  "credit_counter",
-  "trial_counter",
-  "banner",
-  "modal_optional",
-  "modal_blocking",
-  "toast",
-  "email",
-  "sms",
-  "push",
-  "cli",
-  "agent_connector",
-  "custom_in_app"
-]).meta({ id: "StudioSurfaceType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
 var CtaActionTypeSchema = z2.enum([
   "open_checkout",
   "view_plans",
@@ -391,7 +431,7 @@ var CtaActionTypeSchema = z2.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 
-// ../scaffold-205/src/core/facets.ts
+// ../scaffold/src/core/facets.ts
 var SchemaContext = {
   Playbook: "playbook",
   Branding: "branding",
@@ -445,11 +485,11 @@ function isSchemaSource(value) {
   return Object.values(SchemaSource).some((source) => source === value);
 }
 function getSchemaFacets(schema) {
-  const meta4 = schema.meta();
-  const context = meta4?.[SCHEMA_CONTEXT_META_KEY];
-  const inConfig = meta4?.[SCHEMA_IN_CONFIG_META_KEY];
-  const sdkInput = meta4?.[SCHEMA_SDK_INPUT_META_KEY];
-  const source = meta4?.[SCHEMA_SOURCE_META_KEY];
+  const meta6 = schema.meta();
+  const context = meta6?.[SCHEMA_CONTEXT_META_KEY];
+  const inConfig = meta6?.[SCHEMA_IN_CONFIG_META_KEY];
+  const sdkInput = meta6?.[SCHEMA_SDK_INPUT_META_KEY];
+  const source = meta6?.[SCHEMA_SOURCE_META_KEY];
   if (!isSchemaContext(context) || typeof inConfig !== "boolean" || typeof sdkInput !== "boolean" || !isSchemaSource(source)) {
     return void 0;
   }
@@ -463,9 +503,9 @@ function requireSchemaFacets(schema, label) {
   return facets;
 }
 function getSchemaDeprecation(schema) {
-  const meta4 = schema.meta();
-  if (meta4?.deprecated !== true) return void 0;
-  const value = meta4[SCHEMA_DEPRECATION_META_KEY];
+  const meta6 = schema.meta();
+  if (meta6?.deprecated !== true) return void 0;
+  const value = meta6[SCHEMA_DEPRECATION_META_KEY];
   if (!value || typeof value !== "object") return void 0;
   const declaration = value;
   if (typeof declaration.since !== "string" || typeof declaration.replacement !== "string" || typeof declaration.remove_after !== "string" || typeof declaration.reason !== "string") {
@@ -537,7 +577,7 @@ var PERSISTED_SCHEMA_FACET_EXEMPTIONS = {
   WebhookEventLogSchema: "Webhook delivery history is runtime data, not authored strategy."
 };
 
-// ../scaffold-205/src/core/identity.ts
+// ../scaffold/src/core/identity.ts
 import { z as z3 } from "zod";
 var IdentityKind = {
   /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
@@ -581,10 +621,10 @@ function collectVersionedConfigEntities(allExports) {
   return out;
 }
 
-// ../scaffold-205/src/plans/models/schema.ts
+// ../scaffold/src/plans/models/schema.ts
 import { z as z5 } from "zod";
 
-// ../scaffold-205/src/core/openapi/helpers.ts
+// ../scaffold/src/core/openapi/helpers.ts
 import { z as z4 } from "zod";
 var ListEnvelope = (itemSchema) => z4.object({
   items: z4.array(itemSchema)
@@ -603,7 +643,7 @@ var ListQueryParamsSchema = z4.object({
   include_deleted: z4.boolean().default(false).optional()
 });
 
-// ../scaffold-205/src/plans/models/schema.ts
+// ../scaffold/src/plans/models/schema.ts
 var { Unrestricted: Unrestricted2, Financial } = DataClassification;
 var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
 var { External: External2 } = SchemaExposure;
@@ -1061,7 +1101,7 @@ var planPaths = {
   }
 };
 
-// ../scaffold-205/src/entitlements/models/schema.ts
+// ../scaffold/src/entitlements/models/schema.ts
 import { z as z6 } from "zod";
 var { Unrestricted: Unrestricted3 } = DataClassification;
 var { Persisted: Persisted3, Transient: Transient3 } = SchemaPersistence;
@@ -1454,7 +1494,7 @@ var entitlementPaths = {
   }
 };
 
-// ../scaffold-205/src/placements/models/schema.ts
+// ../scaffold/src/placements/models/schema.ts
 import { z as z7 } from "zod";
 var { Unrestricted: Unrestricted4 } = DataClassification;
 var { Persisted: Persisted4, Transient: Transient4 } = SchemaPersistence;
@@ -1807,10 +1847,10 @@ var placementPaths = {
   }
 };
 
-// ../scaffold-205/src/user/models/schema.ts
+// ../scaffold/src/user/models/schema.ts
 import { z as z9 } from "zod";
 
-// ../scaffold-205/src/customers/models/schema.ts
+// ../scaffold/src/customers/models/schema.ts
 import { z as z8 } from "zod";
 var { Unrestricted: Unrestricted5, Pii } = DataClassification;
 var { Persisted: Persisted5, Transient: Transient5 } = SchemaPersistence;
@@ -1978,7 +2018,7 @@ var customerPaths = {
   }
 };
 
-// ../scaffold-205/src/user/models/schema.ts
+// ../scaffold/src/user/models/schema.ts
 var { Unrestricted: Unrestricted6, Pii: Pii2, Financial: Financial2 } = DataClassification;
 var { Persisted: Persisted6, Transient: Transient6 } = SchemaPersistence;
 var { External: External5, Internal: Internal5 } = SchemaExposure;
@@ -2261,7 +2301,7 @@ var userContextPaths = {
   }
 };
 
-// ../scaffold-205/src/segments/models/schema.ts
+// ../scaffold/src/segments/models/schema.ts
 import { z as z10 } from "zod";
 var { Unrestricted: Unrestricted7 } = DataClassification;
 var { Persisted: Persisted7, Transient: Transient7 } = SchemaPersistence;
@@ -2323,16 +2363,9 @@ var SegmentSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(An
   handle: HandleField.meta(Unrestricted7),
   description: DescriptionField.meta(Unrestricted7),
   rules: z10.record(z10.string(), z10.unknown()).default({}).meta(Unrestricted7),
-  /**
-   * Optional experiment enrollment (plan 183). When set, this segment matches
-   * a user whose `ExperimentProvider` assignments contain this experiment.
-   *
-   * **Holds the experiment's `handle`, not a database id** — despite the field
-   * name. Handles are canonical and version-stable, so editing an experiment
-   * mints a new version without breaking the reference. Follows the shipped
-   * convention where entitlement rules' `entitlement_id` and `targets[].id`
-   * must likewise be handles; a minted id there silently never matches.
-   */
+  /** Canonical experiment-handle reference for optional enrollment. */
+  experiment_handle: z10.string().min(1).optional().meta(Unrestricted7),
+  /** @deprecated Read-only compatibility alias for `experiment_handle`. */
   experiment_id: z10.string().min(1).optional().meta(Unrestricted7),
   is_active: z10.boolean().default(true).meta(Unrestricted7),
   estimated_size: z10.number().int().min(0).nullable().default(null).meta(Unrestricted7),
@@ -2454,7 +2487,7 @@ var segmentPaths = {
   }
 };
 
-// ../scaffold-205/src/content/models/schema.ts
+// ../scaffold/src/content/models/schema.ts
 import { z as z11 } from "zod";
 var { Unrestricted: Unrestricted8 } = DataClassification;
 var { Persisted: Persisted8, Transient: Transient8 } = SchemaPersistence;
@@ -2535,7 +2568,7 @@ var SurfaceTemplateSchema = IdField.merge(TimestampFields).merge(TenantIdField).
   anchor_id: z11.string().min(1).meta({ ...Unrestricted8, readOnly: true }),
   name: NameField.meta(Unrestricted8),
   handle: HandleField.meta(Unrestricted8),
-  surface_type: StudioSurfaceTypeSchema.meta(Unrestricted8),
+  surface_type: z11.union([ComponentTypeSchema, DefaultTemplateIdsSchema]).meta(Unrestricted8),
   field_definitions: z11.array(FieldDefinitionSchema).default([]).meta(Unrestricted8),
   description: DescriptionField.meta(Unrestricted8)
 }).meta(
@@ -2677,7 +2710,7 @@ var contentPaths = {
   }
 };
 
-// ../scaffold-205/src/ui/models/schema.ts
+// ../scaffold/src/ui/models/schema.ts
 import { z as z12 } from "zod";
 var { Unrestricted: Unrestricted9, Pii: Pii3 } = DataClassification;
 var { Persisted: Persisted9, Transient: Transient9 } = SchemaPersistence;
@@ -2749,7 +2782,7 @@ var uiPreferencePaths = {
   }
 };
 
-// ../scaffold-205/src/analytics/models/schema.ts
+// ../scaffold/src/analytics/models/schema.ts
 import { z as z13 } from "zod";
 var { Unrestricted: Unrestricted10, Financial: Financial3 } = DataClassification;
 var { Persisted: Persisted10, Transient: Transient10 } = SchemaPersistence;
@@ -2928,7 +2961,7 @@ var analyticsPaths = {
   }
 };
 
-// ../scaffold-205/src/analytics/models/view-schema.ts
+// ../scaffold/src/analytics/models/view-schema.ts
 import { z as z14 } from "zod";
 var { Unrestricted: Unrestricted11 } = DataClassification;
 var { Transient: Transient11 } = SchemaPersistence;
@@ -2953,6 +2986,9 @@ var AnalyticsFilterOperatorSchema = z14.enum(["eq", "neq", "in", "not_in", "betw
 var AnalyticsFilterControlSchema = z14.enum(["date_range", "single_select", "multi_select", "search_select", "number_range"]).meta(meta("AnalyticsFilterControl"));
 var AnalyticsCardinalityClassSchema = z14.enum(["low", "medium", "high"]).meta(meta("AnalyticsCardinalityClass"));
 var AnalyticsFieldTypeSchema = z14.enum(["string", "number", "currency", "percent", "date", "datetime", "boolean"]).meta(meta("AnalyticsFieldType"));
+var AnalyticsMetricDirectionSchema = z14.enum(["increase", "decrease", "neutral"]).meta(meta("AnalyticsMetricDirection"));
+var AnalyticsMetricStatisticalTypeSchema = z14.enum(["binary", "count", "continuous", "ratio", "revenue"]).meta(meta("AnalyticsMetricStatisticalType"));
+var AnalyticsMetricAggregationSemanticsSchema = z14.enum(["additive", "semi_additive", "non_additive"]).meta(meta("AnalyticsMetricAggregationSemantics"));
 var AnalyticsDimensionTypeSchema = z14.enum(["string", "number", "boolean", "date", "datetime", "id", "enum"]).meta(meta("AnalyticsDimensionType"));
 var AnalyticsDimensionCapabilitySchema = z14.enum(["filter", "group", "split", "sort"]).meta(meta("AnalyticsDimensionCapability"));
 var AnalyticsViewVisibilitySchema = z14.enum(["private", "team", "tenant"]).meta(meta("AnalyticsViewVisibility"));
@@ -3041,6 +3077,10 @@ var AnalyticsCatalogMetricSchema = z14.object({
   value_type: AnalyticsFieldTypeSchema.meta(Unrestricted11),
   format: AnalyticsFormatSpecSchema.optional().meta(Unrestricted11),
   source_scope: AnalyticsSourceScopeSchema.optional().meta(Unrestricted11),
+  direction: AnalyticsMetricDirectionSchema.optional().meta(Unrestricted11),
+  statistical_type: AnalyticsMetricStatisticalTypeSchema.optional().meta(Unrestricted11),
+  aggregation_semantics: AnalyticsMetricAggregationSemanticsSchema.optional().meta(Unrestricted11),
+  preferred_analysis_unit: AnalyticsAnalyticalUnitSchema.optional().meta(Unrestricted11),
   deprecation: CatalogDeprecation.optional().meta(Unrestricted11)
 }).meta(meta("AnalyticsCatalogMetric"));
 var AnalyticsCatalogConceptSchema = z14.object({
@@ -3069,11 +3109,12 @@ var QueryTime = z14.strictObject({
   dimension: SemanticIdField.meta(Unrestricted11),
   grain: AnalyticsTimeGrainSchema.meta(Unrestricted11)
 });
+var MAX_ANALYTICS_GROUP_BY_FIELDS = 8;
 var AnalyticsViewQuerySchema = z14.strictObject({
   concept: SemanticIdField.meta(Unrestricted11),
   family: AnalyticsQueryFamilySchema.meta(Unrestricted11),
   metrics: z14.array(SemanticIdField).min(1).max(10).meta(Unrestricted11),
-  group_by: z14.array(SemanticIdField).max(3).optional().meta(Unrestricted11),
+  group_by: z14.array(SemanticIdField).max(MAX_ANALYTICS_GROUP_BY_FIELDS).optional().meta(Unrestricted11),
   time: QueryTime.optional().meta(Unrestricted11),
   filters_from: z14.array(ElementIdField).max(20).optional().meta(Unrestricted11),
   fixed_filters: z14.array(AnalyticsSemanticFilterSchema).max(20).optional().meta(Unrestricted11),
@@ -3201,7 +3242,7 @@ var AnalyticsViewBlockDraftSchema = z14.strictObject({
   concept: SemanticIdField.meta(Unrestricted11),
   family: AnalyticsQueryFamilySchema.meta(Unrestricted11),
   metrics: z14.array(SemanticIdField).min(1).max(10).meta(Unrestricted11),
-  group_by: z14.array(SemanticIdField).max(3).optional().meta(Unrestricted11),
+  group_by: z14.array(SemanticIdField).max(MAX_ANALYTICS_GROUP_BY_FIELDS).optional().meta(Unrestricted11),
   time: QueryTime.optional().meta(Unrestricted11),
   filters_from: z14.array(ElementIdField).max(20).optional().meta(Unrestricted11),
   fixed_filters: z14.array(AnalyticsSemanticFilterSchema).max(20).optional().meta(Unrestricted11),
@@ -3284,54 +3325,121 @@ var AnalyticsResultSchema = z14.object({
   meta: AnalyticsResultMetaSchema.meta(Unrestricted11)
 }).meta(meta("AnalyticsResult"));
 
-// ../scaffold-205/src/analytics/models/catalog-schema.ts
+// ../scaffold/src/analytics/models/saved-view-schema.ts
 import { z as z15 } from "zod";
 var { Unrestricted: Unrestricted12 } = DataClassification;
-var { Transient: Transient12 } = SchemaPersistence;
+var { Persisted: Persisted11, Transient: Transient12 } = SchemaPersistence;
 var { Internal: Internal10 } = SchemaExposure;
-var meta2 = (id) => ({
+var CUSTOMER_SAVED_VIEW_FACETS = schemaFacets(SchemaContext.CustomerOperations, {
+  inConfig: false,
+  sdkInput: false,
+  source: SchemaSource.Customer
+});
+var persistedMeta = (id) => ({
+  id,
+  "x-revturbine-schema-persistence": Persisted11,
+  "x-revturbine-schema-exposure": Internal10,
+  ...CUSTOMER_SAVED_VIEW_FACETS
+});
+var transientMeta = (id) => ({
   id,
   "x-revturbine-schema-persistence": Transient12,
   "x-revturbine-schema-exposure": Internal10
 });
-var AnalyticsCatalogSourceSchema = z15.enum(["fixture", "generated"]).meta(meta2("AnalyticsCatalogSource"));
-var AnalyticsCatalogSchema = z15.object({
+var EnvironmentScopeFields = z15.object({
+  environment_id: z15.string().min(1).meta({ ...Unrestricted12, readOnly: true })
+});
+var AnalyticsViewAccessRoleSchema = z15.enum(["viewer", "editor"]).meta(transientMeta("AnalyticsViewAccessRole"));
+var AnalyticsSavedViewSchema = IdField.merge(TenantIdField).merge(EnvironmentScopeFields).merge(TimestampFields).extend({
+  owner_user_id: z15.string().min(1).meta(Unrestricted12),
+  name: z15.string().min(1).max(300).meta(Unrestricted12),
+  visibility: AnalyticsViewVisibilitySchema.meta(Unrestricted12),
+  base_template_id: z15.string().min(1).max(100).nullable().optional().meta(Unrestricted12),
+  base_template_version: z15.number().int().min(1).nullable().optional().meta(Unrestricted12),
+  current_revision: z15.number().int().min(1).meta(Unrestricted12),
+  is_default: z15.boolean().default(false).meta(Unrestricted12),
+  idempotency_key: z15.string().min(1).max(200).nullable().optional().meta(Unrestricted12)
+}).meta(persistedMeta("AnalyticsSavedView"));
+var AnalyticsViewRevisionSchema = IdField.merge(TenantIdField).merge(EnvironmentScopeFields).extend({
+  view_id: z15.string().min(1).meta(Unrestricted12),
+  revision: z15.number().int().min(1).meta(Unrestricted12),
+  schema_version: z15.string().regex(/^\d+\.\d+$/).meta(Unrestricted12),
   catalog_version: z15.string().min(1).max(64).meta(Unrestricted12),
-  source: AnalyticsCatalogSourceSchema.meta(Unrestricted12),
-  generated_at: z15.string().datetime().optional().meta(Unrestricted12),
-  concepts: z15.array(AnalyticsCatalogConceptSchema).min(1).meta(Unrestricted12),
-  dimensions: z15.array(AnalyticsCatalogDimensionSchema).min(1).meta(Unrestricted12),
-  metrics: z15.array(AnalyticsCatalogMetricSchema).min(1).meta(Unrestricted12)
+  document_jsonb: AnalyticsViewSchema.meta(Unrestricted12),
+  content_hash: z15.string().regex(/^[a-f0-9]{64}$/).meta(Unrestricted12),
+  created_by: z15.string().min(1).meta(Unrestricted12),
+  created_at: z15.string().datetime().meta({ ...Unrestricted12, readOnly: true })
+}).meta(persistedMeta("AnalyticsViewRevision"));
+var AnalyticsViewAccessSchema = IdField.merge(TenantIdField).merge(EnvironmentScopeFields).extend({
+  view_id: z15.string().min(1).meta(Unrestricted12),
+  // TASK-3 settles the bounded sharing vocabulary; do not pre-decide Q-1/Q-3 here.
+  principal_type: z15.string().regex(/^[a-z][a-z0-9_]{0,49}$/).meta(Unrestricted12),
+  principal_id: z15.string().min(1).meta(Unrestricted12),
+  role: AnalyticsViewAccessRoleSchema.meta(Unrestricted12)
+}).meta(persistedMeta("AnalyticsViewAccess"));
+
+// ../scaffold/src/analytics/models/catalog-schema.ts
+import { z as z16 } from "zod";
+var { Unrestricted: Unrestricted13 } = DataClassification;
+var { Transient: Transient13 } = SchemaPersistence;
+var { Internal: Internal11 } = SchemaExposure;
+var meta2 = (id) => ({
+  id,
+  "x-revturbine-schema-persistence": Transient13,
+  "x-revturbine-schema-exposure": Internal11
+});
+var AnalyticsCatalogSourceSchema = z16.enum(["fixture", "generated"]).meta(meta2("AnalyticsCatalogSource"));
+var AnalyticsCatalogProvenanceKindSchema = z16.enum(["event_taxonomy", "openapi_identity", "tinybird_project"]).meta(meta2("AnalyticsCatalogProvenanceKind"));
+var AnalyticsCatalogProvenanceSchema = z16.object({
+  kind: AnalyticsCatalogProvenanceKindSchema.meta(Unrestricted13),
+  location: z16.string().min(1).max(240).meta(Unrestricted13),
+  version: z16.string().min(1).max(64).optional().meta(Unrestricted13),
+  entry_count: z16.number().int().nonnegative().meta(Unrestricted13)
+}).meta(meta2("AnalyticsCatalogProvenance"));
+var AnalyticsCatalogSchema = z16.object({
+  catalog_version: z16.string().min(1).max(64).meta(Unrestricted13),
+  source: AnalyticsCatalogSourceSchema.meta(Unrestricted13),
+  generated_at: z16.string().datetime().optional().meta(Unrestricted13),
+  provenance: z16.array(AnalyticsCatalogProvenanceSchema).optional().meta(Unrestricted13),
+  concepts: z16.array(AnalyticsCatalogConceptSchema).min(1).meta(Unrestricted13),
+  dimensions: z16.array(AnalyticsCatalogDimensionSchema).min(1).meta(Unrestricted13),
+  metrics: z16.array(AnalyticsCatalogMetricSchema).min(1).meta(Unrestricted13)
 }).meta(meta2("AnalyticsCatalog"));
-var AnalyticsAgentCatalogEntryKindSchema = z15.enum(["concept", "dimension", "metric", "query_family"]).meta(meta2("AnalyticsAgentCatalogEntryKind"));
-var AnalyticsAgentCatalogEntrySchema = z15.object({
-  id: AnalyticsSemanticIdSchema.meta(Unrestricted12),
-  kind: AnalyticsAgentCatalogEntryKindSchema.meta(Unrestricted12),
-  label: z15.string().min(1).max(120).meta(Unrestricted12),
-  description: z15.string().min(1).max(500).meta(Unrestricted12),
-  when_to_use: z15.string().max(500).optional().meta(Unrestricted12),
-  do_not_use_for: z15.string().max(500).optional().meta(Unrestricted12),
-  value_type: AnalyticsFieldTypeSchema.optional().meta(Unrestricted12),
-  format: AnalyticsFormatSpecSchema.optional().meta(Unrestricted12),
-  capabilities: z15.array(AnalyticsDimensionCapabilitySchema).optional().meta(Unrestricted12),
-  compatible_concepts: z15.array(AnalyticsSemanticIdSchema).optional().meta(Unrestricted12),
-  compatible_families: z15.array(AnalyticsQueryFamilySchema).optional().meta(Unrestricted12),
-  analytical_units: z15.array(AnalyticsAnalyticalUnitSchema).optional().meta(Unrestricted12),
-  source_scope: AnalyticsSourceScopeSchema.optional().meta(Unrestricted12),
-  example: z15.string().max(2e3).optional().meta(Unrestricted12),
-  deprecation: AnalyticsCatalogDeprecationSchema.optional().meta(Unrestricted12)
+var AnalyticsAgentCatalogEntryKindSchema = z16.enum(["concept", "dimension", "metric", "query_family"]).meta(meta2("AnalyticsAgentCatalogEntryKind"));
+var AnalyticsAgentCatalogEntrySchema = z16.object({
+  id: AnalyticsSemanticIdSchema.meta(Unrestricted13),
+  kind: AnalyticsAgentCatalogEntryKindSchema.meta(Unrestricted13),
+  label: z16.string().min(1).max(120).meta(Unrestricted13),
+  description: z16.string().min(1).max(500).meta(Unrestricted13),
+  when_to_use: z16.string().max(500).optional().meta(Unrestricted13),
+  do_not_use_for: z16.string().max(500).optional().meta(Unrestricted13),
+  value_type: AnalyticsFieldTypeSchema.optional().meta(Unrestricted13),
+  format: AnalyticsFormatSpecSchema.optional().meta(Unrestricted13),
+  capabilities: z16.array(AnalyticsDimensionCapabilitySchema).optional().meta(Unrestricted13),
+  compatible_concepts: z16.array(AnalyticsSemanticIdSchema).optional().meta(Unrestricted13),
+  compatible_families: z16.array(AnalyticsQueryFamilySchema).optional().meta(Unrestricted13),
+  analytical_units: z16.array(AnalyticsAnalyticalUnitSchema).optional().meta(Unrestricted13),
+  source_scope: AnalyticsSourceScopeSchema.optional().meta(Unrestricted13),
+  example: z16.string().max(2e3).optional().meta(Unrestricted13),
+  deprecation: AnalyticsCatalogDeprecationSchema.optional().meta(Unrestricted13)
 }).meta(meta2("AnalyticsAgentCatalogEntry"));
-var AnalyticsCatalogSearchResultSchema = z15.object({
-  catalog_version: z15.string().min(1).max(64).meta(Unrestricted12),
-  query: z15.string().min(1).max(200).meta(Unrestricted12),
-  entries: z15.array(AnalyticsAgentCatalogEntrySchema).max(50).meta(Unrestricted12)
+var AnalyticsCatalogSearchResultSchema = z16.object({
+  catalog_version: z16.string().min(1).max(64).meta(Unrestricted13),
+  query: z16.string().min(1).max(200).meta(Unrestricted13),
+  entries: z16.array(AnalyticsAgentCatalogEntrySchema).max(50).meta(Unrestricted13)
 }).meta(meta2("AnalyticsCatalogSearchResult"));
 
-// ../scaffold-205/src/analytics/catalog/in-memory.ts
+// ../scaffold/src/analytics/catalog/in-memory.ts
 var byId = (items) => [...items].sort((a, b) => a.id.localeCompare(b.id, "en"));
 function createInMemoryAnalyticsCatalog(data) {
   const catalog = AnalyticsCatalogSchema.parse(data);
   const problems = [];
+  if (catalog.source === "generated") {
+    const provenanceKinds = new Set(catalog.provenance?.map((entry) => entry.kind) ?? []);
+    for (const kind of ["event_taxonomy", "openapi_identity", "tinybird_project"]) {
+      if (!provenanceKinds.has(kind)) problems.push(`generated catalog is missing ${kind} provenance`);
+    }
+  }
   const indexUnique = (items, kind) => {
     const map = /* @__PURE__ */ new Map();
     for (const item of items) {
@@ -3473,7 +3581,7 @@ function searchAgentCatalog(catalog, query, limit = 20) {
   return { catalog_version: catalog.version, query, entries };
 }
 
-// ../scaffold-205/src/analytics/catalog/fixture.ts
+// ../scaffold/src/analytics/catalog/fixture.ts
 var FIXTURE_ANALYTICS_CATALOG = {
   // Versioned additively (§15) as the ported surfaces need semantics:
   //   fixture-2 — placement.payload + content.message_block dimensions, the
@@ -3481,7 +3589,15 @@ var FIXTURE_ANALYTICS_CATALOG = {
   //   fixture-3 — the event-count metrics those surfaces chart:
   //     conversion.paid_count (billing-fact events on revenue.movement) and
   //     placement.conversions (interaction outcomes on placement.presentation).
-  catalog_version: "fixture-3",
+  //   fixture-4 — experiment anchor identity for per-experiment AVF scope.
+  //   fixture-5 — lifecycle and funnel signals consumed by Plan 204 detectors.
+  //   fixture-6 — trial-conversion and reactivation detector signals.
+  //   fixture-7 — placement-frequency signal for Plan 204 fatigue detection.
+  //   fixture-8 — explicit currency semantics for billing-backed revenue.
+  //   fixture-9 — explicit account and user identity for customer timelines.
+  //   fixture-10 — persisted optimization-opportunity serving semantics.
+  //   fixture-11 — immutable experiment-result contribution semantics.
+  catalog_version: "fixture-11",
   source: "fixture",
   dimensions: [
     {
@@ -3520,10 +3636,70 @@ var FIXTURE_ANALYTICS_CATALOG = {
       exclude_from_segment_picker: true
     },
     {
+      id: "revenue.currency",
+      label: "Currency",
+      description: "ISO 4217 currency code carried by the billing fact; unlike currencies must never be summed.",
+      type: "enum",
+      operators: ["eq", "in", "not_in"],
+      control: "multi_select",
+      capabilities: ["filter", "group", "split", "sort"],
+      cardinality: "low",
+      classification: "unrestricted",
+      exclude_from_segment_picker: true
+    },
+    {
       id: "lifecycle.state",
       label: "Lifecycle state",
       type: "enum",
       operators: ["in", "not_in"],
+      control: "multi_select",
+      capabilities: ["filter", "group", "split"],
+      cardinality: "low",
+      classification: "unrestricted",
+      exclude_from_segment_picker: false
+    },
+    {
+      id: "acquisition.source",
+      label: "Acquisition source",
+      description: "The normalized source associated with an account signup.",
+      type: "string",
+      operators: ["eq", "in", "not_in"],
+      control: "multi_select",
+      capabilities: ["filter", "group", "split"],
+      cardinality: "medium",
+      classification: "unrestricted",
+      exclude_from_segment_picker: false
+    },
+    {
+      id: "funnel.step",
+      label: "Funnel step",
+      description: "Stable caller-supplied handle for one ordered product funnel step.",
+      type: "id",
+      operators: ["eq", "in", "not_in"],
+      control: "multi_select",
+      capabilities: ["filter", "group", "split"],
+      cardinality: "medium",
+      classification: "unrestricted",
+      exclude_from_segment_picker: false
+    },
+    {
+      id: "trial.rule",
+      label: "Trial rule",
+      description: "Stable handle of the free or reverse trial rule governing the cohort.",
+      type: "id",
+      operators: ["eq", "in", "not_in"],
+      control: "multi_select",
+      capabilities: ["filter", "group", "split"],
+      cardinality: "low",
+      classification: "unrestricted",
+      exclude_from_segment_picker: false
+    },
+    {
+      id: "customer.lifecycle_cohort",
+      label: "Customer lifecycle cohort",
+      description: "Stable cohort distinguishing previously healthy accounts from never-activated accounts.",
+      type: "enum",
+      operators: ["eq", "in", "not_in"],
       control: "multi_select",
       capabilities: ["filter", "group", "split"],
       cardinality: "low",
@@ -3577,6 +3753,18 @@ var FIXTURE_ANALYTICS_CATALOG = {
       exclude_from_segment_picker: false
     },
     {
+      id: "experiment.experiment",
+      label: "Experiment",
+      description: "Experiment identity, by stable experiment handle.",
+      type: "id",
+      operators: ["eq", "in", "not_in"],
+      control: "search_select",
+      capabilities: ["filter", "group", "split"],
+      cardinality: "medium",
+      classification: "operational",
+      exclude_from_segment_picker: true
+    },
+    {
       id: "experiment.variant",
       label: "Experiment variant",
       type: "id",
@@ -3588,8 +3776,102 @@ var FIXTURE_ANALYTICS_CATALOG = {
       exclude_from_segment_picker: false
     },
     {
+      id: "experiment.metric",
+      label: "Experiment metric",
+      description: "Semantic metric identifier evaluated by the immutable experiment analysis result.",
+      type: "id",
+      operators: ["eq", "in", "not_in"],
+      control: "search_select",
+      capabilities: ["filter", "group", "sort"],
+      cardinality: "medium",
+      classification: "operational",
+      exclude_from_segment_picker: true
+    },
+    {
+      id: "experiment.evidence_state",
+      label: "Causal evidence",
+      description: "Whether a validated immutable experiment result is available for the requested window.",
+      type: "enum",
+      operators: ["eq", "in", "not_in"],
+      control: "multi_select",
+      capabilities: ["filter", "group", "sort"],
+      cardinality: "low",
+      classification: "operational",
+      exclude_from_segment_picker: true
+    },
+    {
+      id: "experiment.methodology",
+      label: "Methodology",
+      description: "Methodology recorded by the immutable experiment analysis result.",
+      type: "string",
+      operators: ["eq", "in", "not_in"],
+      control: "search_select",
+      capabilities: ["filter", "group", "sort"],
+      cardinality: "low",
+      classification: "operational",
+      exclude_from_segment_picker: true
+    },
+    {
+      id: "experiment.analysis_health",
+      label: "Analysis health",
+      description: "Health status recorded by the immutable experiment analysis result.",
+      type: "enum",
+      operators: ["eq", "in", "not_in"],
+      control: "multi_select",
+      capabilities: ["filter", "group", "sort"],
+      cardinality: "low",
+      classification: "operational",
+      exclude_from_segment_picker: true
+    },
+    {
+      id: "experiment.observation_window",
+      label: "Observation window",
+      description: "UTC start and end recorded with the immutable evidence snapshot.",
+      type: "string",
+      operators: ["eq"],
+      control: "search_select",
+      capabilities: ["group", "sort"],
+      cardinality: "high",
+      classification: "operational",
+      exclude_from_segment_picker: true
+    },
+    {
+      id: "experiment.uncertainty",
+      label: "Uncertainty",
+      description: "Recorded confidence interval, probability, or p-value; unavailable when the result contains none.",
+      type: "string",
+      operators: ["eq"],
+      control: "search_select",
+      capabilities: ["group", "sort"],
+      cardinality: "high",
+      classification: "operational",
+      exclude_from_segment_picker: true
+    },
+    {
       id: "placement.placement",
       label: "Placement",
+      type: "id",
+      operators: ["in", "not_in"],
+      control: "search_select",
+      capabilities: ["filter", "group", "split", "sort"],
+      cardinality: "medium",
+      classification: "unrestricted",
+      exclude_from_segment_picker: false
+    },
+    {
+      id: "entitlement.entitlement",
+      label: "Entitlement",
+      type: "id",
+      operators: ["in", "not_in"],
+      control: "search_select",
+      capabilities: ["filter", "group", "split", "sort"],
+      cardinality: "medium",
+      classification: "unrestricted",
+      exclude_from_segment_picker: false
+    },
+    {
+      id: "promotion.promotion",
+      label: "Promotion",
       type: "id",
       operators: ["in", "not_in"],
       control: "search_select",
@@ -3632,9 +3914,94 @@ var FIXTURE_ANALYTICS_CATALOG = {
       cardinality: "low",
       classification: "unrestricted",
       exclude_from_segment_picker: false
+    },
+    {
+      id: "customer.account",
+      label: "Account",
+      description: "Stable customer account identifier carried by the event fact.",
+      type: "id",
+      operators: ["eq", "in", "not_in"],
+      control: "search_select",
+      capabilities: ["filter", "group", "sort"],
+      cardinality: "high",
+      classification: "operational",
+      exclude_from_segment_picker: true
+    },
+    {
+      id: "customer.user",
+      label: "User",
+      description: "Stable customer user identifier carried by the event fact.",
+      type: "id",
+      operators: ["eq", "in", "not_in"],
+      control: "search_select",
+      capabilities: ["filter", "group", "sort"],
+      cardinality: "high",
+      classification: "pii",
+      exclude_from_segment_picker: true
+    },
+    {
+      id: "opportunity.type",
+      label: "Opportunity type",
+      description: "Stable type emitted by the detector that produced a persisted opportunity.",
+      type: "enum",
+      operators: ["eq", "in", "not_in"],
+      control: "multi_select",
+      capabilities: ["filter", "group", "sort"],
+      cardinality: "medium",
+      classification: "operational",
+      exclude_from_segment_picker: true
+    },
+    {
+      id: "optimization.detector",
+      label: "Detector",
+      description: "Stable identifier of the detector that produced a persisted opportunity.",
+      type: "id",
+      operators: ["eq", "in", "not_in"],
+      control: "search_select",
+      capabilities: ["filter", "group", "sort"],
+      cardinality: "medium",
+      classification: "operational",
+      exclude_from_segment_picker: true
     }
   ],
   metrics: [
+    { id: "acquisition.signup_count", label: "Signups", value_type: "number", source_scope: "total" },
+    { id: "activation.rate", label: "Activation rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "activation.time_to_value_seconds", label: "Time to value", value_type: "number", format: { type: "duration" }, source_scope: "total" },
+    { id: "retention.d7_rate", label: "D7 retention rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "funnel.entry_count", label: "Funnel step entries", value_type: "number", source_scope: "total" },
+    { id: "funnel.completion_rate", label: "Funnel step completion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "funnel.elapsed_seconds", label: "Funnel step elapsed time", value_type: "number", format: { type: "duration" }, source_scope: "total" },
+    { id: "funnel.error_rate", label: "Funnel step error rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "trial.start_count", label: "Trial starts", value_type: "number", source_scope: "total" },
+    { id: "trial.conversion_rate", label: "Trial-to-paid conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "trial.activation_rate", label: "Trial activation rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "reactivation.previously_healthy_account_count", label: "Previously healthy accounts", value_type: "number", source_scope: "total" },
+    { id: "reactivation.inactive_previously_healthy_rate", label: "Inactive previously healthy rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "reactivation.reactivated_rate", label: "Reactivated account rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "entitlement.granted_account_count", label: "Granted accounts", value_type: "number", source_scope: "total" },
+    { id: "entitlement.adoption_rate", label: "Entitlement adoption rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "entitlement.adopter_retention_lift", label: "Adopter retention lift", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "entitlement.denied_account_count", label: "Denied accounts", value_type: "number", source_scope: "revturbine_tracked" },
+    { id: "entitlement.denied_attempts_per_account", label: "Denied attempts per account", value_type: "number", source_scope: "revturbine_tracked" },
+    { id: "entitlement.denied_upgrade_conversion_rate", label: "Denied-account upgrade conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced" },
+    { id: "usage.metered_per_account", label: "Metered usage per account", value_type: "number", source_scope: "total" },
+    { id: "usage.expansion_mrr_per_unit", label: "Expansion MRR per usage unit", value_type: "currency", source_scope: "total" },
+    { id: "revenue.expansion_mrr", label: "Expansion MRR", value_type: "currency", source_scope: "total" },
+    { id: "usage.projected_bill_to_historical_ratio", label: "Projected bill to historical ratio", value_type: "number", source_scope: "total" },
+    { id: "usage.acceleration_rate", label: "Usage acceleration rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "usage.alert_coverage_rate", label: "Usage alert coverage rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "usage.utilization_rate", label: "Usage utilization rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "usage.growth_rate", label: "Usage growth rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "pricing.entry_tier_account_share", label: "Entry-tier account share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "pricing.self_serve_upgrade_rate", label: "Self-serve upgrade rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "pricing.plan_churn_rate", label: "Plan churn rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "promotion.discount_use_rate", label: "Promotion discount use rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_tracked" },
+    { id: "promotion.full_price_conversion_rate", label: "Full-price conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
+    { id: "promotion.net_revenue_lift_rate", label: "Promotion net revenue lift", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced" },
+    { id: "retention.active_users_per_account", label: "Active users per account", value_type: "number", source_scope: "total" },
+    { id: "retention.core_action_frequency", label: "Core action frequency", value_type: "number", source_scope: "total" },
+    { id: "retention.active_days_rate", label: "Active days rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total" },
     { id: "decision.eligible_accounts", label: "Eligible accounts", value_type: "number" },
     { id: "decision.reached_accounts", label: "Reached accounts", value_type: "number" },
     { id: "placement.presented_accounts", label: "Presented accounts", value_type: "number" },
@@ -3662,6 +4029,7 @@ var FIXTURE_ANALYTICS_CATALOG = {
     { id: "placement.conversions", label: "Conversions", value_type: "number" },
     { id: "conversion.paid_count", label: "Paid conversions", value_type: "number", when_to_use: "Billing-fact conversion events (subscription created), not distinct accounts." },
     { id: "placement.ctr", label: "Click-through rate", value_type: "percent", format: { type: "percent", decimals: 1 } },
+    { id: "placement.presentations_per_account", label: "Presentations per account", value_type: "number", source_scope: "revturbine_tracked" },
     { id: "event.count", label: "Event count", value_type: "number" },
     {
       id: "placement.last_presented_at",
@@ -3676,9 +4044,149 @@ var FIXTURE_ANALYTICS_CATALOG = {
       value_type: "currency",
       source_scope: "revturbine_influenced"
     },
-    { id: "coverage.matched_paid_accounts", label: "Matched paid accounts", value_type: "number" }
+    {
+      id: "experiment.absolute_effect",
+      label: "Absolute effect",
+      description: "Absolute treatment effect exactly as persisted by the experiment analysis engine. Its unit is determined by experiment.metric; it is never assumed to be currency.",
+      when_to_use: "Only with a validated immutable experiment result and its recorded metric, methodology, window, and uncertainty.",
+      do_not_use_for: "Descriptive attribution, recomputed estimates, or missing/invalid experiment evidence.",
+      value_type: "number",
+      source_scope: "revturbine_influenced"
+    },
+    { id: "coverage.matched_paid_accounts", label: "Matched paid accounts", value_type: "number" },
+    {
+      id: "opportunity.candidate_count",
+      label: "Opportunity candidates",
+      description: "Count of current persisted detector candidates; reading it never reruns a detector.",
+      value_type: "number",
+      source_scope: "revturbine_tracked"
+    }
   ],
   concepts: [
+    {
+      id: "growth.lifecycle",
+      version: 1,
+      label: "Acquisition and activation lifecycle",
+      description: "Signup cohorts, activation quality, time-to-value, and D7 retention by acquisition source.",
+      grain: ["tenant", "environment", "acquisition_source", "day"],
+      analytical_units: ["account", "user"],
+      primary_time_dimension: "time.occurred_at",
+      historical_mode: "as_of_event",
+      dimensions: ["time.occurred_at", "acquisition.source", "targeting.segment"],
+      metrics: [
+        "acquisition.signup_count",
+        "activation.rate",
+        "activation.time_to_value_seconds",
+        "retention.d7_rate"
+      ],
+      query_families: ["scalar", "timeseries", "breakdown", "table"],
+      source_scope: "total"
+    },
+    {
+      id: "growth.funnel",
+      version: 1,
+      label: "Product funnel steps",
+      description: "Ordered product funnel step entries, completions, elapsed time, and errors.",
+      grain: ["tenant", "environment", "funnel_step", "day"],
+      analytical_units: ["account", "user"],
+      primary_time_dimension: "time.occurred_at",
+      historical_mode: "as_of_event",
+      dimensions: ["time.occurred_at", "funnel.step", "targeting.segment"],
+      metrics: [
+        "funnel.entry_count",
+        "funnel.completion_rate",
+        "funnel.elapsed_seconds",
+        "funnel.error_rate"
+      ],
+      query_families: ["scalar", "timeseries", "breakdown", "funnel", "table"],
+      source_scope: "total"
+    },
+    {
+      id: "growth.trial_conversion",
+      version: 1,
+      label: "Trial conversion",
+      description: "Trial starts, activation, and paid conversion by stable trial rule.",
+      grain: ["tenant", "environment", "trial_rule", "day"],
+      analytical_units: ["account", "user"],
+      primary_time_dimension: "time.occurred_at",
+      historical_mode: "as_of_event",
+      dimensions: ["time.occurred_at", "trial.rule", "targeting.segment"],
+      metrics: ["trial.start_count", "trial.activation_rate", "trial.conversion_rate"],
+      query_families: ["scalar", "timeseries", "breakdown", "funnel", "table"],
+      source_scope: "total"
+    },
+    {
+      id: "growth.reactivation",
+      version: 1,
+      label: "Customer reactivation",
+      description: "Inactivity and return behavior for accounts with demonstrated historical health.",
+      grain: ["tenant", "environment", "customer_lifecycle_cohort", "day"],
+      analytical_units: ["account"],
+      primary_time_dimension: "time.occurred_at",
+      historical_mode: "as_of_event",
+      dimensions: ["time.occurred_at", "customer.lifecycle_cohort", "targeting.segment"],
+      metrics: [
+        "reactivation.previously_healthy_account_count",
+        "reactivation.inactive_previously_healthy_rate",
+        "reactivation.reactivated_rate"
+      ],
+      query_families: ["scalar", "timeseries", "breakdown", "table"],
+      source_scope: "total"
+    },
+    {
+      id: "growth.entitlement_usage",
+      version: 1,
+      label: "Entitlement and usage growth",
+      description: "Entitlement adoption, locked demand, usage monetization, and projected bill-risk trends.",
+      grain: ["tenant", "environment", "entitlement", "day"],
+      analytical_units: ["account"],
+      primary_time_dimension: "time.occurred_at",
+      historical_mode: "as_of_event",
+      dimensions: ["time.occurred_at", "entitlement.entitlement", "commercial.plan", "targeting.segment"],
+      metrics: [
+        "entitlement.granted_account_count",
+        "entitlement.adoption_rate",
+        "entitlement.adopter_retention_lift",
+        "entitlement.denied_account_count",
+        "entitlement.denied_attempts_per_account",
+        "entitlement.denied_upgrade_conversion_rate",
+        "usage.metered_per_account",
+        "usage.expansion_mrr_per_unit",
+        "revenue.expansion_mrr",
+        "usage.projected_bill_to_historical_ratio",
+        "usage.acceleration_rate",
+        "usage.alert_coverage_rate"
+      ],
+      query_families: ["scalar", "timeseries", "breakdown", "table"],
+      source_scope: "total"
+    },
+    {
+      id: "growth.commercial_health",
+      version: 1,
+      label: "Commercial growth health",
+      description: "Expansion pressure, packaging health, promotion economics, and retention-risk trends.",
+      grain: ["tenant", "environment", "commercial_resource", "day"],
+      analytical_units: ["account"],
+      primary_time_dimension: "time.occurred_at",
+      historical_mode: "as_of_event",
+      dimensions: ["time.occurred_at", "commercial.plan", "promotion.promotion", "targeting.segment"],
+      metrics: [
+        "usage.utilization_rate",
+        "usage.growth_rate",
+        "revenue.expansion_mrr",
+        "pricing.entry_tier_account_share",
+        "pricing.self_serve_upgrade_rate",
+        "pricing.plan_churn_rate",
+        "promotion.discount_use_rate",
+        "promotion.full_price_conversion_rate",
+        "promotion.net_revenue_lift_rate",
+        "retention.active_users_per_account",
+        "retention.core_action_frequency",
+        "retention.active_days_rate"
+      ],
+      query_families: ["scalar", "timeseries", "breakdown", "table"],
+      source_scope: "total"
+    },
     {
       id: "monetization.entitlement_decision",
       version: 1,
@@ -3698,6 +4206,7 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "decision.rule",
         "decision.entitlement",
         "release.playbook_version",
+        "experiment.experiment",
         "experiment.variant"
       ],
       metrics: [
@@ -3723,7 +4232,7 @@ var FIXTURE_ANALYTICS_CATALOG = {
       analytical_units: ["account"],
       primary_time_dimension: "time.occurred_at",
       historical_mode: "current",
-      dimensions: ["time.occurred_at", "commercial.plan", "commercial.billing_period"],
+      dimensions: ["time.occurred_at", "commercial.plan", "commercial.billing_period", "revenue.currency"],
       metrics: ["revenue.mrr", "revenue.net_new_mrr", "revenue.attributed_mrr", "conversion.paid_count"],
       query_families: ["scalar", "timeseries", "breakdown"],
       source_scope: "total"
@@ -3744,6 +4253,7 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "content.message_block",
         "commercial.plan",
         "targeting.segment",
+        "experiment.experiment",
         "experiment.variant",
         "release.playbook_version"
       ],
@@ -3751,6 +4261,7 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "placement.impressions",
         "placement.clicks",
         "placement.ctr",
+        "placement.presentations_per_account",
         "placement.conversions",
         "conversion.rate",
         "revenue.attributed_mrr",
@@ -3771,8 +4282,34 @@ var FIXTURE_ANALYTICS_CATALOG = {
       analytical_units: ["account"],
       primary_time_dimension: "time.occurred_at",
       historical_mode: "as_of_event",
-      dimensions: ["time.occurred_at", "placement.placement", "placement.payload", "experiment.variant"],
+      dimensions: ["time.occurred_at", "placement.placement", "placement.payload", "experiment.experiment", "experiment.variant", "revenue.currency"],
       metrics: ["revenue.attributed_amount"],
+      query_families: ["table"],
+      source_scope: "revturbine_influenced"
+    },
+    {
+      id: "experiment.causal_result",
+      version: 1,
+      label: "Immutable experiment results",
+      description: "Validated, persisted experiment-analysis results. These are causal estimates only when evidence_state is available; absence or invalidity is unavailable, never zero.",
+      when_to_use: "Explain measured treatment contribution from immutable experiment results without rerunning analysis.",
+      do_not_use_for: "Last-touch attribution, detector output, on-read analysis, or currency amounts unless the persisted result records an explicit currency partition.",
+      grain: ["tenant", "environment", "experiment", "variant", "metric", "analysis_result"],
+      analytical_units: ["account", "user"],
+      primary_time_dimension: "time.occurred_at",
+      historical_mode: "as_of_event",
+      dimensions: [
+        "time.occurred_at",
+        "experiment.experiment",
+        "experiment.variant",
+        "experiment.metric",
+        "experiment.evidence_state",
+        "experiment.methodology",
+        "experiment.analysis_health",
+        "experiment.observation_window",
+        "experiment.uncertainty"
+      ],
+      metrics: ["experiment.absolute_effect"],
       query_families: ["table"],
       source_scope: "revturbine_influenced"
     },
@@ -3786,9 +4323,25 @@ var FIXTURE_ANALYTICS_CATALOG = {
       analytical_units: ["account", "user"],
       primary_time_dimension: "time.occurred_at",
       historical_mode: "as_of_event",
-      dimensions: ["time.occurred_at", "event.type", "commercial.plan", "targeting.segment"],
+      dimensions: ["time.occurred_at", "customer.account", "customer.user", "event.type", "commercial.plan", "targeting.segment"],
       metrics: ["event.count"],
       query_families: ["timeline", "table"],
+      source_scope: "revturbine_tracked"
+    },
+    {
+      id: "optimization.opportunity",
+      version: 1,
+      label: "Optimization opportunities",
+      description: "Current persisted detector candidates with their original machine-readable evidence.",
+      when_to_use: "Review recommendations already produced and persisted by the optimization pipeline.",
+      do_not_use_for: "Recomputing detectors or treating a candidate as an applied optimization result.",
+      grain: ["tenant", "opportunity"],
+      analytical_units: ["account"],
+      primary_time_dimension: "time.occurred_at",
+      historical_mode: "current",
+      dimensions: ["time.occurred_at", "opportunity.type", "optimization.detector"],
+      metrics: ["opportunity.candidate_count"],
+      query_families: ["table"],
       source_scope: "revturbine_tracked"
     }
   ]
@@ -3797,7 +4350,7 @@ function createFixtureAnalyticsCatalog() {
   return createInMemoryAnalyticsCatalog(FIXTURE_ANALYTICS_CATALOG);
 }
 
-// ../scaffold-205/src/analytics/compile/defaults.ts
+// ../scaffold/src/analytics/compile/defaults.ts
 var FAMILY_RENDER_COMPATIBILITY = {
   scalar: ["metric"],
   timeseries: ["cartesian"],
@@ -3859,7 +4412,7 @@ function defaultRenderForQuery(query, catalog) {
   }
 }
 
-// ../scaffold-205/src/analytics/validation/semantic.ts
+// ../scaffold/src/analytics/validation/semantic.ts
 var ANALYTICS_VALIDATION_CODES = [
   "UNKNOWN_CONCEPT",
   "UNKNOWN_DIMENSION",
@@ -3887,6 +4440,37 @@ function queryFields(query) {
   const fields = /* @__PURE__ */ new Set([...query.metrics, ...query.group_by ?? []]);
   if (query.time) fields.add(query.time.dimension);
   return fields;
+}
+var deprecationWarning = (kind, id, replacedBy) => ({
+  code: `DEPRECATED_${kind}`,
+  message: `${kind[0]}${kind.slice(1).toLowerCase()} ${id} is deprecated${replacedBy ? `; use ${replacedBy}` : ""}.`
+});
+function analyticsDeprecationWarnings(view, catalog) {
+  const references = {
+    concepts: new Set(view.blocks.map((block) => block.query.concept)),
+    dimensions: new Set(view.filters.map((filter) => filter.dimension)),
+    metrics: /* @__PURE__ */ new Set()
+  };
+  for (const block of view.blocks) {
+    block.query.metrics.forEach((id) => references.metrics.add(id));
+    block.query.group_by?.forEach((id) => references.dimensions.add(id));
+    if (block.query.time) references.dimensions.add(block.query.time.dimension);
+    block.query.fixed_filters?.forEach((filter) => references.dimensions.add(filter.dimension));
+  }
+  const warnings = [];
+  for (const id of [...references.concepts].sort()) {
+    const deprecation = catalog.getConcept(id)?.deprecation;
+    if (deprecation?.deprecated) warnings.push(deprecationWarning("CONCEPT", id, deprecation.replaced_by));
+  }
+  for (const id of [...references.dimensions].sort()) {
+    const deprecation = catalog.getDimension(id)?.deprecation;
+    if (deprecation?.deprecated) warnings.push(deprecationWarning("DIMENSION", id, deprecation.replaced_by));
+  }
+  for (const id of [...references.metrics].sort()) {
+    const deprecation = catalog.getMetric(id)?.deprecation;
+    if (deprecation?.deprecated) warnings.push(deprecationWarning("METRIC", id, deprecation.replaced_by));
+  }
+  return warnings;
 }
 function validateAnalyticsQuery(query, catalog, basePath) {
   const issues = [];
@@ -4279,7 +4863,7 @@ function validateTemplateLocks(view, base, policy) {
 }
 function validateAnalyticsView(view, catalog, options = {}) {
   const errors = [];
-  const warnings = [];
+  const warnings = analyticsDeprecationWarnings(view, catalog);
   errors.push(...validateUniqueIds(view));
   errors.push(...validateFilters(view, catalog));
   errors.push(...validateLayout(view));
@@ -4302,15 +4886,6 @@ function validateAnalyticsView(view, catalog, options = {}) {
     if (errors.every((e) => !e.path.startsWith(`${basePath}/query`))) {
       errors.push(...validateRender(block.render, block.query, catalog, `${basePath}/render`));
     }
-    for (const metric of block.query.metrics) {
-      const deprecation = catalog.getMetric(metric)?.deprecation;
-      if (deprecation?.deprecated) {
-        warnings.push({
-          code: "DEPRECATED_METRIC",
-          message: `Metric ${metric} is deprecated${deprecation.replaced_by ? `; use ${deprecation.replaced_by}` : ""}.`
-        });
-      }
-    }
   });
   if (options.baseTemplate) {
     errors.push(...validateTemplateLocks(view, options.baseTemplate.view, options.baseTemplate.policy));
@@ -4323,7 +4898,7 @@ function validateAnalyticsView(view, catalog, options = {}) {
   };
 }
 
-// ../scaffold-205/src/analytics/compile/compile.ts
+// ../scaffold/src/analytics/compile/compile.ts
 var RECOMMENDED_FILTER_DIMENSIONS = [
   "commercial.plan",
   "commercial.billing_period",
@@ -4553,55 +5128,109 @@ function compileAnalyticsDraft(draft, catalog, options = {}) {
   return validation.valid ? { view, visibility, resolutions, validation } : { visibility, resolutions, validation };
 }
 
-// ../scaffold-205/src/analytics/models/api-schema.ts
-import { z as z16 } from "zod";
-var { Unrestricted: Unrestricted13 } = DataClassification;
-var { Transient: Transient13 } = SchemaPersistence;
-var { Internal: Internal11 } = SchemaExposure;
+// ../scaffold/src/analytics/models/api-schema.ts
+import { z as z17 } from "zod";
+var { Unrestricted: Unrestricted14 } = DataClassification;
+var { Transient: Transient14 } = SchemaPersistence;
+var { Internal: Internal12 } = SchemaExposure;
 var meta3 = (id) => ({
   id,
-  "x-revturbine-schema-persistence": Transient13,
-  "x-revturbine-schema-exposure": Internal11
+  "x-revturbine-schema-persistence": Transient14,
+  "x-revturbine-schema-exposure": Internal12
 });
-var ElementIdField2 = z16.string().regex(VIEW_ELEMENT_ID_PATTERN);
-var AnalyticsFilterStateSchema = z16.strictObject({
-  filter_id: ElementIdField2.meta(Unrestricted13),
-  value: AnalyticsFilterValueSchema.nullable().meta(Unrestricted13)
+var ElementIdField2 = z17.string().regex(VIEW_ELEMENT_ID_PATTERN);
+var AnalyticsFilterStateSchema = z17.strictObject({
+  filter_id: ElementIdField2.meta(Unrestricted14),
+  value: AnalyticsFilterValueSchema.nullable().meta(Unrestricted14)
 }).meta(meta3("AnalyticsFilterState"));
-var AnalyticsQueryRequestSchema = z16.strictObject({
-  view_id: ElementIdField2.meta(Unrestricted13),
-  revision: z16.number().int().min(1).optional().meta(Unrestricted13),
-  block_ids: z16.array(ElementIdField2).min(1).max(24).optional().meta(Unrestricted13),
-  filter_state: z16.array(AnalyticsFilterStateSchema).max(20).optional().meta(Unrestricted13)
+var AnalyticsQueryRequestSchema = z17.strictObject({
+  view_id: ElementIdField2.meta(Unrestricted14),
+  revision: z17.number().int().min(1).optional().meta(Unrestricted14),
+  block_ids: z17.array(ElementIdField2).min(1).max(24).optional().meta(Unrestricted14),
+  filter_state: z17.array(AnalyticsFilterStateSchema).max(20).optional().meta(Unrestricted14)
 }).meta(meta3("AnalyticsQueryRequest"));
-var AnalyticsBlockErrorSchema = z16.object({
-  block_id: ElementIdField2.meta(Unrestricted13),
-  code: z16.string().regex(/^[A-Z][A-Z0-9_]{2,79}$/).meta(Unrestricted13),
-  message: z16.string().min(1).max(500).meta(Unrestricted13)
+var AnalyticsBlockErrorSchema = z17.object({
+  block_id: ElementIdField2.meta(Unrestricted14),
+  code: z17.string().regex(/^[A-Z][A-Z0-9_]{2,79}$/).meta(Unrestricted14),
+  message: z17.string().min(1).max(500).meta(Unrestricted14)
 }).meta(meta3("AnalyticsBlockError"));
-var AnalyticsBlockResultSchema = z16.object({
-  block_id: ElementIdField2.meta(Unrestricted13),
-  result: AnalyticsResultSchema.meta(Unrestricted13)
+var AnalyticsBlockResultSchema = z17.object({
+  block_id: ElementIdField2.meta(Unrestricted14),
+  result: AnalyticsResultSchema.meta(Unrestricted14)
 }).meta(meta3("AnalyticsBlockResult"));
-var AnalyticsQueryResponseSchema = z16.object({
-  view_id: ElementIdField2.meta(Unrestricted13),
-  revision: z16.number().int().min(1).meta(Unrestricted13),
-  catalog_version: z16.string().min(1).max(64).meta(Unrestricted13),
-  results: z16.array(AnalyticsBlockResultSchema).meta(Unrestricted13),
-  errors: z16.array(AnalyticsBlockErrorSchema).default([]).meta(Unrestricted13)
+var AnalyticsQueryResponseSchema = z17.object({
+  view_id: ElementIdField2.meta(Unrestricted14),
+  revision: z17.number().int().min(1).meta(Unrestricted14),
+  catalog_version: z17.string().min(1).max(64).meta(Unrestricted14),
+  results: z17.array(AnalyticsBlockResultSchema).meta(Unrestricted14),
+  errors: z17.array(AnalyticsBlockErrorSchema).default([]).meta(Unrestricted14)
 }).meta(meta3("AnalyticsQueryResponse"));
-var AnalyticsTemplateSummarySchema = z16.object({
-  id: ElementIdField2.meta(Unrestricted13),
-  version: z16.number().int().min(1).meta(Unrestricted13),
-  title: LocalizedTextSchema.meta(Unrestricted13),
-  description: LocalizedTextSchema.optional().meta(Unrestricted13),
-  block_count: z16.number().int().min(1).meta(Unrestricted13)
+var AnalyticsTemplateSummarySchema = z17.object({
+  id: ElementIdField2.meta(Unrestricted14),
+  version: z17.number().int().min(1).meta(Unrestricted14),
+  title: LocalizedTextSchema.meta(Unrestricted14),
+  description: LocalizedTextSchema.optional().meta(Unrestricted14),
+  block_count: z17.number().int().min(1).meta(Unrestricted14)
 }).meta(meta3("AnalyticsTemplateSummary"));
-var CatalogSearchQuerySchema = z16.object({
-  q: z16.string().min(1).max(200),
-  limit: z16.coerce.number().int().min(1).max(50).optional()
+var CatalogSearchQuerySchema = z17.object({
+  q: z17.string().min(1).max(200),
+  limit: z17.coerce.number().int().min(1).max(50).optional()
 });
 var analyticsViewPaths = {
+  "/api/analytics/views": {
+    get: operation({
+      operationId: "listAnalyticsViews",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List saved analytics views",
+      tags: ["analytics-views"],
+      responses: { "200": { description: "Saved analytics views", content: { "application/json": { schema: ListEnvelope(AnalyticsSavedViewSchema) } } } },
+      "x-revturbine-operation": {
+        exposure: "internal",
+        resource: "analytics-views",
+        persistence: {
+          table: "analyticsViews",
+          mode: "list",
+          uniqueBy: ["tenant_id", "environment_id", "idempotency_key"]
+        }
+      }
+    })
+  },
+  "/api/analytics/view-revisions": {
+    get: operation({
+      operationId: "listAnalyticsViewRevisions",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List immutable saved-view revisions",
+      tags: ["analytics-views"],
+      responses: { "200": { description: "Saved-view revisions", content: { "application/json": { schema: ListEnvelope(AnalyticsViewRevisionSchema) } } } },
+      "x-revturbine-operation": {
+        exposure: "internal",
+        resource: "analytics-view-revisions",
+        persistence: {
+          table: "analyticsViewRevisions",
+          mode: "list",
+          uniqueBy: ["tenant_id", "environment_id", "view_id", "revision"]
+        }
+      }
+    })
+  },
+  "/api/analytics/view-access": {
+    get: operation({
+      operationId: "listAnalyticsViewAccess",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List explicit saved-view access grants",
+      tags: ["analytics-views"],
+      responses: { "200": { description: "Saved-view access grants", content: { "application/json": { schema: ListEnvelope(AnalyticsViewAccessSchema) } } } },
+      "x-revturbine-operation": {
+        exposure: "internal",
+        resource: "analytics-view-access",
+        persistence: {
+          table: "analyticsViewAccess",
+          mode: "list",
+          uniqueBy: ["tenant_id", "environment_id", "view_id", "principal_type", "principal_id"]
+        }
+      }
+    })
+  },
   "/api/analytics/catalog": {
     get: operation({
       operationId: "getAnalyticsCatalog",
@@ -4633,7 +5262,7 @@ var analyticsViewPaths = {
   "/api/analytics/views/{viewId}": {
     get: operation({
       operationId: "getAnalyticsView",
-      requestParams: { path: z16.object({ viewId: z16.string() }) },
+      requestParams: { path: z17.object({ viewId: z17.string() }) },
       summary: "Load a system or saved view document",
       tags: ["analytics-views"],
       responses: { "200": { description: "Canonical view document", content: { "application/json": { schema: AnalyticsViewSchema } } } },
@@ -4652,50 +5281,192 @@ var analyticsViewPaths = {
   }
 };
 
-// ../scaffold-205/src/events/models/schema.ts
-import { z as z18 } from "zod";
+// ../scaffold/src/analytics/models/optimization-schema.ts
+import { z as z19 } from "zod";
 
-// ../scaffold-205/src/events/models/taxonomy.ts
-import { z as z17 } from "zod";
-var { Unrestricted: Unrestricted14 } = DataClassification;
-var { Transient: Transient14 } = SchemaPersistence;
+// ../scaffold/src/core/providers/schema.ts
+import { z as z18 } from "zod";
+var { Unrestricted: Unrestricted15 } = DataClassification;
+var { Transient: Transient15 } = SchemaPersistence;
+var { Internal: Internal13 } = SchemaExposure;
+var meta4 = (id) => ({
+  id,
+  "x-revturbine-schema-persistence": Transient15,
+  "x-revturbine-schema-exposure": Internal13
+});
+var ProviderCapabilitySchema = z18.enum([
+  "analytics_execution",
+  "experiment_assignment",
+  "experiment_evidence",
+  "experiment_analysis",
+  "growth_signal",
+  "growth_benchmark",
+  "optimization"
+]).meta(meta4("ProviderCapability"));
+var ProviderAvailabilitySchema = z18.enum(["available", "stale", "unavailable", "unsupported", "partial"]).meta(meta4("ProviderAvailability"));
+var ProviderProvenanceSchema = z18.object({
+  /** Stable handle of the provider that produced this output. */
+  provider_handle: HandleField.meta(Unrestricted15),
+  /** Implementation family, e.g. `native_tinybird`, `growthbook`. */
+  provider_type: z18.string().min(1).max(100).meta(Unrestricted15),
+  /** Version of the provider implementation itself. */
+  provider_version: z18.string().min(1).max(100).meta(Unrestricted15),
+  /** Version of the provider *contract* this output conforms to. */
+  contract_version: z18.number().int().min(1).meta(Unrestricted15),
+  /** When the output was produced. */
+  generated_at: z18.string().datetime().meta(Unrestricted15),
+  /** How current the underlying data is, where the source exposes it. */
+  data_watermark: z18.string().datetime().optional().meta(Unrestricted15),
+  /** Revision of the source artifact, where the source is versioned. */
+  source_revision: z18.string().min(1).max(200).optional().meta(Unrestricted15)
+}).meta(meta4("ProviderProvenance"));
+var ProviderBindingRefSchema = z18.object({
+  /** Resolves to a server-only `ProviderConnection`. */
+  provider_handle: HandleField.meta(Unrestricted15),
+  /** Which capability this binding fills. */
+  capability: ProviderCapabilitySchema.meta(Unrestricted15)
+}).meta(meta4("ProviderBindingRef"));
+
+// ../scaffold/src/analytics/models/optimization-schema.ts
+var { Unrestricted: Unrestricted16 } = DataClassification;
+var { Transient: Transient16 } = SchemaPersistence;
+var { Internal: Internal14 } = SchemaExposure;
+var meta5 = (id) => ({
+  id,
+  "x-revturbine-schema-persistence": Transient16,
+  "x-revturbine-schema-exposure": Internal14
+});
+var GrowthSignalPointSchema = z19.object({
+  start: z19.string().datetime().meta(Unrestricted16),
+  end: z19.string().datetime().meta(Unrestricted16),
+  value: z19.number().meta(Unrestricted16),
+  numerator: z19.number().optional().meta(Unrestricted16),
+  denominator: z19.number().optional().meta(Unrestricted16),
+  sample_size: z19.number().int().min(0).optional().meta(Unrestricted16)
+}).meta(meta5("GrowthSignalPoint"));
+var GrowthSignalSeriesSchema = z19.object({
+  metric: AnalyticsSemanticIdSchema.meta(Unrestricted16),
+  analytical_unit: AnalyticsAnalyticalUnitSchema.meta(Unrestricted16),
+  source_scope: AnalyticsSourceScopeSchema.meta(Unrestricted16),
+  dimensions: z19.record(AnalyticsSemanticIdSchema, z19.string()).meta(Unrestricted16),
+  points: z19.array(GrowthSignalPointSchema).meta(Unrestricted16),
+  provenance: ProviderProvenanceSchema.meta(Unrestricted16)
+}).meta(meta5("GrowthSignalSeries"));
+var GrowthSignalBundleSchema = z19.object({
+  availability: ProviderAvailabilitySchema.meta(Unrestricted16),
+  series: z19.array(GrowthSignalSeriesSchema).meta(Unrestricted16),
+  provenance: ProviderProvenanceSchema.meta(Unrestricted16)
+}).meta(meta5("GrowthSignalBundle"));
+var TrendFeaturesSchema = z19.object({
+  current: z19.number().meta(Unrestricted16),
+  baseline: z19.number().meta(Unrestricted16),
+  absolute_delta: z19.number().meta(Unrestricted16),
+  relative_delta: z19.number().meta(Unrestricted16),
+  short_window: z19.number().meta(Unrestricted16),
+  long_window: z19.number().meta(Unrestricted16),
+  slope: z19.number().meta(Unrestricted16),
+  acceleration: z19.number().meta(Unrestricted16),
+  volatility: z19.number().meta(Unrestricted16),
+  persistence: z19.number().meta(Unrestricted16),
+  seasonal_expected: z19.number().optional().meta(Unrestricted16),
+  seasonal_deviation: z19.number().optional().meta(Unrestricted16),
+  peer_value: z19.number().optional().meta(Unrestricted16),
+  peer_gap: z19.number().optional().meta(Unrestricted16),
+  sample_size: z19.number().int().min(0).optional().meta(Unrestricted16)
+}).meta(meta5("TrendFeatures"));
+var EvidenceRequirementSchema = z19.object({
+  min_units: z19.number().int().min(0).optional().meta(Unrestricted16),
+  min_events: z19.number().int().min(0).optional().meta(Unrestricted16),
+  min_periods: z19.number().int().min(0).optional().meta(Unrestricted16),
+  min_denominator: z19.number().min(0).optional().meta(Unrestricted16)
+}).meta(meta5("EvidenceRequirement"));
+var OpportunityInterpretationSchema = z19.enum([
+  "increase",
+  "decrease",
+  "level_shift",
+  "threshold",
+  "peer_gap",
+  "correlation"
+]).meta(meta5("OpportunityInterpretation"));
+var OpportunityEvidenceSchema = z19.object({
+  metric: AnalyticsSemanticIdSchema.meta(Unrestricted16),
+  current: z19.number().meta(Unrestricted16),
+  baseline: z19.number().optional().meta(Unrestricted16),
+  relative_delta: z19.number().optional().meta(Unrestricted16),
+  window: z19.object({
+    start: z19.string().datetime().meta(Unrestricted16),
+    end: z19.string().datetime().meta(Unrestricted16)
+  }).meta(Unrestricted16),
+  sample_size: z19.number().int().min(0).optional().meta(Unrestricted16),
+  source_scope: AnalyticsSourceScopeSchema.meta(Unrestricted16),
+  interpretation: OpportunityInterpretationSchema.meta(Unrestricted16)
+}).meta(meta5("OpportunityEvidence"));
+var DetectorRequirementsSchema = z19.object({
+  required_metrics: z19.array(AnalyticsSemanticIdSchema).min(1).meta(Unrestricted16),
+  evidence: EvidenceRequirementSchema.meta(Unrestricted16)
+}).meta(meta5("DetectorRequirements"));
+var OpaqueStructuredPayloadSchema = z19.record(z19.string(), z19.unknown());
+var OpportunityCandidateSchema = z19.object({
+  detector_id: z19.string().min(1).meta(Unrestricted16),
+  detector_version: z19.number().int().min(1).meta(Unrestricted16),
+  opportunity_type: z19.string().min(1).meta(Unrestricted16),
+  resource: z19.object({
+    type: z19.string().min(1).meta(Unrestricted16),
+    handle: z19.string().min(1).meta(Unrestricted16)
+  }).optional().meta(Unrestricted16),
+  segment_handles: z19.array(z19.string().min(1)).optional().meta(Unrestricted16),
+  evidence: z19.array(OpportunityEvidenceSchema).min(1).meta(Unrestricted16),
+  hypothesis: z19.string().min(1).meta(Unrestricted16),
+  confidence: z19.number().min(0).max(1).meta(Unrestricted16),
+  impact: OpaqueStructuredPayloadSchema.optional().meta(Unrestricted16),
+  suggested_action: OpaqueStructuredPayloadSchema.optional().meta(Unrestricted16),
+  suggested_experiment: OpaqueStructuredPayloadSchema.optional().meta(Unrestricted16)
+}).meta(meta5("OpportunityCandidate"));
+
+// ../scaffold/src/events/models/schema.ts
+import { z as z21 } from "zod";
+
+// ../scaffold/src/events/models/taxonomy.ts
+import { z as z20 } from "zod";
+var { Unrestricted: Unrestricted17 } = DataClassification;
+var { Transient: Transient17 } = SchemaPersistence;
 var { External: External9 } = SchemaExposure;
-var EventSurfaceSchema = z17.enum(["sdk_client", "sdk_server", "control_plane", "webhook_derived"]).meta({
+var EventSurfaceSchema = z20.enum(["sdk_client", "sdk_server", "control_plane", "webhook_derived"]).meta({
   id: "EventSurface",
-  "x-revturbine-schema-persistence": Transient14,
+  "x-revturbine-schema-persistence": Transient17,
   "x-revturbine-schema-exposure": External9
 });
-var EventStabilitySchema = z17.enum(["stable", "internal", "deprecated"]).meta({
+var EventStabilitySchema = z20.enum(["stable", "internal", "deprecated"]).meta({
   id: "EventStability",
-  "x-revturbine-schema-persistence": Transient14,
+  "x-revturbine-schema-persistence": Transient17,
   "x-revturbine-schema-exposure": External9
 });
-var EventTaxonomyEntrySchema = z17.object({
-  name: z17.string().regex(/^[a-z][a-z0-9_]*$/).meta(Unrestricted14),
-  surface: EventSurfaceSchema.meta(Unrestricted14),
-  purpose: z17.string().min(1).max(300).meta(Unrestricted14),
-  stability: EventStabilitySchema.meta(Unrestricted14)
+var EventTaxonomyEntrySchema = z20.object({
+  name: z20.string().regex(/^[a-z][a-z0-9_]*$/).meta(Unrestricted17),
+  surface: EventSurfaceSchema.meta(Unrestricted17),
+  purpose: z20.string().min(1).max(300).meta(Unrestricted17),
+  stability: EventStabilitySchema.meta(Unrestricted17)
 }).meta({
   id: "EventTaxonomyEntry",
-  "x-revturbine-schema-persistence": Transient14,
+  "x-revturbine-schema-persistence": Transient17,
   "x-revturbine-schema-exposure": External9
 });
-var EventPrefixFamilySchema = z17.object({
-  prefix: z17.string().regex(/^[a-z][a-z0-9_]*_$/).meta(Unrestricted14),
-  surface: EventSurfaceSchema.meta(Unrestricted14),
-  purpose: z17.string().min(1).max(300).meta(Unrestricted14)
+var EventPrefixFamilySchema = z20.object({
+  prefix: z20.string().regex(/^[a-z][a-z0-9_]*_$/).meta(Unrestricted17),
+  surface: EventSurfaceSchema.meta(Unrestricted17),
+  purpose: z20.string().min(1).max(300).meta(Unrestricted17)
 }).meta({
   id: "EventPrefixFamily",
-  "x-revturbine-schema-persistence": Transient14,
+  "x-revturbine-schema-persistence": Transient17,
   "x-revturbine-schema-exposure": External9
 });
-var EventTaxonomySchema = z17.object({
-  version: z17.number().int().min(1).meta(Unrestricted14),
-  events: z17.array(EventTaxonomyEntrySchema).min(1).meta(Unrestricted14),
-  prefix_families: z17.array(EventPrefixFamilySchema).meta(Unrestricted14)
+var EventTaxonomySchema = z20.object({
+  version: z20.number().int().min(1).meta(Unrestricted17),
+  events: z20.array(EventTaxonomyEntrySchema).min(1).meta(Unrestricted17),
+  prefix_families: z20.array(EventPrefixFamilySchema).meta(Unrestricted17)
 }).meta({
   id: "EventTaxonomy",
-  "x-revturbine-schema-persistence": Transient14,
+  "x-revturbine-schema-persistence": Transient17,
   "x-revturbine-schema-exposure": External9
 });
 var CONTROL_PLANE_EVENT_NAMES = [
@@ -4831,65 +5602,65 @@ var PLATFORM_EVENT_TAXONOMY = {
 var PLATFORM_EMITTED_EVENT_NAMES = PLATFORM_EVENT_TAXONOMY.events.map((entry) => entry.name);
 var DEPRECATED_EVENT_NAMES = PLATFORM_EVENT_TAXONOMY.events.filter((e) => e.stability === "deprecated").map((e) => e.name);
 
-// ../scaffold-205/src/events/models/schema.ts
-var { Unrestricted: Unrestricted15, Pii: Pii4 } = DataClassification;
-var { Persisted: Persisted11, Transient: Transient15 } = SchemaPersistence;
-var { Internal: Internal12, External: External10 } = SchemaExposure;
-var EventSourceSchema = z18.enum(["clickstream", "telemetry", "sdk", "workflow", "system"]).meta(
+// ../scaffold/src/events/models/schema.ts
+var { Unrestricted: Unrestricted18, Pii: Pii4 } = DataClassification;
+var { Persisted: Persisted12, Transient: Transient18 } = SchemaPersistence;
+var { Internal: Internal15, External: External10 } = SchemaExposure;
+var EventSourceSchema = z21.enum(["clickstream", "telemetry", "sdk", "workflow", "system"]).meta(
   {
     id: "EventSource",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
 var EventEnvelopeSchema = IdField.extend({
-  event_type: z18.string().min(1).meta(Unrestricted15),
-  source: EventSourceSchema.default("sdk").meta(Unrestricted15),
-  tenant_id: z18.string().min(1).optional().meta(Unrestricted15),
-  user_id: z18.string().min(1).optional().meta(Pii4),
-  session_id: z18.string().min(1).optional().meta(Pii4),
-  occurred_at: z18.string().datetime().meta(Unrestricted15),
-  request_id: z18.string().min(1).meta(Unrestricted15),
-  attributes: z18.record(z18.string(), z18.unknown()).default({}).meta(Unrestricted15),
-  payload: z18.record(z18.string(), z18.unknown()).default({}).meta(Unrestricted15)
+  event_type: z21.string().min(1).meta(Unrestricted18),
+  source: EventSourceSchema.default("sdk").meta(Unrestricted18),
+  tenant_id: z21.string().min(1).optional().meta(Unrestricted18),
+  user_id: z21.string().min(1).optional().meta(Pii4),
+  session_id: z21.string().min(1).optional().meta(Pii4),
+  occurred_at: z21.string().datetime().meta(Unrestricted18),
+  request_id: z21.string().min(1).meta(Unrestricted18),
+  attributes: z21.record(z21.string(), z21.unknown()).default({}).meta(Unrestricted18),
+  payload: z21.record(z21.string(), z21.unknown()).default({}).meta(Unrestricted18)
 }).meta(
   {
     id: "EventEnvelope",
-    "x-revturbine-schema-persistence": Transient15,
-    "x-revturbine-schema-exposure": Internal12
+    "x-revturbine-schema-persistence": Transient18,
+    "x-revturbine-schema-exposure": Internal15
   }
 );
 var IngestedEventSchema = EventEnvelopeSchema.extend({
-  ingested_at: z18.string().datetime().meta(Unrestricted15)
+  ingested_at: z21.string().datetime().meta(Unrestricted18)
 }).meta(
   {
     id: "IngestedEvent",
-    "x-revturbine-schema-persistence": Persisted11,
-    "x-revturbine-schema-exposure": Internal12
+    "x-revturbine-schema-persistence": Persisted12,
+    "x-revturbine-schema-exposure": Internal15
   }
 );
-var EventIngestBatchSchema = z18.array(
-  z18.object({
-    id: z18.string().min(1).optional().meta(Unrestricted15),
-    event_type: z18.string().min(1).meta(Unrestricted15),
-    occurred_at: z18.string().datetime().optional().meta(Unrestricted15),
-    tenant_id: z18.string().min(1).optional().meta(Unrestricted15),
-    user_id: z18.string().min(1).optional().meta(Pii4),
-    session_id: z18.string().min(1).optional().meta(Pii4),
-    attributes: z18.record(z18.string(), z18.unknown()).optional().meta(Unrestricted15),
-    payload: z18.record(z18.string(), z18.unknown()).optional().meta(Unrestricted15),
-    message: z18.string().optional().meta(Unrestricted15),
-    level: z18.string().optional().meta(Unrestricted15),
-    path: z18.string().optional().meta(Unrestricted15)
+var EventIngestBatchSchema = z21.array(
+  z21.object({
+    id: z21.string().min(1).optional().meta(Unrestricted18),
+    event_type: z21.string().min(1).meta(Unrestricted18),
+    occurred_at: z21.string().datetime().optional().meta(Unrestricted18),
+    tenant_id: z21.string().min(1).optional().meta(Unrestricted18),
+    user_id: z21.string().min(1).optional().meta(Pii4),
+    session_id: z21.string().min(1).optional().meta(Pii4),
+    attributes: z21.record(z21.string(), z21.unknown()).optional().meta(Unrestricted18),
+    payload: z21.record(z21.string(), z21.unknown()).optional().meta(Unrestricted18),
+    message: z21.string().optional().meta(Unrestricted18),
+    level: z21.string().optional().meta(Unrestricted18),
+    path: z21.string().optional().meta(Unrestricted18)
   })
 ).meta(
   {
     id: "EventIngestBatch",
-    "x-revturbine-schema-persistence": Transient15,
-    "x-revturbine-schema-exposure": Internal12
+    "x-revturbine-schema-persistence": Transient18,
+    "x-revturbine-schema-exposure": Internal15
   }
 );
-var TreatmentInteractionTypeSchema = z18.enum([
+var TreatmentInteractionTypeSchema = z21.enum([
   "impression",
   "dismiss",
   "remind_me_later",
@@ -4899,22 +5670,22 @@ var TreatmentInteractionTypeSchema = z18.enum([
 ]).meta(
   {
     id: "TreatmentInteractionType",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var TreatmentInteractionInputSchema = z18.object({
-  user_id: z18.string().min(1).meta(Pii4),
-  placement_id: z18.string().min(1).meta(Unrestricted15),
-  treatment_id: z18.string().min(1).optional().meta(Unrestricted15),
+var TreatmentInteractionInputSchema = z21.object({
+  user_id: z21.string().min(1).meta(Pii4),
+  placement_id: z21.string().min(1).meta(Unrestricted18),
+  treatment_id: z21.string().min(1).optional().meta(Unrestricted18),
   // Presentation context (plan 114) — carried so a treatment interaction can
   // be persisted as a `placement_presentations` row. Optional for back-compat:
   // callers that only record an interaction (not a full presentation) omit them.
-  surface_slot_id: z18.string().min(1).optional().meta(Unrestricted15),
-  surface_template_id: z18.string().min(1).optional().meta(Unrestricted15),
-  payload_id: z18.string().min(1).optional().meta(Unrestricted15),
-  interaction_type: TreatmentInteractionTypeSchema.meta(Unrestricted15),
-  interaction_at: z18.string().datetime().optional().meta(Unrestricted15),
+  surface_slot_id: z21.string().min(1).optional().meta(Unrestricted18),
+  surface_template_id: z21.string().min(1).optional().meta(Unrestricted18),
+  payload_id: z21.string().min(1).optional().meta(Unrestricted18),
+  interaction_type: TreatmentInteractionTypeSchema.meta(Unrestricted18),
+  interaction_at: z21.string().datetime().optional().meta(Unrestricted18),
   // Attribution context (plan 182 TASK-2a). Without these the presentation row
   // is written with nulls and the message / experiment analytics pipes return
   // nothing at all — `message_impact` filters on an equality that a null can
@@ -4926,25 +5697,25 @@ var TreatmentInteractionInputSchema = z18.object({
   // "how does this message perform?"), an `id` addresses one specific version
   // (group by it to ask "how did THIS version perform?" — what makes a content
   // edit measurable). Optional for back-compat: pre-182 SDKs omit them.
-  message_block_handle: z18.string().min(1).optional().meta(Unrestricted15),
-  message_block_id: z18.string().min(1).optional().meta(Unrestricted15),
-  experiment_id: z18.string().min(1).optional().meta(Unrestricted15),
-  variant_key: z18.string().min(1).optional().meta(Unrestricted15),
+  message_block_handle: z21.string().min(1).optional().meta(Unrestricted18),
+  message_block_id: z21.string().min(1).optional().meta(Unrestricted18),
+  experiment_id: z21.string().min(1).optional().meta(Unrestricted18),
+  variant_key: z21.string().min(1).optional().meta(Unrestricted18),
   /**
    * Caller-declared test traffic (plan 164) — mirrors `TrackEvent.test` so
    * the presentation/interaction feed (the dashboard denominators) carries
    * the same default-excluded, `include_test`-toggleable dimension.
    */
-  test: z18.boolean().optional().meta(Unrestricted15),
-  metadata: z18.record(z18.string(), z18.unknown()).optional().meta(Unrestricted15)
+  test: z21.boolean().optional().meta(Unrestricted18),
+  metadata: z21.record(z21.string(), z21.unknown()).optional().meta(Unrestricted18)
 }).meta(
   {
     id: "TreatmentInteractionInput",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var TriggerEventTypeSchema = z18.enum([
+var TriggerEventTypeSchema = z21.enum([
   "trial_midpoint",
   "trial_expiring",
   "trial_expired",
@@ -4963,69 +5734,69 @@ var TriggerEventTypeSchema = z18.enum([
 ]).meta(
   {
     id: "TriggerEventType",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var TrialTriggerPayloadSchema = z18.object({
-  days_remaining: z18.number().int().min(0).optional().meta(Unrestricted15)
+var TrialTriggerPayloadSchema = z21.object({
+  days_remaining: z21.number().int().min(0).optional().meta(Unrestricted18)
 }).meta(
   {
     id: "TrialTriggerPayload",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var UsageTriggerPayloadSchema = z18.object({
-  entitlement_handle: z18.string().optional().meta(Unrestricted15),
-  current_usage: z18.number().min(0).optional().meta(Unrestricted15),
-  usage_limit: z18.number().min(0).optional().meta(Unrestricted15),
-  usage_percent: z18.number().min(0).max(100).optional().meta(Unrestricted15),
-  threshold: z18.number().min(0).optional().meta(Unrestricted15),
-  balance: z18.number().min(0).optional().meta(Unrestricted15),
-  allocation: z18.number().min(0).optional().meta(Unrestricted15),
-  seats_used: z18.number().int().min(0).optional().meta(Unrestricted15),
-  seats_allowed: z18.number().int().min(0).optional().meta(Unrestricted15)
+var UsageTriggerPayloadSchema = z21.object({
+  entitlement_handle: z21.string().optional().meta(Unrestricted18),
+  current_usage: z21.number().min(0).optional().meta(Unrestricted18),
+  usage_limit: z21.number().min(0).optional().meta(Unrestricted18),
+  usage_percent: z21.number().min(0).max(100).optional().meta(Unrestricted18),
+  threshold: z21.number().min(0).optional().meta(Unrestricted18),
+  balance: z21.number().min(0).optional().meta(Unrestricted18),
+  allocation: z21.number().min(0).optional().meta(Unrestricted18),
+  seats_used: z21.number().int().min(0).optional().meta(Unrestricted18),
+  seats_allowed: z21.number().int().min(0).optional().meta(Unrestricted18)
 }).meta(
   {
     id: "UsageTriggerPayload",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var FeatureGateTriggerPayloadSchema = z18.object({
-  feature: z18.string().min(1).meta(Unrestricted15)
+var FeatureGateTriggerPayloadSchema = z21.object({
+  feature: z21.string().min(1).meta(Unrestricted18)
 }).meta(
   {
     id: "FeatureGateTriggerPayload",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var PaymentTriggerPayloadSchema = z18.object({
-  retry_count: z18.number().int().min(0).optional().meta(Unrestricted15),
-  renewal_date: z18.string().optional().meta(Unrestricted15)
+var PaymentTriggerPayloadSchema = z21.object({
+  retry_count: z21.number().int().min(0).optional().meta(Unrestricted18),
+  renewal_date: z21.string().optional().meta(Unrestricted18)
 }).meta(
   {
     id: "PaymentTriggerPayload",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var SemanticEventSchema = z18.object({
-  event_type: z18.string().min(1).meta(Unrestricted15),
-  payload: z18.record(z18.string(), z18.unknown()).default({}).meta(Unrestricted15)
+var SemanticEventSchema = z21.object({
+  event_type: z21.string().min(1).meta(Unrestricted18),
+  payload: z21.record(z21.string(), z21.unknown()).default({}).meta(Unrestricted18)
 }).meta(
   {
     id: "SemanticEvent",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var ControlPlaneEventSourceSchema = z18.enum(["system", "workflow"]).meta(
+var ControlPlaneEventSourceSchema = z21.enum(["system", "workflow"]).meta(
   {
     id: "ControlPlaneEventSource",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
@@ -5033,100 +5804,100 @@ var ControlPlaneEventTypeSchema = (
   // DERIVED from the taxonomy (plan 181 REQ-8), never a second list: adding a
   // control-plane event means adding it to CONTROL_PLANE_EVENT_NAMES, and this
   // enum follows. The tuple is `as const`, so literal types survive.
-  z18.enum(CONTROL_PLANE_EVENT_NAMES).meta(
+  z21.enum(CONTROL_PLANE_EVENT_NAMES).meta(
     {
       id: "ControlPlaneEventType",
-      "x-revturbine-schema-persistence": Transient15,
+      "x-revturbine-schema-persistence": Transient18,
       "x-revturbine-schema-exposure": External10
     }
   )
 );
-var ControlPlaneSemanticEventSchema = z18.object({
-  event_type: ControlPlaneEventTypeSchema.meta(Unrestricted15),
-  source: ControlPlaneEventSourceSchema.meta(Unrestricted15),
-  payload: z18.record(z18.string(), z18.unknown()).default({}).meta(Unrestricted15)
+var ControlPlaneSemanticEventSchema = z21.object({
+  event_type: ControlPlaneEventTypeSchema.meta(Unrestricted18),
+  source: ControlPlaneEventSourceSchema.meta(Unrestricted18),
+  payload: z21.record(z21.string(), z21.unknown()).default({}).meta(Unrestricted18)
 }).meta(
   {
     id: "ControlPlaneSemanticEvent",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var EventSearchParamsSchema = z18.object({
-  q: z18.string().optional().meta(Unrestricted15),
-  source: EventSourceSchema.optional().meta(Unrestricted15),
-  event_type: z18.string().optional().meta(Unrestricted15),
-  from: z18.string().datetime().optional().meta(Unrestricted15),
-  to: z18.string().datetime().optional().meta(Unrestricted15),
-  page: z18.coerce.number().int().min(1).default(1).meta(Unrestricted15),
-  per_page: z18.coerce.number().int().min(1).max(100).default(25).meta(Unrestricted15)
+var EventSearchParamsSchema = z21.object({
+  q: z21.string().optional().meta(Unrestricted18),
+  source: EventSourceSchema.optional().meta(Unrestricted18),
+  event_type: z21.string().optional().meta(Unrestricted18),
+  from: z21.string().datetime().optional().meta(Unrestricted18),
+  to: z21.string().datetime().optional().meta(Unrestricted18),
+  page: z21.coerce.number().int().min(1).default(1).meta(Unrestricted18),
+  per_page: z21.coerce.number().int().min(1).max(100).default(25).meta(Unrestricted18)
 }).meta(
   {
     id: "EventSearchParams",
-    "x-revturbine-schema-persistence": Transient15,
-    "x-revturbine-schema-exposure": Internal12
+    "x-revturbine-schema-persistence": Transient18,
+    "x-revturbine-schema-exposure": Internal15
   }
 );
-var WebhookEventSourceSchema = z18.enum(["stripe", "apple", "google"]).meta(
+var WebhookEventSourceSchema = z21.enum(["stripe", "apple", "google"]).meta(
   {
     id: "WebhookEventSource",
-    "x-revturbine-schema-persistence": Transient15,
-    "x-revturbine-schema-exposure": Internal12
+    "x-revturbine-schema-persistence": Transient18,
+    "x-revturbine-schema-exposure": Internal15
   }
 );
-var WebhookEventStatusSchema = z18.enum(["processed", "failed", "skipped"]).meta(
+var WebhookEventStatusSchema = z21.enum(["processed", "failed", "skipped"]).meta(
   {
     id: "WebhookEventStatus",
-    "x-revturbine-schema-persistence": Transient15,
-    "x-revturbine-schema-exposure": Internal12
+    "x-revturbine-schema-persistence": Transient18,
+    "x-revturbine-schema-exposure": Internal15
   }
 );
 var WebhookEventLogSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  event_id: z18.string().min(1).meta(Unrestricted15),
-  event_type: z18.string().min(1).meta(Unrestricted15),
-  source: WebhookEventSourceSchema.meta(Unrestricted15),
-  payload: z18.record(z18.string(), z18.unknown()).default({}).meta(Unrestricted15),
-  status: WebhookEventStatusSchema.default("processed").meta(Unrestricted15),
-  processed_at: z18.string().datetime().optional().meta(Unrestricted15),
-  error_message: z18.string().optional().meta(Unrestricted15)
+  event_id: z21.string().min(1).meta(Unrestricted18),
+  event_type: z21.string().min(1).meta(Unrestricted18),
+  source: WebhookEventSourceSchema.meta(Unrestricted18),
+  payload: z21.record(z21.string(), z21.unknown()).default({}).meta(Unrestricted18),
+  status: WebhookEventStatusSchema.default("processed").meta(Unrestricted18),
+  processed_at: z21.string().datetime().optional().meta(Unrestricted18),
+  error_message: z21.string().optional().meta(Unrestricted18)
 }).meta(
   {
     id: "WebhookEventLog",
-    "x-revturbine-schema-persistence": Persisted11,
-    "x-revturbine-schema-exposure": Internal12
+    "x-revturbine-schema-persistence": Persisted12,
+    "x-revturbine-schema-exposure": Internal15
   }
 );
-var EventIngestResponseSchema = z18.object({
-  accepted: z18.number().int().min(0).meta(Unrestricted15)
+var EventIngestResponseSchema = z21.object({
+  accepted: z21.number().int().min(0).meta(Unrestricted18)
 }).meta(
   {
     id: "null",
-    "x-revturbine-schema-persistence": Transient15,
-    "x-revturbine-schema-exposure": Internal12
+    "x-revturbine-schema-persistence": Transient18,
+    "x-revturbine-schema-exposure": Internal15
   }
 );
 var MAX_TRACK_EVENTS_PER_BATCH = 500;
-var EventOriginSchema = z18.enum(["explicit", "automatic", "derived", "raw"]).meta(
+var EventOriginSchema = z21.enum(["explicit", "automatic", "derived", "raw"]).meta(
   {
     id: "EventOrigin",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var TrackEventSchema = z18.object({
-  environment_id: z18.string().min(1).meta(Unrestricted15),
-  user_id: z18.string().min(1).meta(Pii4),
-  account_id: z18.string().min(1).meta(Unrestricted15),
-  event_name: z18.string().min(1).max(120).meta(Unrestricted15),
-  event_ts: z18.string().datetime().meta(Unrestricted15),
-  properties: z18.string().optional().meta(Unrestricted15),
-  surface_slot_id: z18.string().nullable().optional().meta(Unrestricted15),
-  placement_id: z18.string().nullable().optional().meta(Unrestricted15),
-  payload_id: z18.string().nullable().optional().meta(Unrestricted15),
-  request_id: z18.string().optional().meta(Unrestricted15),
-  experiment_id: z18.string().nullable().optional().meta(Unrestricted15),
-  variant_key: z18.string().nullable().optional().meta(Unrestricted15),
-  tenant_id: z18.string().optional().meta(Unrestricted15),
+var TrackEventSchema = z21.object({
+  environment_id: z21.string().min(1).meta(Unrestricted18),
+  user_id: z21.string().min(1).meta(Pii4),
+  account_id: z21.string().min(1).meta(Unrestricted18),
+  event_name: z21.string().min(1).max(120).meta(Unrestricted18),
+  event_ts: z21.string().datetime().meta(Unrestricted18),
+  properties: z21.string().optional().meta(Unrestricted18),
+  surface_slot_id: z21.string().nullable().optional().meta(Unrestricted18),
+  placement_id: z21.string().nullable().optional().meta(Unrestricted18),
+  payload_id: z21.string().nullable().optional().meta(Unrestricted18),
+  request_id: z21.string().optional().meta(Unrestricted18),
+  experiment_id: z21.string().nullable().optional().meta(Unrestricted18),
+  variant_key: z21.string().nullable().optional().meta(Unrestricted18),
+  tenant_id: z21.string().optional().meta(Unrestricted18),
   // ── Lifted provenance ────────────────────────────────────────────────
   //
   // `properties` is a serialized JSON string, so anything left inside it is
@@ -5141,13 +5912,13 @@ var TrackEventSchema = z18.object({
   // route genuinely new high-volume event classes to their own datasource
   // rather than widening this one.
   /** Sortable unique id minted at capture. Carried now so historical rows have it if dedup ever moves off `request_id` — a destructive sorting-key change not worth paying for while storage-layer dedup already collapses re-delivery. */
-  event_id: z18.string().nullable().optional().meta(Unrestricted15),
+  event_id: z21.string().nullable().optional().meta(Unrestricted18),
   /** See {@link EventOriginSchema}. Low cardinality; every scoring query filters on it. */
-  origin: EventOriginSchema.nullable().optional().meta(Unrestricted15),
+  origin: EventOriginSchema.nullable().optional().meta(Unrestricted18),
   /** Immutable Playbook version that produced the experience. The field that makes a past decision reproducible. */
-  playbook_version: z18.string().nullable().optional().meta(Unrestricted15),
+  playbook_version: z21.string().nullable().optional().meta(Unrestricted18),
   /** Correlates every event caused by one decision — a join key, not a group-by. */
-  decision_id: z18.string().nullable().optional().meta(Unrestricted15),
+  decision_id: z21.string().nullable().optional().meta(Unrestricted18),
   /**
    * Caller-declared test traffic (plan 164): set from the SDK's `test` init
    * option, stamped on every emitted event. Analytics pipes exclude
@@ -5156,88 +5927,88 @@ var TrackEventSchema = z18.object({
    * placement "Test Mode" (plan 08c), which is a server-decided per-user
    * flag on DECISIONING responses — this one marks EMITTED events.
    */
-  test: z18.boolean().optional().meta(Unrestricted15)
+  test: z21.boolean().optional().meta(Unrestricted18)
 }).meta(
   {
     id: "TrackEvent",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var TrackIngestBatchSchema = z18.object({
-  events: z18.array(TrackEventSchema).min(1).max(MAX_TRACK_EVENTS_PER_BATCH).meta(Unrestricted15)
+var TrackIngestBatchSchema = z21.object({
+  events: z21.array(TrackEventSchema).min(1).max(MAX_TRACK_EVENTS_PER_BATCH).meta(Unrestricted18)
 }).meta(
   {
     id: "TrackIngestBatch",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
 var MAX_SDK_META_EVENTS_PER_BATCH = 10;
-var SdkMetaEventTypeSchema = z18.enum(["sdk_init", "sdk_error", "sdk_validation_warning", "resolution_failure"]).meta(
+var SdkMetaEventTypeSchema = z21.enum(["sdk_init", "sdk_error", "sdk_validation_warning", "resolution_failure"]).meta(
   {
     id: "SdkMetaEventType",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var SdkConfigShapeSchema = z18.object({
-  plans: z18.number().int().min(0).meta(Unrestricted15),
-  entitlements: z18.number().int().min(0).meta(Unrestricted15),
-  entitlement_rules: z18.number().int().min(0).meta(Unrestricted15),
-  segments: z18.number().int().min(0).meta(Unrestricted15),
-  placements: z18.number().int().min(0).meta(Unrestricted15),
-  placement_payloads: z18.number().int().min(0).meta(Unrestricted15),
-  content_ui_paths: z18.number().int().min(0).meta(Unrestricted15),
-  surface_templates: z18.number().int().min(0).meta(Unrestricted15)
+var SdkConfigShapeSchema = z21.object({
+  plans: z21.number().int().min(0).meta(Unrestricted18),
+  entitlements: z21.number().int().min(0).meta(Unrestricted18),
+  entitlement_rules: z21.number().int().min(0).meta(Unrestricted18),
+  segments: z21.number().int().min(0).meta(Unrestricted18),
+  placements: z21.number().int().min(0).meta(Unrestricted18),
+  placement_payloads: z21.number().int().min(0).meta(Unrestricted18),
+  content_ui_paths: z21.number().int().min(0).meta(Unrestricted18),
+  surface_templates: z21.number().int().min(0).meta(Unrestricted18)
 }).meta(
   {
     id: "SdkConfigShape",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var SdkMetaEventSchema = z18.object({
-  event_type: SdkMetaEventTypeSchema.meta(Unrestricted15),
-  occurred_at: z18.string().datetime().meta(Unrestricted15),
-  request_id: z18.string().min(1).optional().meta(Unrestricted15),
+var SdkMetaEventSchema = z21.object({
+  event_type: SdkMetaEventTypeSchema.meta(Unrestricted18),
+  occurred_at: z21.string().datetime().meta(Unrestricted18),
+  request_id: z21.string().min(1).optional().meta(Unrestricted18),
   // One-way, non-reversible hash of a non-secret config identifier (e.g.
   // truncated SHA-256 of config_hash / bundle id). Counts distinct
   // deployments without exposing the real id (REQ-7).
-  config_hash_id: z18.string().min(1).max(64).optional().meta(Unrestricted15),
-  sdk_version: z18.string().min(1).max(64).optional().meta(Unrestricted15),
-  runtime_mode: z18.string().min(1).max(64).optional().meta(Unrestricted15),
-  schema_version: z18.string().min(1).max(64).optional().meta(Unrestricted15),
-  bundle_version: z18.string().min(1).max(64).optional().meta(Unrestricted15),
+  config_hash_id: z21.string().min(1).max(64).optional().meta(Unrestricted18),
+  sdk_version: z21.string().min(1).max(64).optional().meta(Unrestricted18),
+  runtime_mode: z21.string().min(1).max(64).optional().meta(Unrestricted18),
+  schema_version: z21.string().min(1).max(64).optional().meta(Unrestricted18),
+  bundle_version: z21.string().min(1).max(64).optional().meta(Unrestricted18),
   // Present for sdk_init; config-shape counts only, no user context (REQ-6).
-  config_shape: SdkConfigShapeSchema.optional().meta(Unrestricted15),
+  config_shape: SdkConfigShapeSchema.optional().meta(Unrestricted18),
   // Short non-PII diagnostic for sdk_error / sdk_validation_warning.
-  message: z18.string().max(500).optional().meta(Unrestricted15),
+  message: z21.string().max(500).optional().meta(Unrestricted18),
   // Diagnostic fields for `resolution_failure` (plan 144 TASK-20; absorbed
   // plan 124 REQ-5/AC-6 — its Q-1 allow-list, append-only). Every value is
   // an AUTHOR-DEFINED handle or a closed reason code — never user-supplied
   // free text; `message` above remains the only prose field and stays
   // length-capped. Emitted from the SDK's fallback/deny sites so a
   // placement that silently resolves to nothing becomes observable.
-  reason: z18.string().min(1).max(64).optional().meta(Unrestricted15),
-  placement_handle: z18.string().min(1).max(64).optional().meta(Unrestricted15),
-  slot_handle: z18.string().min(1).max(64).optional().meta(Unrestricted15),
-  surface: z18.string().min(1).max(64).optional().meta(Unrestricted15),
-  plan_handle: z18.string().min(1).max(64).optional().meta(Unrestricted15),
-  entitlement_handle: z18.string().min(1).max(64).optional().meta(Unrestricted15)
+  reason: z21.string().min(1).max(64).optional().meta(Unrestricted18),
+  placement_handle: z21.string().min(1).max(64).optional().meta(Unrestricted18),
+  slot_handle: z21.string().min(1).max(64).optional().meta(Unrestricted18),
+  surface: z21.string().min(1).max(64).optional().meta(Unrestricted18),
+  plan_handle: z21.string().min(1).max(64).optional().meta(Unrestricted18),
+  entitlement_handle: z21.string().min(1).max(64).optional().meta(Unrestricted18)
 }).meta(
   {
     id: "SdkMetaEvent",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
-var SdkMetaIngestBatchSchema = z18.object({
-  events: z18.array(SdkMetaEventSchema).min(1).max(MAX_SDK_META_EVENTS_PER_BATCH).meta(Unrestricted15)
+var SdkMetaIngestBatchSchema = z21.object({
+  events: z21.array(SdkMetaEventSchema).min(1).max(MAX_SDK_META_EVENTS_PER_BATCH).meta(Unrestricted18)
 }).meta(
   {
     id: "SdkMetaIngestBatch",
-    "x-revturbine-schema-persistence": Transient15,
+    "x-revturbine-schema-persistence": Transient18,
     "x-revturbine-schema-exposure": External10
   }
 );
@@ -5315,46 +6086,46 @@ var eventPaths = {
   }
 };
 
-// ../scaffold-205/src/trials/models/schema.ts
-import { z as z19 } from "zod";
-var { Unrestricted: Unrestricted16 } = DataClassification;
-var { Persisted: Persisted12, Transient: Transient16 } = SchemaPersistence;
-var { Internal: Internal13 } = SchemaExposure;
+// ../scaffold/src/trials/models/schema.ts
+import { z as z22 } from "zod";
+var { Unrestricted: Unrestricted19 } = DataClassification;
+var { Persisted: Persisted13, Transient: Transient19 } = SchemaPersistence;
+var { Internal: Internal16 } = SchemaExposure;
 var PLAYBOOK_SDK_FACETS6 = schemaFacets(SchemaContext.Playbook, { sdkInput: true });
 var PENDING_PLAYBOOK_SDK_FACETS2 = schemaFacets(SchemaContext.Playbook, {
   inConfig: false,
   sdkInput: true
 });
-var TrialStatusSchema = z19.enum(["not_started", "active", "expired", "converted", "cancelled"]).meta(
-  { id: "TrialStatus", "x-revturbine-schema-persistence": Transient16, "x-revturbine-schema-exposure": Internal13 }
+var TrialStatusSchema = z22.enum(["not_started", "active", "expired", "converted", "cancelled"]).meta(
+  { id: "TrialStatus", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
 );
-var TrialLimitTypeSchema = z19.enum(["time", "usage"]).meta(
-  { id: "TrialLimitType", "x-revturbine-schema-persistence": Transient16, "x-revturbine-schema-exposure": Internal13 }
+var TrialLimitTypeSchema = z22.enum(["time", "usage"]).meta(
+  { id: "TrialLimitType", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
 );
-var FreeTrialRuleCoreFieldsSchema = z19.object({
-  name: NameField.meta(Unrestricted16),
-  handle: HandleField.meta(Unrestricted16),
+var FreeTrialRuleCoreFieldsSchema = z22.object({
+  name: NameField.meta(Unrestricted19),
+  handle: HandleField.meta(Unrestricted19),
   // plan_id null = "All plans" — see plans-entitlements-studio-ui.md §2.4.1.
-  plan_id: z19.string().nullable().optional().meta(Unrestricted16),
-  segment_id: z19.string().nullable().optional().meta(Unrestricted16),
+  plan_id: z22.string().nullable().optional().meta(Unrestricted19),
+  segment_id: z22.string().nullable().optional().meta(Unrestricted19),
   // Defaults to 'time' so every pre-existing rule keeps its current
   // duration-based semantics. Set to 'usage' to scope the trial by
   // consumption of `usage_entitlement_handle` up to
   // `usage_limit_value`; the time fields below are then ignored.
-  trial_limit_type: TrialLimitTypeSchema.default("time").meta(Unrestricted16),
+  trial_limit_type: TrialLimitTypeSchema.default("time").meta(Unrestricted19),
   // Time-based: rule is skipped at runtime when null/blank. The
   // Default Trial Length global was removed (no fallback exists).
-  duration_days: z19.number().int().min(1).max(365).nullable().optional().meta(Unrestricted16),
-  grace_period_days: z19.number().int().min(0).default(0).meta(Unrestricted16),
+  duration_days: z22.number().int().min(1).max(365).nullable().optional().meta(Unrestricted19),
+  grace_period_days: z22.number().int().min(0).default(0).meta(Unrestricted19),
   // Usage-based: the entitlement whose consumption gates the trial,
   // and the cap. Both required when `trial_limit_type === 'usage'`;
   // otherwise ignored. Cross-field validation is done at the API
   // boundary (web app's POST handler) rather than here so partial
   // drafts stay round-trippable.
-  usage_entitlement_handle: z19.string().min(1).optional().meta(Unrestricted16),
-  usage_limit_value: z19.number().int().min(1).optional().meta(Unrestricted16),
-  require_payment_method: z19.boolean().default(false).meta(Unrestricted16),
-  auto_convert: z19.boolean().default(true).meta(Unrestricted16),
+  usage_entitlement_handle: z22.string().min(1).optional().meta(Unrestricted19),
+  usage_limit_value: z22.number().int().min(1).optional().meta(Unrestricted19),
+  require_payment_method: z22.boolean().default(false).meta(Unrestricted19),
+  auto_convert: z22.boolean().default(true).meta(Unrestricted19),
   /**
    * Post-trial destination plans. At end of trial the control plane
    * places the user on either:
@@ -5368,74 +6139,74 @@ var FreeTrialRuleCoreFieldsSchema = z19.object({
    *     declined upsell, etc.). When unset the user reverts to
    *     "no plan" / pre-trial state.
    */
-  convert_to_plan_id: z19.string().optional().meta(Unrestricted16),
-  fallback_plan_id: z19.string().optional().meta(Unrestricted16),
-  limit_per_customer: z19.number().int().min(1).default(1).meta(Unrestricted16),
-  is_active: z19.boolean().default(true).meta(Unrestricted16),
-  metadata: MetadataField.meta(Unrestricted16)
+  convert_to_plan_id: z22.string().optional().meta(Unrestricted19),
+  fallback_plan_id: z22.string().optional().meta(Unrestricted19),
+  limit_per_customer: z22.number().int().min(1).default(1).meta(Unrestricted19),
+  is_active: z22.boolean().default(true).meta(Unrestricted19),
+  metadata: MetadataField.meta(Unrestricted19)
 });
 var FreeTrialRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z19.string().min(1).meta({ ...Unrestricted16, readOnly: true })
+  anchor_id: z22.string().min(1).meta({ ...Unrestricted19, readOnly: true })
 }).merge(FreeTrialRuleCoreFieldsSchema).meta(
-  { id: "FreeTrialRule", "x-revturbine-schema-persistence": Persisted12, "x-revturbine-schema-exposure": Internal13, ...PLAYBOOK_SDK_FACETS6, ...namedIdentity() }
+  { id: "FreeTrialRule", "x-revturbine-schema-persistence": Persisted13, "x-revturbine-schema-exposure": Internal16, ...PLAYBOOK_SDK_FACETS6, ...namedIdentity() }
 );
 var FreeTrialRuleAnchorSchema = makeAnchor("FreeTrialRuleAnchor");
-var ReverseTrialStartPolicySchema = z19.enum(["signup", "first_premium_access", "manual"]).meta(
-  { id: "ReverseTrialStartPolicy", "x-revturbine-schema-persistence": Transient16, "x-revturbine-schema-exposure": Internal13 }
+var ReverseTrialStartPolicySchema = z22.enum(["signup", "first_premium_access", "manual"]).meta(
+  { id: "ReverseTrialStartPolicy", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
 );
-var ReverseTrialRuleCoreFieldsSchema = z19.object({
-  name: NameField.meta(Unrestricted16),
-  handle: HandleField.meta(Unrestricted16),
-  premium_plan_id: z19.string().min(1).meta(Unrestricted16),
-  fallback_plan_id: z19.string().min(1).meta(Unrestricted16),
-  segment_id: z19.string().nullable().optional().meta(Unrestricted16),
-  trial_limit_type: TrialLimitTypeSchema.default("time").meta(Unrestricted16),
-  duration_days: z19.number().int().min(1).max(365).nullable().optional().meta(Unrestricted16),
-  usage_entitlement_handle: z19.string().min(1).optional().meta(Unrestricted16),
-  usage_limit_value: z19.number().int().min(1).optional().meta(Unrestricted16),
-  start_policy: ReverseTrialStartPolicySchema.default("signup").meta(Unrestricted16),
-  show_upgrade_prompt_at_day: z19.number().int().min(0).optional().meta(Unrestricted16),
-  entitlements_during_trial: z19.array(z19.string()).default([]).meta(Unrestricted16),
-  is_active: z19.boolean().default(true).meta(Unrestricted16),
-  metadata: MetadataField.meta(Unrestricted16)
+var ReverseTrialRuleCoreFieldsSchema = z22.object({
+  name: NameField.meta(Unrestricted19),
+  handle: HandleField.meta(Unrestricted19),
+  premium_plan_id: z22.string().min(1).meta(Unrestricted19),
+  fallback_plan_id: z22.string().min(1).meta(Unrestricted19),
+  segment_id: z22.string().nullable().optional().meta(Unrestricted19),
+  trial_limit_type: TrialLimitTypeSchema.default("time").meta(Unrestricted19),
+  duration_days: z22.number().int().min(1).max(365).nullable().optional().meta(Unrestricted19),
+  usage_entitlement_handle: z22.string().min(1).optional().meta(Unrestricted19),
+  usage_limit_value: z22.number().int().min(1).optional().meta(Unrestricted19),
+  start_policy: ReverseTrialStartPolicySchema.default("signup").meta(Unrestricted19),
+  show_upgrade_prompt_at_day: z22.number().int().min(0).optional().meta(Unrestricted19),
+  entitlements_during_trial: z22.array(z22.string()).default([]).meta(Unrestricted19),
+  is_active: z22.boolean().default(true).meta(Unrestricted19),
+  metadata: MetadataField.meta(Unrestricted19)
 });
 var ReverseTrialRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z19.string().min(1).meta({ ...Unrestricted16, readOnly: true })
+  anchor_id: z22.string().min(1).meta({ ...Unrestricted19, readOnly: true })
 }).merge(ReverseTrialRuleCoreFieldsSchema).meta(
-  { id: "ReverseTrialRule", "x-revturbine-schema-persistence": Persisted12, "x-revturbine-schema-exposure": Internal13, ...PLAYBOOK_SDK_FACETS6, ...namedIdentity() }
+  { id: "ReverseTrialRule", "x-revturbine-schema-persistence": Persisted13, "x-revturbine-schema-exposure": Internal16, ...PLAYBOOK_SDK_FACETS6, ...namedIdentity() }
 );
 var ReverseTrialRuleAnchorSchema = makeAnchor("ReverseTrialRuleAnchor");
-var TrialLimitPolicySchema = z19.enum(["1_per_lifetime", "1_per_plan", "1_per_year", "unlimited"]).meta(
-  { id: "TrialLimitPolicy", "x-revturbine-schema-persistence": Transient16, "x-revturbine-schema-exposure": Internal13 }
+var TrialLimitPolicySchema = z22.enum(["1_per_lifetime", "1_per_plan", "1_per_year", "unlimited"]).meta(
+  { id: "TrialLimitPolicy", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
 );
-var TrialEligibilityScopeSchema = z19.enum(["per_customer", "per_email_domain"]).meta(
-  { id: "TrialEligibilityScope", "x-revturbine-schema-persistence": Transient16, "x-revturbine-schema-exposure": Internal13 }
+var TrialEligibilityScopeSchema = z22.enum(["per_customer", "per_email_domain"]).meta(
+  { id: "TrialEligibilityScope", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
 );
 var FreeTrialSettingsSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  trial_limit_policy: TrialLimitPolicySchema.default("1_per_lifetime").meta(Unrestricted16),
-  eligibility_scope: TrialEligibilityScopeSchema.default("per_customer").meta(Unrestricted16)
+  trial_limit_policy: TrialLimitPolicySchema.default("1_per_lifetime").meta(Unrestricted19),
+  eligibility_scope: TrialEligibilityScopeSchema.default("per_customer").meta(Unrestricted19)
 }).meta(
-  { id: "FreeTrialSettings", "x-revturbine-schema-persistence": Persisted12, "x-revturbine-schema-exposure": Internal13, ...PENDING_PLAYBOOK_SDK_FACETS2 }
+  { id: "FreeTrialSettings", "x-revturbine-schema-persistence": Persisted13, "x-revturbine-schema-exposure": Internal16, ...PENDING_PLAYBOOK_SDK_FACETS2 }
 );
 var ReverseTrialSettingsSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  trial_limit_policy: TrialLimitPolicySchema.default("1_per_lifetime").meta(Unrestricted16),
-  eligibility_scope: TrialEligibilityScopeSchema.default("per_customer").meta(Unrestricted16)
+  trial_limit_policy: TrialLimitPolicySchema.default("1_per_lifetime").meta(Unrestricted19),
+  eligibility_scope: TrialEligibilityScopeSchema.default("per_customer").meta(Unrestricted19)
 }).meta(
-  { id: "ReverseTrialSettings", "x-revturbine-schema-persistence": Persisted12, "x-revturbine-schema-exposure": Internal13, ...PENDING_PLAYBOOK_SDK_FACETS2 }
+  { id: "ReverseTrialSettings", "x-revturbine-schema-persistence": Persisted13, "x-revturbine-schema-exposure": Internal16, ...PENDING_PLAYBOOK_SDK_FACETS2 }
 );
 var TrialInstanceSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  customer_id: z19.string().min(1).meta(Unrestricted16),
-  rule_id: z19.string().min(1).meta(Unrestricted16),
-  rule_type: z19.enum(["free_trial", "reverse_trial"]).meta(Unrestricted16),
-  plan_id: z19.string().min(1).meta(Unrestricted16),
-  status: TrialStatusSchema.default("active").meta(Unrestricted16),
-  started_at: z19.string().datetime().meta({ ...Unrestricted16, readOnly: true }),
+  customer_id: z22.string().min(1).meta(Unrestricted19),
+  rule_id: z22.string().min(1).meta(Unrestricted19),
+  rule_type: z22.enum(["free_trial", "reverse_trial"]).meta(Unrestricted19),
+  plan_id: z22.string().min(1).meta(Unrestricted19),
+  status: TrialStatusSchema.default("active").meta(Unrestricted19),
+  started_at: z22.string().datetime().meta({ ...Unrestricted19, readOnly: true }),
   /**
    * Time-based expiry. Required for time-based trials; null for
    * pure usage-based trials (which expire when consumption crosses
    * `usage_limit_value` regardless of clock time).
    */
-  expires_at: z19.string().datetime().nullable().optional().meta(Unrestricted16),
+  expires_at: z22.string().datetime().nullable().optional().meta(Unrestricted19),
   /**
    * Snapshot of the rule's `trial_limit_type` at the moment the
    * instance was created. Persisted so subsequent changes to the
@@ -5443,25 +6214,25 @@ var TrialInstanceSchema = IdField.merge(TimestampFields).merge(TenantIdField).ex
    * semantics. Defaults to 'time' for backward compatibility with
    * pre-existing instances.
    */
-  trial_limit_type: TrialLimitTypeSchema.default("time").meta(Unrestricted16),
+  trial_limit_type: TrialLimitTypeSchema.default("time").meta(Unrestricted19),
   /**
    * Snapshot of the rule's `usage_entitlement_handle` for
    * usage-based trials. Server queries the user's current
    * consumption of this entitlement to derive
    * `UserTrialStatus.usage_consumed` at read time.
    */
-  usage_entitlement_handle: z19.string().min(1).optional().meta(Unrestricted16),
+  usage_entitlement_handle: z22.string().min(1).optional().meta(Unrestricted19),
   /**
    * Snapshot of the rule's `usage_limit_value`. Persisted so
    * mid-trial limit changes on the rule don't shrink/expand a
    * user's in-flight trial.
    */
-  usage_limit_value: z19.number().int().min(1).optional().meta(Unrestricted16),
-  converted_at: NullableDatetimeField.meta(Unrestricted16),
-  cancelled_at: NullableDatetimeField.meta(Unrestricted16),
-  metadata: MetadataField.meta(Unrestricted16)
+  usage_limit_value: z22.number().int().min(1).optional().meta(Unrestricted19),
+  converted_at: NullableDatetimeField.meta(Unrestricted19),
+  cancelled_at: NullableDatetimeField.meta(Unrestricted19),
+  metadata: MetadataField.meta(Unrestricted19)
 }).meta(
-  { id: "TrialInstance", "x-revturbine-schema-persistence": Persisted12, "x-revturbine-schema-exposure": Internal13 }
+  { id: "TrialInstance", "x-revturbine-schema-persistence": Persisted13, "x-revturbine-schema-exposure": Internal16 }
 );
 var trialPaths = {
   "/api/free-trial-rule-anchors": {
@@ -5498,7 +6269,7 @@ var trialPaths = {
   "/api/trials/free-rules/{ruleId}": {
     get: operation({
       operationId: "getFreeTrialRule",
-      requestParams: { path: z19.object({ ruleId: z19.string() }) },
+      requestParams: { path: z22.object({ ruleId: z22.string() }) },
       summary: "Get free trial rule",
       tags: ["trials"],
       responses: { "200": { description: "Free trial rule", content: { "application/json": { schema: FreeTrialRuleSchema } } } },
@@ -5506,7 +6277,7 @@ var trialPaths = {
     }),
     patch: operation({
       operationId: "updateFreeTrialRule",
-      requestParams: { path: z19.object({ ruleId: z19.string() }) },
+      requestParams: { path: z22.object({ ruleId: z22.string() }) },
       summary: "Update free trial rule",
       tags: ["trials"],
       requestBody: { required: true, content: { "application/json": { schema: FreeTrialRuleSchema.partial() } } },
@@ -5515,7 +6286,7 @@ var trialPaths = {
     }),
     delete: operation({
       operationId: "deleteFreeTrialRule",
-      requestParams: { path: z19.object({ ruleId: z19.string() }) },
+      requestParams: { path: z22.object({ ruleId: z22.string() }) },
       summary: "Delete free trial rule",
       tags: ["trials"],
       responses: { "204": { description: "Deleted" } },
@@ -5556,7 +6327,7 @@ var trialPaths = {
   "/api/trials/reverse-rules/{ruleId}": {
     get: operation({
       operationId: "getReverseTrialRule",
-      requestParams: { path: z19.object({ ruleId: z19.string() }) },
+      requestParams: { path: z22.object({ ruleId: z22.string() }) },
       summary: "Get reverse trial rule",
       tags: ["trials"],
       responses: { "200": { description: "Reverse trial rule", content: { "application/json": { schema: ReverseTrialRuleSchema } } } },
@@ -5564,7 +6335,7 @@ var trialPaths = {
     }),
     patch: operation({
       operationId: "updateReverseTrialRule",
-      requestParams: { path: z19.object({ ruleId: z19.string() }) },
+      requestParams: { path: z22.object({ ruleId: z22.string() }) },
       summary: "Update reverse trial rule",
       tags: ["trials"],
       requestBody: { required: true, content: { "application/json": { schema: ReverseTrialRuleSchema.partial() } } },
@@ -5573,7 +6344,7 @@ var trialPaths = {
     }),
     delete: operation({
       operationId: "deleteReverseTrialRule",
-      requestParams: { path: z19.object({ ruleId: z19.string() }) },
+      requestParams: { path: z22.object({ ruleId: z22.string() }) },
       summary: "Delete reverse trial rule",
       tags: ["trials"],
       responses: { "204": { description: "Deleted" } },
@@ -5601,7 +6372,7 @@ var trialPaths = {
   "/api/trials/free-settings/{settingsId}": {
     get: operation({
       operationId: "getFreeTrialSettings",
-      requestParams: { path: z19.object({ settingsId: z19.string() }) },
+      requestParams: { path: z22.object({ settingsId: z22.string() }) },
       summary: "Get free trial settings",
       tags: ["trials"],
       responses: { "200": { description: "Free trial settings", content: { "application/json": { schema: FreeTrialSettingsSchema } } } },
@@ -5609,7 +6380,7 @@ var trialPaths = {
     }),
     patch: operation({
       operationId: "updateFreeTrialSettings",
-      requestParams: { path: z19.object({ settingsId: z19.string() }) },
+      requestParams: { path: z22.object({ settingsId: z22.string() }) },
       summary: "Update free trial settings",
       tags: ["trials"],
       requestBody: { required: true, content: { "application/json": { schema: FreeTrialSettingsSchema.partial() } } },
@@ -5638,7 +6409,7 @@ var trialPaths = {
   "/api/trials/reverse-settings/{settingsId}": {
     get: operation({
       operationId: "getReverseTrialSettings",
-      requestParams: { path: z19.object({ settingsId: z19.string() }) },
+      requestParams: { path: z22.object({ settingsId: z22.string() }) },
       summary: "Get reverse trial settings",
       tags: ["trials"],
       responses: { "200": { description: "Reverse trial settings", content: { "application/json": { schema: ReverseTrialSettingsSchema } } } },
@@ -5646,7 +6417,7 @@ var trialPaths = {
     }),
     patch: operation({
       operationId: "updateReverseTrialSettings",
-      requestParams: { path: z19.object({ settingsId: z19.string() }) },
+      requestParams: { path: z22.object({ settingsId: z22.string() }) },
       summary: "Update reverse trial settings",
       tags: ["trials"],
       requestBody: { required: true, content: { "application/json": { schema: ReverseTrialSettingsSchema.partial() } } },
@@ -5667,7 +6438,7 @@ var trialPaths = {
   "/api/trials/instances/{instanceId}": {
     get: operation({
       operationId: "getTrialInstance",
-      requestParams: { path: z19.object({ instanceId: z19.string() }) },
+      requestParams: { path: z22.object({ instanceId: z22.string() }) },
       summary: "Get trial instance",
       tags: ["trials"],
       responses: { "200": { description: "Trial instance", content: { "application/json": { schema: TrialInstanceSchema } } } },
@@ -5677,7 +6448,7 @@ var trialPaths = {
   "/api/trials/instances/{instanceId}/cancel": {
     post: operation({
       operationId: "cancelTrialInstance",
-      requestParams: { path: z19.object({ instanceId: z19.string() }) },
+      requestParams: { path: z22.object({ instanceId: z22.string() }) },
       summary: "Cancel an active trial",
       tags: ["trials"],
       responses: { "200": { description: "Cancelled", content: { "application/json": { schema: TrialInstanceSchema } } } },
@@ -5687,81 +6458,451 @@ var trialPaths = {
   "/api/trials/instances/{instanceId}/convert": {
     post: operation({
       operationId: "convertTrialInstance",
-      requestParams: { path: z19.object({ instanceId: z19.string() }) },
+      requestParams: { path: z22.object({ instanceId: z22.string() }) },
       summary: "Convert trial to paid subscription",
       tags: ["trials"],
-      requestBody: { required: true, content: { "application/json": { schema: z19.object({ plan_id: z19.string().optional() }) } } },
+      requestBody: { required: true, content: { "application/json": { schema: z22.object({ plan_id: z22.string().optional() }) } } },
       responses: { "200": { description: "Converted", content: { "application/json": { schema: TrialInstanceSchema } } } },
       "x-revturbine-operation": { exposure: "internal", resource: "trial-instances", persistence: { table: "trialInstances", mode: "update" } }
     })
   }
 };
 
-// ../scaffold-205/src/experiments/models/schema.ts
-import { z as z20 } from "zod";
-var { Unrestricted: Unrestricted17 } = DataClassification;
-var { Persisted: Persisted13, Transient: Transient17 } = SchemaPersistence;
-var { Internal: Internal14 } = SchemaExposure;
+// ../scaffold/src/experiments/models/schema.ts
+import { z as z23 } from "zod";
+
+// ../scaffold/src/core/bundle/canonical-json.ts
+function canonicalizeJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error(`canonicalizeJson: non-finite number ${value} not representable in JSON`);
+    }
+    return JSON.stringify(value);
+  }
+  if (typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return "[" + value.map((item) => canonicalizeJson(item)).join(",") + "]";
+  }
+  if (typeof value === "object") {
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+      throw new Error(
+        `canonicalizeJson: unsupported object ${value.constructor?.name ?? "instance"} \u2014 convert to a plain JSON value before canonicalizing`
+      );
+    }
+    const obj = value;
+    const keys = Object.keys(obj).sort();
+    const parts = [];
+    for (const k of keys) {
+      const v = obj[k];
+      if (v === void 0) continue;
+      parts.push(JSON.stringify(k) + ":" + canonicalizeJson(v));
+    }
+    return "{" + parts.join(",") + "}";
+  }
+  throw new Error(`canonicalizeJson: unsupported value type ${typeof value}`);
+}
+
+// ../scaffold/src/experiments/models/schema.ts
+var { Unrestricted: Unrestricted20, Financial: Financial4 } = DataClassification;
+var { Persisted: Persisted14, Transient: Transient20 } = SchemaPersistence;
+var { Internal: Internal17 } = SchemaExposure;
 var PENDING_PLAYBOOK_SDK_FACETS3 = schemaFacets(SchemaContext.Playbook, {
   inConfig: false,
   sdkInput: true
 });
-var ExperimentStatusSchema = z20.enum(["draft", "ramping", "winning", "neutral", "needs_attention", "paused", "complete"]).meta(
-  { id: "ExperimentStatus", "x-revturbine-schema-persistence": Transient17, "x-revturbine-schema-exposure": Internal14 }
+var EXPERIMENT_RESULT_FACETS = schemaFacets(SchemaContext.CustomerOperations, {
+  sdkInput: false
+});
+var ExperimentStatusSchema = z23.enum(["draft", "ramping", "winning", "neutral", "needs_attention", "paused", "complete"]).meta(
+  { id: "ExperimentStatus", "x-revturbine-schema-persistence": Transient20, "x-revturbine-schema-exposure": Internal17 }
 );
-var ExperimentTypeSchema = z20.enum(["placement_ab", "entitlement_ab", "plan_ab", "pricing_ab", "custom"]).meta(
-  { id: "ExperimentType", "x-revturbine-schema-persistence": Transient17, "x-revturbine-schema-exposure": Internal14 }
+var ExperimentTypeSchema = z23.enum(["placement_ab", "entitlement_ab", "plan_ab", "pricing_ab", "custom"]).meta(
+  { id: "ExperimentType", "x-revturbine-schema-persistence": Transient20, "x-revturbine-schema-exposure": Internal17 }
 );
-var ExperimentVariantSchema = z20.object({
-  variant_id: z20.string().min(1),
+var ExperimentAllocationModeSchema = z23.enum(["managed", "observed"]).meta(
+  { id: "ExperimentAllocationMode", "x-revturbine-schema-persistence": Persisted14, "x-revturbine-schema-exposure": Internal17 }
+);
+var ExperimentVariantTargetSchema = z23.discriminatedUnion("kind", [
+  z23.object({
+    kind: z23.literal("placement"),
+    placement_handle: z23.string().min(1),
+    placement_payload_handle: z23.string().min(1).optional()
+  }),
+  z23.object({
+    kind: z23.literal("entitlement"),
+    entitlement_handle: z23.string().min(1),
+    rule_handle: z23.string().min(1).optional()
+  }),
+  z23.object({
+    kind: z23.literal("plan"),
+    plan_handle: z23.string().min(1),
+    plan_variation_handle: z23.string().min(1).optional()
+  }),
+  z23.object({
+    kind: z23.literal("pricing"),
+    plan_variation_handle: z23.string().min(1),
+    promotion_handle: z23.string().min(1).optional()
+  }),
+  z23.object({
+    kind: z23.literal("custom"),
+    provider_payload: z23.record(z23.string(), z23.json())
+  })
+]).meta(
+  { id: "ExperimentVariantTarget", "x-revturbine-schema-persistence": Persisted14, "x-revturbine-schema-exposure": Internal17, ...PENDING_PLAYBOOK_SDK_FACETS3 }
+);
+var ExperimentVariantSchema = z23.object({
+  variant_id: z23.string().min(1),
   name: NameField,
-  weight: z20.number().min(0).max(1).default(0.5),
-  is_control: z20.boolean().default(false),
-  config: z20.record(z20.string(), z20.unknown()).default({})
+  weight: z23.number().min(0).max(1).default(0.5),
+  is_control: z23.boolean().default(false),
+  targets: z23.array(ExperimentVariantTargetSchema).min(1).optional(),
+  config: z23.record(z23.string(), z23.unknown()).default({})
 }).meta(
-  { id: "ExperimentVariant", "x-revturbine-schema-persistence": Persisted13, "x-revturbine-schema-exposure": Internal14, ...PENDING_PLAYBOOK_SDK_FACETS3 }
+  { id: "ExperimentVariant", "x-revturbine-schema-persistence": Persisted14, "x-revturbine-schema-exposure": Internal17, ...PENDING_PLAYBOOK_SDK_FACETS3 }
 );
+var ExperimentSequentialConfigSchema = z23.object({
+  method: z23.literal("always_valid"),
+  look_count: z23.number().int().positive(),
+  alpha: z23.number().positive().lt(1).default(0.05)
+}).strict();
+var ExperimentPracticalSignificanceConfigSchema = z23.object({
+  minimum_revenue_effect: z23.number().min(0)
+}).strict();
+var ExperimentVarianceReductionSchema = z23.discriminatedUnion("method", [
+  z23.object({
+    method: z23.literal("cuped"),
+    covariate_metric: AnalyticsSemanticIdSchema,
+    lookback_days: z23.number().int().positive()
+  }),
+  z23.object({
+    method: z23.literal("regression_adjustment"),
+    covariate_metric: AnalyticsSemanticIdSchema,
+    lookback_days: z23.number().int().positive()
+  })
+]);
+var ExperimentMultipleComparisonsConfigSchema = z23.object({
+  method: z23.literal("holm"),
+  family_scope: z23.literal("primary_and_guardrails_separate")
+});
+var ExperimentAnalysisConfigSchema = z23.object({
+  methodology: z23.enum(["frequentist", "bayesian"]),
+  analysis_unit: AnalyticsAnalyticalUnitSchema,
+  sequential: ExperimentSequentialConfigSchema.optional(),
+  multiple_comparisons: ExperimentMultipleComparisonsConfigSchema.optional(),
+  variance_reduction: ExperimentVarianceReductionSchema.optional(),
+  practical_significance: ExperimentPracticalSignificanceConfigSchema.optional()
+}).meta(
+  { id: "ExperimentAnalysisConfig", "x-revturbine-schema-persistence": Persisted14, "x-revturbine-schema-exposure": Internal17, ...PENDING_PLAYBOOK_SDK_FACETS3 }
+);
+var RUNNING_EXPERIMENT_STATUSES = /* @__PURE__ */ new Set([
+  "ramping",
+  "winning",
+  "neutral",
+  "needs_attention"
+]);
+var ExperimentAnalysisConfigVersionError = class extends Error {
+  constructor() {
+    super("Analysis configuration is immutable for a running experiment version; mint a new version to change methodology or analysis settings.");
+    this.name = "ExperimentAnalysisConfigVersionError";
+  }
+};
+function assertExperimentAnalysisConfigUpdateAllowed(current, nextAnalysisConfig) {
+  if (!RUNNING_EXPERIMENT_STATUSES.has(current.status)) return;
+  if (canonicalizeJson(current.analysis_config ?? null) === canonicalizeJson(nextAnalysisConfig ?? null)) {
+    return;
+  }
+  throw new ExperimentAnalysisConfigVersionError();
+}
+var transientExperimentMeta = (id) => ({
+  id,
+  "x-revturbine-schema-persistence": Transient20,
+  "x-revturbine-schema-exposure": Internal17
+});
+var VariantSummaryIdentitySchema = z23.object({
+  variant_id: z23.string().min(1).meta(Unrestricted20)
+});
+var ExperimentClusterAggregateSchema = z23.object({
+  n: z23.number().int().positive().meta(Unrestricted20),
+  sum_numerator: z23.number().meta(Unrestricted20),
+  sum_denominator: z23.number().positive().meta(Unrestricted20),
+  sum_covariate: z23.number().optional().meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentClusterAggregate"));
+var ExperimentClusteredSufficientStatisticsSchema = z23.object({
+  assignment_unit: AnalyticsAnalyticalUnitSchema.meta(Unrestricted20),
+  clusters: z23.array(ExperimentClusterAggregateSchema).min(2).meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentClusteredSufficientStatistics"));
+var ClusteredSummaryShape = {
+  clustered: ExperimentClusteredSufficientStatisticsSchema.optional().meta(Unrestricted20)
+};
+var MeanVariantStatisticalSummarySchema = VariantSummaryIdentitySchema.extend({
+  statistic_type: z23.literal("mean").meta(Unrestricted20),
+  n: z23.number().int().min(0).meta(Unrestricted20),
+  sum_y: z23.number().meta(Unrestricted20),
+  sum_y2: z23.number().min(0).meta(Unrestricted20),
+  ...ClusteredSummaryShape
+}).meta(transientExperimentMeta("MeanVariantStatisticalSummary"));
+var BinaryVariantStatisticalSummarySchema = VariantSummaryIdentitySchema.extend({
+  statistic_type: z23.literal("binary").meta(Unrestricted20),
+  n: z23.number().int().min(0).meta(Unrestricted20),
+  successes: z23.number().int().min(0).meta(Unrestricted20),
+  ...ClusteredSummaryShape
+}).meta(transientExperimentMeta("BinaryVariantStatisticalSummary"));
+var RatioVariantStatisticalSummarySchema = VariantSummaryIdentitySchema.extend({
+  statistic_type: z23.literal("ratio").meta(Unrestricted20),
+  n: z23.number().int().min(0).meta(Unrestricted20),
+  sum_numerator: z23.number().meta(Unrestricted20),
+  sum_denominator: z23.number().meta(Unrestricted20),
+  sum_numerator2: z23.number().min(0).meta(Unrestricted20),
+  sum_denominator2: z23.number().min(0).meta(Unrestricted20),
+  sum_cross: z23.number().meta(Unrestricted20),
+  ...ClusteredSummaryShape
+}).meta(transientExperimentMeta("RatioVariantStatisticalSummary"));
+var CovarianceVariantStatisticalSummarySchema = VariantSummaryIdentitySchema.extend({
+  statistic_type: z23.literal("covariance").meta(Unrestricted20),
+  n: z23.number().int().min(0).meta(Unrestricted20),
+  sum_x: z23.number().meta(Unrestricted20),
+  sum_y: z23.number().meta(Unrestricted20),
+  sum_x2: z23.number().min(0).meta(Unrestricted20),
+  sum_y2: z23.number().min(0).meta(Unrestricted20),
+  sum_xy: z23.number().meta(Unrestricted20),
+  ...ClusteredSummaryShape
+}).meta(transientExperimentMeta("CovarianceVariantStatisticalSummary"));
+var VariantStatisticalSummarySchema = z23.discriminatedUnion("statistic_type", [
+  MeanVariantStatisticalSummarySchema,
+  BinaryVariantStatisticalSummarySchema,
+  RatioVariantStatisticalSummarySchema,
+  CovarianceVariantStatisticalSummarySchema
+]).meta(transientExperimentMeta("VariantStatisticalSummary"));
+var ExperimentObservationWindowSchema = z23.object({
+  start: z23.string().datetime().meta(Unrestricted20),
+  end: z23.string().datetime().meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentObservationWindow"));
+var ExperimentCovariateProvenanceSchema = z23.object({
+  metric: AnalyticsSemanticIdSchema.meta(Unrestricted20),
+  observation_window: ExperimentObservationWindowSchema.meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentCovariateProvenance"));
+var ExperimentEvidenceSchema = z23.object({
+  schema_version: z23.number().int().min(1).meta(Unrestricted20),
+  experiment_handle: HandleField.meta(Unrestricted20),
+  experiment_version: z23.number().int().min(1).meta(Unrestricted20),
+  metric: AnalyticsSemanticIdSchema.meta(Unrestricted20),
+  analysis_unit: AnalyticsAnalyticalUnitSchema.meta(Unrestricted20),
+  variants: z23.array(VariantStatisticalSummarySchema).min(1).meta(Unrestricted20),
+  observation_window: ExperimentObservationWindowSchema.meta(Unrestricted20),
+  covariate: ExperimentCovariateProvenanceSchema.optional().meta(Unrestricted20),
+  data_watermark: z23.string().datetime().meta(Unrestricted20),
+  source_scope: AnalyticsSourceScopeSchema.meta(Unrestricted20),
+  provider: ProviderProvenanceSchema.meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentEvidence"));
+var ExperimentSampleRatioMismatchSchema = z23.object({
+  status: z23.enum(["not_evaluated", "pass", "fail"]).meta(Unrestricted20),
+  p_value: z23.number().min(0).max(1).optional().meta(Unrestricted20),
+  chi_squared: z23.number().min(0).optional().meta(Unrestricted20),
+  variants: z23.array(z23.object({
+    variant_id: z23.string().min(1).meta(Unrestricted20),
+    observed_count: z23.number().int().min(0).meta(Unrestricted20),
+    expected_count: z23.number().min(0).meta(Unrestricted20)
+  })).default([]).meta(Unrestricted20),
+  reason: z23.string().min(1).max(500).optional().meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentSampleRatioMismatch"));
+var ExperimentHealthSchema = z23.object({
+  status: z23.enum(["healthy", "warning", "unhealthy", "insufficient_data"]).meta(Unrestricted20),
+  sample_ratio_mismatch: ExperimentSampleRatioMismatchSchema.optional().meta(Unrestricted20),
+  issues: z23.array(z23.object({
+    code: z23.string().min(1).max(100).meta(Unrestricted20),
+    message: z23.string().min(1).max(500).meta(Unrestricted20)
+  })).default([]).meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentHealth"));
+var ExperimentConfidenceIntervalSchema = z23.object({
+  lower: z23.number().meta(Unrestricted20),
+  upper: z23.number().meta(Unrestricted20),
+  level: z23.number().min(0).max(1).meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentConfidenceInterval"));
+var ExperimentSequentialResultSchema = z23.object({
+  method: z23.literal("always_valid").meta(Unrestricted20),
+  status: z23.enum(["continue", "significant_positive", "significant_negative"]).meta(Unrestricted20),
+  look_count: z23.number().int().min(1).meta(Unrestricted20),
+  spending_state: z23.object({
+    alpha: z23.number().positive().lt(1).meta(Unrestricted20),
+    look_alpha: z23.number().positive().lt(1).meta(Unrestricted20),
+    cumulative_alpha_spent: z23.number().positive().lt(1).meta(Unrestricted20),
+    alpha_remaining: z23.number().positive().lt(1).meta(Unrestricted20),
+    unadjusted_p_value: z23.number().min(0).max(1).optional().meta(Unrestricted20)
+  }).meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentSequentialResult"));
+var ExperimentPracticalSignificanceResultSchema = z23.object({
+  minimum_revenue_effect: z23.number().min(0).meta(Financial4),
+  revenue_effect: z23.number().meta(Financial4),
+  status: z23.enum([
+    "meaningful_positive",
+    "meaningful_negative",
+    "not_demonstrated"
+  ]).meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentPracticalSignificanceResult"));
+var ExperimentMultipleComparisonResultSchema = z23.object({
+  method: z23.literal("holm").meta(Unrestricted20),
+  family: z23.enum(["primary", "guardrails"]).meta(Unrestricted20),
+  family_size: z23.number().int().positive().meta(Unrestricted20),
+  unadjusted_p_value: z23.number().min(0).max(1).meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentMultipleComparisonResult"));
+var ExperimentMetricResultSchema = z23.object({
+  metric: AnalyticsSemanticIdSchema.meta(Unrestricted20),
+  control_variant_id: z23.string().min(1).meta(Unrestricted20),
+  variant_id: z23.string().min(1).meta(Unrestricted20),
+  estimator: z23.string().min(1).max(100).meta(Unrestricted20),
+  estimator_version: z23.string().min(1).max(100).meta(Unrestricted20),
+  estimate: z23.number().meta(Unrestricted20),
+  control_estimate: z23.number().meta(Unrestricted20),
+  absolute_effect: z23.number().meta(Unrestricted20),
+  relative_effect: z23.number().optional().meta(Unrestricted20),
+  standard_error: z23.number().min(0).optional().meta(Unrestricted20),
+  confidence_interval: ExperimentConfidenceIntervalSchema.optional().meta(Unrestricted20),
+  p_value: z23.number().min(0).max(1).optional().meta(Unrestricted20),
+  multiple_comparison: ExperimentMultipleComparisonResultSchema.optional().meta(Unrestricted20),
+  probability_positive: z23.number().min(0).max(1).optional().meta(Unrestricted20),
+  expected_loss: z23.number().min(0).optional().meta(Unrestricted20),
+  sequential: ExperimentSequentialResultSchema.optional().meta(Unrestricted20),
+  practical_significance: ExperimentPracticalSignificanceResultSchema.optional().meta(Unrestricted20),
+  sample_size: z23.number().int().min(0).optional().meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentMetricResult"));
+var ExperimentEvidenceProvenanceSchema = z23.object({
+  metric: AnalyticsSemanticIdSchema.meta(Unrestricted20),
+  summary_schema_version: z23.number().int().min(1).meta(Unrestricted20),
+  data_watermark: z23.string().datetime().meta(Unrestricted20),
+  provider: ProviderProvenanceSchema.meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentEvidenceProvenance"));
+var AnalysisProvenanceSchema = z23.object({
+  provider: ProviderProvenanceSchema.meta(Unrestricted20),
+  evidence: z23.array(ExperimentEvidenceProvenanceSchema).min(1).meta(Unrestricted20)
+}).meta(transientExperimentMeta("AnalysisProvenance"));
+var ExperimentAnalysisResultSchema = z23.object({
+  schema_version: z23.number().int().min(1).meta(Unrestricted20),
+  engine: z23.string().min(1).max(100).meta(Unrestricted20),
+  engine_version: z23.string().min(1).max(100).meta(Unrestricted20),
+  methodology: z23.string().min(1).max(100).meta(Unrestricted20),
+  metrics: z23.array(ExperimentMetricResultSchema).meta(Unrestricted20),
+  health: ExperimentHealthSchema.meta(Unrestricted20),
+  provenance: AnalysisProvenanceSchema.meta(Unrestricted20)
+}).meta(transientExperimentMeta("ExperimentAnalysisResult"));
+var ExperimentSnapshotIdentitySchema = IdField.merge(TenantIdField).extend({
+  created_at: z23.string().datetime().meta({ ...Unrestricted20, readOnly: true }),
+  experiment_handle: HandleField.meta(Unrestricted20),
+  experiment_version: z23.number().int().min(1).meta(Unrestricted20),
+  metric_semantic_id: AnalyticsSemanticIdSchema.meta(Unrestricted20),
+  metric_catalog_version: z23.string().min(1).max(64).meta(Unrestricted20),
+  endpoint_version: z23.string().min(1).max(100).meta(Unrestricted20),
+  query_hash: z23.string().min(1).max(128).meta(Unrestricted20),
+  evidence_provider_handle: HandleField.meta(Unrestricted20),
+  evidence_provider_type: z23.string().min(1).max(100).meta(Unrestricted20),
+  evidence_provider_version: z23.string().min(1).max(100).meta(Unrestricted20),
+  evidence_provider_contract_version: z23.number().int().min(1).meta(Unrestricted20),
+  summary_schema_version: z23.number().int().min(1).meta(Unrestricted20),
+  observation_window_start: z23.string().datetime().meta(Unrestricted20),
+  observation_window_end: z23.string().datetime().meta(Unrestricted20),
+  data_watermark: z23.string().datetime().meta(Unrestricted20)
+});
+var ExperimentEvidenceSnapshotSchema = ExperimentSnapshotIdentitySchema.extend({
+  analysis_unit: AnalyticsAnalyticalUnitSchema.meta(Unrestricted20),
+  evidence: ExperimentEvidenceSchema.meta(Unrestricted20)
+}).meta({ id: "ExperimentEvidenceSnapshot", "x-revturbine-schema-persistence": Persisted14, "x-revturbine-schema-exposure": Internal17, ...EXPERIMENT_RESULT_FACETS });
+var ExperimentAnalysisResultRecordSchema = ExperimentSnapshotIdentitySchema.extend({
+  evidence_snapshot_id: z23.string().min(1).meta(Unrestricted20),
+  analysis_provider_handle: HandleField.meta(Unrestricted20),
+  analysis_provider_type: z23.string().min(1).max(100).meta(Unrestricted20),
+  analysis_provider_version: z23.string().min(1).max(100).meta(Unrestricted20),
+  analysis_provider_contract_version: z23.number().int().min(1).meta(Unrestricted20),
+  engine: z23.string().min(1).max(100).meta(Unrestricted20),
+  engine_version: z23.string().min(1).max(100).meta(Unrestricted20),
+  estimator: z23.string().min(1).max(100).meta(Unrestricted20),
+  estimator_version: z23.string().min(1).max(100).meta(Unrestricted20),
+  analysis_config: ExperimentAnalysisConfigSchema.meta(Unrestricted20),
+  result: ExperimentAnalysisResultSchema.meta(Unrestricted20)
+}).meta({ id: "ExperimentAnalysisResultRecord", "x-revturbine-schema-persistence": Persisted14, "x-revturbine-schema-exposure": Internal17, ...EXPERIMENT_RESULT_FACETS });
 var ExperimentSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z20.string().min(1).meta({ ...Unrestricted17, readOnly: true }),
-  name: NameField.meta(Unrestricted17),
-  handle: HandleField.meta(Unrestricted17),
-  description: z20.string().max(1e3).optional().meta(Unrestricted17),
-  experiment_type: ExperimentTypeSchema.meta(Unrestricted17),
-  status: ExperimentStatusSchema.default("draft").meta(Unrestricted17),
-  target_resource_id: z20.string().optional().meta(Unrestricted17),
-  target_segment_ids: z20.array(z20.string()).default([]).meta(Unrestricted17),
-  variants: z20.array(ExperimentVariantSchema).min(2).meta(Unrestricted17),
-  primary_metric: z20.string().min(1).meta(Unrestricted17),
+  anchor_id: z23.string().min(1).meta({ ...Unrestricted20, readOnly: true }),
+  name: NameField.meta(Unrestricted20),
+  handle: HandleField.meta(Unrestricted20),
+  description: z23.string().max(1e3).optional().meta(Unrestricted20),
+  experiment_type: ExperimentTypeSchema.meta(Unrestricted20),
+  status: ExperimentStatusSchema.default("draft").meta(Unrestricted20),
+  target_resource_id: z23.string().optional().meta(Unrestricted20),
+  /** Canonical segment-handle references (plan 199 alias window). */
+  target_segments: z23.array(z23.string()).optional().meta(Unrestricted20),
+  /** @deprecated Read-only compatibility alias for `target_segments`. */
+  target_segment_ids: z23.array(z23.string()).default([]).meta(Unrestricted20),
+  variants: z23.array(ExperimentVariantSchema).min(2).meta(Unrestricted20),
+  primary_metric: AnalyticsSemanticIdSchema.meta(Unrestricted20),
+  guardrail_metrics: z23.array(AnalyticsSemanticIdSchema).optional().meta(Unrestricted20),
+  assignment_unit: AnalyticsAnalyticalUnitSchema.optional().meta(Unrestricted20),
+  assignment_provider_binding: ProviderBindingRefSchema.extend({
+    capability: z23.literal("experiment_assignment"),
+    allocation_mode: ExperimentAllocationModeSchema
+  }).optional().meta(Unrestricted20),
+  evidence_provider_binding: ProviderBindingRefSchema.extend({
+    capability: z23.literal("experiment_evidence")
+  }).optional().meta(Unrestricted20),
+  analysis_provider_binding: ProviderBindingRefSchema.extend({
+    capability: z23.literal("experiment_analysis")
+  }).optional().meta(Unrestricted20),
+  analysis_config: ExperimentAnalysisConfigSchema.optional().meta(Unrestricted20),
   // Lift below control that triggers the "Experiment trending negative"
   // Needs Attention rule (plan 02c). 0.05 = 5% relative lift below control.
-  metric_threshold: z20.number().default(0.05).meta(Unrestricted17),
-  secondary_metrics: z20.array(z20.string()).default([]).meta(Unrestricted17),
-  traffic_allocation: z20.number().min(0).max(1).default(1).meta(Unrestricted17),
-  started_at: NullableDatetimeField.meta(Unrestricted17),
-  ended_at: NullableDatetimeField.meta(Unrestricted17),
-  confidence_threshold: z20.number().min(0).max(1).default(0.95).meta(Unrestricted17),
-  winning_variant_id: z20.string().nullable().default(null).meta(Unrestricted17),
-  metadata: MetadataField.meta(Unrestricted17)
+  metric_threshold: z23.number().default(0.05).meta(Unrestricted20),
+  secondary_metrics: z23.array(AnalyticsSemanticIdSchema).default([]).meta(Unrestricted20),
+  traffic_allocation: z23.number().min(0).max(1).default(1).meta(Unrestricted20),
+  started_at: NullableDatetimeField.meta(Unrestricted20),
+  ended_at: NullableDatetimeField.meta(Unrestricted20),
+  confidence_threshold: z23.number().min(0).max(1).default(0.95).meta(Unrestricted20),
+  winning_variant_id: z23.string().nullable().default(null).meta(Unrestricted20),
+  metadata: MetadataField.meta(Unrestricted20)
 }).meta(
-  { id: "Experiment", "x-revturbine-schema-persistence": Persisted13, "x-revturbine-schema-exposure": Internal14, ...PENDING_PLAYBOOK_SDK_FACETS3, ...namedIdentity() }
+  { id: "Experiment", "x-revturbine-schema-persistence": Persisted14, "x-revturbine-schema-exposure": Internal17, ...PENDING_PLAYBOOK_SDK_FACETS3, ...namedIdentity() }
 );
 var ExperimentAnchorSchema = makeAnchor("ExperimentAnchor");
 var SuggestionSeveritySchema = SeveritySchema;
 var OptimizationSuggestionSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  experiment_id: z20.string().optional().meta(Unrestricted17),
-  resource_type: z20.string().min(1).meta(Unrestricted17),
-  resource_id: z20.string().min(1).meta(Unrestricted17),
-  severity: SuggestionSeveritySchema.default("info").meta(Unrestricted17),
-  title: z20.string().min(1).max(300).meta(Unrestricted17),
-  description: z20.string().max(2e3).meta(Unrestricted17),
-  suggested_action: z20.string().max(1e3).optional().meta(Unrestricted17),
-  estimated_impact: z20.number().optional().meta(Unrestricted17),
-  is_dismissed: z20.boolean().default(false).meta(Unrestricted17),
-  metadata: MetadataField.meta(Unrestricted17)
+  experiment_id: z23.string().optional().meta(Unrestricted20),
+  resource_type: z23.string().min(1).meta(Unrestricted20),
+  resource_id: z23.string().min(1).meta(Unrestricted20),
+  severity: SuggestionSeveritySchema.default("info").meta(Unrestricted20),
+  title: z23.string().min(1).max(300).meta(Unrestricted20),
+  description: z23.string().max(2e3).meta(Unrestricted20),
+  suggested_action: z23.string().max(1e3).optional().meta(Unrestricted20),
+  estimated_impact: z23.number().optional().meta(Unrestricted20),
+  detector_id: z23.string().min(1).nullable().optional().meta(Unrestricted20),
+  detector_version: z23.number().int().min(1).nullable().optional().meta(Unrestricted20),
+  opportunity_type: z23.string().min(1).nullable().optional().meta(Unrestricted20),
+  evidence: z23.array(OpportunityEvidenceSchema).nullable().optional().meta(Unrestricted20),
+  hypothesis: z23.string().min(1).nullable().optional().meta(Unrestricted20),
+  confidence: z23.number().min(0).max(1).nullable().optional().meta(Unrestricted20),
+  is_dismissed: z23.boolean().default(false).meta(Unrestricted20),
+  metadata: MetadataField.meta(Unrestricted20)
 }).meta(
-  { id: "OptimizationSuggestion", "x-revturbine-schema-persistence": Persisted13, "x-revturbine-schema-exposure": Internal14 }
+  { id: "OptimizationSuggestion", "x-revturbine-schema-persistence": Persisted14, "x-revturbine-schema-exposure": Internal17 }
 );
 var experimentPaths = {
+  "/api/experiment-evidence-snapshots": {
+    get: operation({
+      operationId: "listExperimentEvidenceSnapshots",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List immutable experiment evidence snapshots",
+      tags: ["experiments"],
+      responses: { "200": { description: "Experiment evidence snapshots", content: { "application/json": { schema: ListEnvelope(ExperimentEvidenceSnapshotSchema) } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "experiment-evidence-snapshots", persistence: { table: "experimentEvidenceSnapshots", mode: "list" } }
+    })
+  },
+  "/api/experiment-analysis-results": {
+    get: operation({
+      operationId: "listExperimentAnalysisResults",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List immutable experiment analysis results",
+      tags: ["experiments"],
+      responses: { "200": { description: "Experiment analysis results", content: { "application/json": { schema: ListEnvelope(ExperimentAnalysisResultRecordSchema) } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "experiment-analysis-results", persistence: { table: "experimentAnalysisResults", mode: "list" } }
+    })
+  },
   "/api/experiment-anchors": {
     get: operation({
       operationId: "listExperimentAnchors",
@@ -5796,7 +6937,7 @@ var experimentPaths = {
   "/api/experiments/{experimentId}": {
     get: operation({
       operationId: "getExperiment",
-      requestParams: { path: z20.object({ experimentId: z20.string() }) },
+      requestParams: { path: z23.object({ experimentId: z23.string() }) },
       summary: "Get experiment",
       tags: ["experiments"],
       responses: { "200": { description: "Experiment", content: { "application/json": { schema: ExperimentSchema } } } },
@@ -5804,7 +6945,7 @@ var experimentPaths = {
     }),
     patch: operation({
       operationId: "updateExperiment",
-      requestParams: { path: z20.object({ experimentId: z20.string() }) },
+      requestParams: { path: z23.object({ experimentId: z23.string() }) },
       summary: "Update experiment",
       tags: ["experiments"],
       requestBody: { required: true, content: { "application/json": { schema: ExperimentSchema.partial() } } },
@@ -5813,7 +6954,7 @@ var experimentPaths = {
     }),
     delete: operation({
       operationId: "deleteExperiment",
-      requestParams: { path: z20.object({ experimentId: z20.string() }) },
+      requestParams: { path: z23.object({ experimentId: z23.string() }) },
       summary: "Delete experiment",
       tags: ["experiments"],
       responses: { "204": { description: "Deleted" } },
@@ -5823,7 +6964,7 @@ var experimentPaths = {
   "/api/experiments/{experimentId}/start": {
     post: operation({
       operationId: "startExperiment",
-      requestParams: { path: z20.object({ experimentId: z20.string() }) },
+      requestParams: { path: z23.object({ experimentId: z23.string() }) },
       summary: "Start experiment (begin traffic allocation)",
       tags: ["experiments"],
       responses: { "200": { description: "Started", content: { "application/json": { schema: ExperimentSchema } } } },
@@ -5833,7 +6974,7 @@ var experimentPaths = {
   "/api/experiments/{experimentId}/pause": {
     post: operation({
       operationId: "pauseExperiment",
-      requestParams: { path: z20.object({ experimentId: z20.string() }) },
+      requestParams: { path: z23.object({ experimentId: z23.string() }) },
       summary: "Pause running experiment",
       tags: ["experiments"],
       responses: { "200": { description: "Paused", content: { "application/json": { schema: ExperimentSchema } } } },
@@ -5843,10 +6984,10 @@ var experimentPaths = {
   "/api/experiments/{experimentId}/complete": {
     post: operation({
       operationId: "completeExperiment",
-      requestParams: { path: z20.object({ experimentId: z20.string() }) },
+      requestParams: { path: z23.object({ experimentId: z23.string() }) },
       summary: "Complete experiment and declare winner",
       tags: ["experiments"],
-      requestBody: { required: true, content: { "application/json": { schema: z20.object({ winning_variant_id: z20.string() }) } } },
+      requestBody: { required: true, content: { "application/json": { schema: z23.object({ winning_variant_id: z23.string() }) } } },
       responses: { "200": { description: "Completed", content: { "application/json": { schema: ExperimentSchema } } } },
       "x-revturbine-operation": { exposure: "internal", resource: "experiments", persistence: { table: "experimentVersions", mode: "update" } }
     })
@@ -5864,7 +7005,7 @@ var experimentPaths = {
   "/api/optimization-suggestions/{suggestionId}/dismiss": {
     post: operation({
       operationId: "dismissOptimizationSuggestion",
-      requestParams: { path: z20.object({ suggestionId: z20.string() }) },
+      requestParams: { path: z23.object({ suggestionId: z23.string() }) },
       summary: "Dismiss an optimization suggestion",
       tags: ["experiments"],
       responses: { "200": { description: "Dismissed", content: { "application/json": { schema: OptimizationSuggestionSchema } } } },
@@ -5873,42 +7014,42 @@ var experimentPaths = {
   }
 };
 
-// ../scaffold-205/src/promotions/models/schema.ts
-import { z as z21 } from "zod";
-var { Unrestricted: Unrestricted18, Financial: Financial4 } = DataClassification;
-var { Persisted: Persisted14, Transient: Transient18 } = SchemaPersistence;
-var { Internal: Internal15 } = SchemaExposure;
+// ../scaffold/src/promotions/models/schema.ts
+import { z as z24 } from "zod";
+var { Unrestricted: Unrestricted21, Financial: Financial5 } = DataClassification;
+var { Persisted: Persisted15, Transient: Transient21 } = SchemaPersistence;
+var { Internal: Internal18 } = SchemaExposure;
 var PLAYBOOK_SDK_FACETS7 = schemaFacets(SchemaContext.Playbook, { sdkInput: true });
-var PromotionStatusSchema = z21.enum(["draft", "scheduled", "live", "expired", "archived"]).meta(
-  { id: "PromotionStatus", "x-revturbine-schema-persistence": Transient18, "x-revturbine-schema-exposure": Internal15 }
+var PromotionStatusSchema = z24.enum(["draft", "scheduled", "live", "expired", "archived"]).meta(
+  { id: "PromotionStatus", "x-revturbine-schema-persistence": Transient21, "x-revturbine-schema-exposure": Internal18 }
 );
-var DiscountTypeSchema = z21.enum(["percentage", "fixed_amount", "free_months"]).meta(
-  { id: "DiscountType", "x-revturbine-schema-persistence": Transient18, "x-revturbine-schema-exposure": Internal15 }
+var DiscountTypeSchema = z24.enum(["percentage", "fixed_amount", "free_months"]).meta(
+  { id: "DiscountType", "x-revturbine-schema-persistence": Transient21, "x-revturbine-schema-exposure": Internal18 }
 );
 var PromotionSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z21.string().min(1).meta({ ...Unrestricted18, readOnly: true }),
-  name: NameField.meta(Unrestricted18),
-  handle: HandleField.meta(Unrestricted18),
-  description: z21.string().max(1e3).optional().meta(Unrestricted18),
-  rt_status: PromotionStatusSchema.default("draft").meta(Unrestricted18),
-  discount_type: DiscountTypeSchema.meta(Unrestricted18),
-  discount_value: z21.number().min(0).meta(Financial4),
-  currency: z21.string().length(3).default("USD").meta(Financial4),
-  applicable_plan_ids: z21.array(z21.string()).default([]).meta(Unrestricted18),
-  applicable_addon_ids: z21.array(z21.string()).default([]).meta(Unrestricted18),
-  target_segment_ids: z21.array(z21.string()).default([]).meta(Unrestricted18),
-  max_redemptions: z21.number().int().min(0).nullable().default(null).meta(Unrestricted18),
-  current_redemptions: z21.number().int().min(0).default(0).meta({ ...Unrestricted18, readOnly: true }),
-  coupon_code: z21.string().max(100).optional().meta(Unrestricted18),
-  starts_at: NullableDatetimeField.meta(Unrestricted18),
-  ends_at: NullableDatetimeField.meta(Unrestricted18),
+  anchor_id: z24.string().min(1).meta({ ...Unrestricted21, readOnly: true }),
+  name: NameField.meta(Unrestricted21),
+  handle: HandleField.meta(Unrestricted21),
+  description: z24.string().max(1e3).optional().meta(Unrestricted21),
+  rt_status: PromotionStatusSchema.default("draft").meta(Unrestricted21),
+  discount_type: DiscountTypeSchema.meta(Unrestricted21),
+  discount_value: z24.number().min(0).meta(Financial5),
+  currency: z24.string().length(3).default("USD").meta(Financial5),
+  applicable_plan_ids: z24.array(z24.string()).default([]).meta(Unrestricted21),
+  applicable_addon_ids: z24.array(z24.string()).default([]).meta(Unrestricted21),
+  target_segment_ids: z24.array(z24.string()).default([]).meta(Unrestricted21),
+  max_redemptions: z24.number().int().min(0).nullable().default(null).meta(Unrestricted21),
+  current_redemptions: z24.number().int().min(0).default(0).meta({ ...Unrestricted21, readOnly: true }),
+  coupon_code: z24.string().max(100).optional().meta(Unrestricted21),
+  starts_at: NullableDatetimeField.meta(Unrestricted21),
+  ends_at: NullableDatetimeField.meta(Unrestricted21),
   // Stripe integration
-  stripe_coupon_id: z21.string().nullable().default(null).meta(Unrestricted18),
-  stripe_promotion_code_id: z21.string().nullable().default(null).meta(Unrestricted18),
-  auto_sync_stripe: z21.boolean().default(false).meta(Unrestricted18),
-  metadata: MetadataField.meta(Unrestricted18)
+  stripe_coupon_id: z24.string().nullable().default(null).meta(Unrestricted21),
+  stripe_promotion_code_id: z24.string().nullable().default(null).meta(Unrestricted21),
+  auto_sync_stripe: z24.boolean().default(false).meta(Unrestricted21),
+  metadata: MetadataField.meta(Unrestricted21)
 }).meta(
-  { id: "Promotion", "x-revturbine-schema-persistence": Persisted14, "x-revturbine-schema-exposure": Internal15, ...PLAYBOOK_SDK_FACETS7, ...namedIdentity() }
+  { id: "Promotion", "x-revturbine-schema-persistence": Persisted15, "x-revturbine-schema-exposure": Internal18, ...PLAYBOOK_SDK_FACETS7, ...namedIdentity() }
 );
 var PromotionAnchorSchema = makeAnchor("PromotionAnchor");
 var promotionPaths = {
@@ -5946,7 +7087,7 @@ var promotionPaths = {
   "/api/promotions/{promotionId}": {
     get: operation({
       operationId: "getPromotion",
-      requestParams: { path: z21.object({ promotionId: z21.string() }) },
+      requestParams: { path: z24.object({ promotionId: z24.string() }) },
       summary: "Get promotion",
       tags: ["promotions"],
       responses: { "200": { description: "Promotion", content: { "application/json": { schema: PromotionSchema } } } },
@@ -5954,7 +7095,7 @@ var promotionPaths = {
     }),
     patch: operation({
       operationId: "updatePromotion",
-      requestParams: { path: z21.object({ promotionId: z21.string() }) },
+      requestParams: { path: z24.object({ promotionId: z24.string() }) },
       summary: "Update promotion",
       tags: ["promotions"],
       requestBody: { required: true, content: { "application/json": { schema: PromotionSchema.partial() } } },
@@ -5963,7 +7104,7 @@ var promotionPaths = {
     }),
     delete: operation({
       operationId: "deletePromotion",
-      requestParams: { path: z21.object({ promotionId: z21.string() }) },
+      requestParams: { path: z24.object({ promotionId: z24.string() }) },
       summary: "Delete (archive) promotion",
       tags: ["promotions"],
       responses: { "204": { description: "Deleted" } },
@@ -5973,7 +7114,7 @@ var promotionPaths = {
   "/api/promotions/{promotionId}/sync-stripe": {
     post: operation({
       operationId: "syncPromotionToStripe",
-      requestParams: { path: z21.object({ promotionId: z21.string() }) },
+      requestParams: { path: z24.object({ promotionId: z24.string() }) },
       summary: "Sync promotion to Stripe as coupon/promotion code",
       tags: ["promotions"],
       responses: { "200": { description: "Synced", content: { "application/json": { schema: PromotionSchema } } } },
@@ -5983,7 +7124,7 @@ var promotionPaths = {
   "/api/promotions/{promotionId}/duplicate": {
     post: operation({
       operationId: "duplicatePromotion",
-      requestParams: { path: z21.object({ promotionId: z21.string() }) },
+      requestParams: { path: z24.object({ promotionId: z24.string() }) },
       summary: "Duplicate promotion",
       tags: ["promotions"],
       responses: { "201": { description: "Duplicated", content: { "application/json": { schema: PromotionSchema } } } },
@@ -5992,11 +7133,11 @@ var promotionPaths = {
   }
 };
 
-// ../scaffold-205/src/config/models/schema.ts
-import { z as z22 } from "zod";
-var { Unrestricted: Unrestricted19 } = DataClassification;
-var { Persisted: Persisted15, Transient: Transient19 } = SchemaPersistence;
-var { Internal: Internal16, External: External11 } = SchemaExposure;
+// ../scaffold/src/config/models/schema.ts
+import { z as z25 } from "zod";
+var { Unrestricted: Unrestricted22 } = DataClassification;
+var { Persisted: Persisted16, Transient: Transient22 } = SchemaPersistence;
+var { Internal: Internal19, External: External11 } = SchemaExposure;
 var PLAYBOOK_SDK_FACETS8 = schemaFacets(SchemaContext.Playbook, { sdkInput: true });
 var PLAYBOOK_AUTHORING_FACETS2 = schemaFacets(SchemaContext.Playbook, { sdkInput: false });
 var PENDING_PLAYBOOK_FACETS4 = schemaFacets(SchemaContext.Playbook, {
@@ -6031,324 +7172,324 @@ var LEGACY_BRANDING_FACETS = schemaFacets(SchemaContext.Branding, {
 var BRANDING_FACETS2 = schemaFacets(SchemaContext.Branding, { sdkInput: false });
 var PLAYBOOK_FORMAT_VERSION = "1.0.0";
 var SeatTypeSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z22.string().min(1).meta({ ...Unrestricted19, readOnly: true }),
-  name: NameField.meta(Unrestricted19),
-  handle: HandleField.meta(Unrestricted19),
-  description: DescriptionField.meta(Unrestricted19),
-  is_default: z22.boolean().default(false).meta(Unrestricted19),
-  entitlement_ids: z22.array(z22.string()).default([]).meta(Unrestricted19),
-  metadata: MetadataField.meta(Unrestricted19)
+  anchor_id: z25.string().min(1).meta({ ...Unrestricted22, readOnly: true }),
+  name: NameField.meta(Unrestricted22),
+  handle: HandleField.meta(Unrestricted22),
+  description: DescriptionField.meta(Unrestricted22),
+  is_default: z25.boolean().default(false).meta(Unrestricted22),
+  entitlement_ids: z25.array(z25.string()).default([]).meta(Unrestricted22),
+  metadata: MetadataField.meta(Unrestricted22)
 }).meta(
-  { id: "SeatType", "x-revturbine-schema-persistence": Persisted15, "x-revturbine-schema-exposure": Internal16, ...PENDING_PLAYBOOK_FACETS4, ...namedIdentity() }
+  { id: "SeatType", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal19, ...PENDING_PLAYBOOK_FACETS4, ...namedIdentity() }
 );
 var SeatTypeAnchorSchema = makeAnchor("SeatTypeAnchor");
 var PersonalizationTokenSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z22.string().min(1).meta({ ...Unrestricted19, readOnly: true }),
-  handle: HandleField.meta(Unrestricted19),
-  label: z22.string().min(1).meta(Unrestricted19),
-  description: z22.string().nullable().default(null).meta(Unrestricted19),
-  category: z22.enum(["user", "plan", "usage", "trial", "billing", "promotion", "custom"]).meta(Unrestricted19),
-  data_source: z22.string().nullable().default(null).meta(Unrestricted19),
-  example_value: z22.string().nullable().default(null).meta(Unrestricted19),
-  value_map: z22.record(z22.string(), z22.string()).default({}).meta(Unrestricted19),
-  format: z22.enum(["string", "number", "currency", "percentage", "date"]).nullable().default(null).meta(Unrestricted19),
-  metadata: MetadataField.meta(Unrestricted19)
+  anchor_id: z25.string().min(1).meta({ ...Unrestricted22, readOnly: true }),
+  handle: HandleField.meta(Unrestricted22),
+  label: z25.string().min(1).meta(Unrestricted22),
+  description: z25.string().nullable().default(null).meta(Unrestricted22),
+  category: z25.enum(["user", "plan", "usage", "trial", "billing", "promotion", "custom"]).meta(Unrestricted22),
+  data_source: z25.string().nullable().default(null).meta(Unrestricted22),
+  example_value: z25.string().nullable().default(null).meta(Unrestricted22),
+  value_map: z25.record(z25.string(), z25.string()).default({}).meta(Unrestricted22),
+  format: z25.enum(["string", "number", "currency", "percentage", "date"]).nullable().default(null).meta(Unrestricted22),
+  metadata: MetadataField.meta(Unrestricted22)
 }).meta(
-  { id: "PersonalizationToken", "x-revturbine-schema-persistence": Persisted15, "x-revturbine-schema-exposure": Internal16, ...PENDING_PLAYBOOK_FACETS4, ...namedIdentity() }
+  { id: "PersonalizationToken", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal19, ...PENDING_PLAYBOOK_FACETS4, ...namedIdentity() }
 );
 var PersonalizationTokenAnchorSchema = makeAnchor("PersonalizationTokenAnchor");
-var OnboardingStateSchema = z22.enum(["not_started", "started", "details_submitted", "charges_enabled", "activated", "deauthorized"]).meta({ id: "OnboardingState", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 });
+var OnboardingStateSchema = z25.enum(["not_started", "started", "details_submitted", "charges_enabled", "activated", "deauthorized"]).meta({ id: "OnboardingState", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": Internal19 });
 var StripeIntegrationConfigSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  handle: HandleField.meta({ ...Unrestricted19, readOnly: true }),
-  stripe_account_id: z22.string().min(1).meta(Unrestricted19),
-  live_mode: z22.boolean().default(false).meta(Unrestricted19),
+  handle: HandleField.meta({ ...Unrestricted22, readOnly: true }),
+  stripe_account_id: z25.string().min(1).meta(Unrestricted22),
+  live_mode: z25.boolean().default(false).meta(Unrestricted22),
   /** Funnel state for the Connect onboarding pipeline. */
-  onboarding_state: OnboardingStateSchema.default("not_started").meta({ ...Unrestricted19, readOnly: true }),
+  onboarding_state: OnboardingStateSchema.default("not_started").meta({ ...Unrestricted22, readOnly: true }),
   /** Connect onboarding status — tracks whether hosted onboarding is complete. */
-  onboarding_complete: z22.boolean().default(false).meta({ ...Unrestricted19, readOnly: true }),
+  onboarding_complete: z25.boolean().default(false).meta({ ...Unrestricted22, readOnly: true }),
   /** Whether the connected account can process charges (read from Stripe). */
-  charges_enabled: z22.boolean().default(false).meta({ ...Unrestricted19, readOnly: true }),
+  charges_enabled: z25.boolean().default(false).meta({ ...Unrestricted22, readOnly: true }),
   /** Whether the connected account has details submitted (read from Stripe). */
-  details_submitted: z22.boolean().default(false).meta({ ...Unrestricted19, readOnly: true }),
+  details_submitted: z25.boolean().default(false).meta({ ...Unrestricted22, readOnly: true }),
   /** Whether the connected account can receive payouts (read from Stripe). */
-  payouts_enabled: z22.boolean().default(false).meta({ ...Unrestricted19, readOnly: true }),
-  webhook_secret_set: z22.boolean().default(false).meta({ ...Unrestricted19, readOnly: true }),
-  sync_products: z22.boolean().default(true).meta(Unrestricted19),
-  sync_prices: z22.boolean().default(true).meta(Unrestricted19),
-  sync_subscriptions: z22.boolean().default(true).meta(Unrestricted19),
-  sync_invoices: z22.boolean().default(false).meta(Unrestricted19),
-  default_currency: z22.string().length(3).default("USD").meta(Unrestricted19),
-  tax_behavior: z22.enum(["inclusive", "exclusive", "unspecified"]).default("unspecified").meta(Unrestricted19),
+  payouts_enabled: z25.boolean().default(false).meta({ ...Unrestricted22, readOnly: true }),
+  webhook_secret_set: z25.boolean().default(false).meta({ ...Unrestricted22, readOnly: true }),
+  sync_products: z25.boolean().default(true).meta(Unrestricted22),
+  sync_prices: z25.boolean().default(true).meta(Unrestricted22),
+  sync_subscriptions: z25.boolean().default(true).meta(Unrestricted22),
+  sync_invoices: z25.boolean().default(false).meta(Unrestricted22),
+  default_currency: z25.string().length(3).default("USD").meta(Unrestricted22),
+  tax_behavior: z25.enum(["inclusive", "exclusive", "unspecified"]).default("unspecified").meta(Unrestricted22),
   /** ISO timestamp of the last successful full data sync from Stripe. */
-  last_sync_at: z22.string().optional().meta({ ...Unrestricted19, readOnly: true }),
-  metadata: MetadataField.meta(Unrestricted19)
+  last_sync_at: z25.string().optional().meta({ ...Unrestricted22, readOnly: true }),
+  metadata: MetadataField.meta(Unrestricted22)
 }).meta(
-  { id: "StripeIntegrationConfig", "x-revturbine-schema-persistence": Persisted15, "x-revturbine-schema-exposure": Internal16, ...BILLING_FACETS2, ...mintedIdentity() }
+  { id: "StripeIntegrationConfig", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal19, ...BILLING_FACETS2, ...mintedIdentity() }
 );
-var BrandingConfigSchema = z22.object({
-  theme: z22.record(z22.string(), z22.unknown()).optional().meta(Unrestricted19),
-  workspace_name: z22.string().optional().meta(Unrestricted19),
-  logo_url: z22.string().optional().meta(Unrestricted19),
-  support_email: z22.string().optional().meta(Unrestricted19)
+var BrandingConfigSchema = z25.object({
+  theme: z25.record(z25.string(), z25.unknown()).optional().meta(Unrestricted22),
+  workspace_name: z25.string().optional().meta(Unrestricted22),
+  logo_url: z25.string().optional().meta(Unrestricted22),
+  support_email: z25.string().optional().meta(Unrestricted22)
 }).meta(
   {
     id: "BrandingConfig",
-    "x-revturbine-schema-persistence": Transient19,
+    "x-revturbine-schema-persistence": Transient22,
     "x-revturbine-schema-exposure": External11,
     ...BRANDING_FACETS2
   }
 );
 var MeteringConfigSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  handle: HandleField.meta({ ...Unrestricted19, readOnly: true }),
-  entitlement_id: z22.string().min(1).meta(Unrestricted19),
-  meter_key: z22.string().min(1).max(100).meta(Unrestricted19),
-  aggregation_type: z22.enum(["sum", "count", "max", "last_value"]).default("sum").meta(Unrestricted19),
-  reset_period: z22.enum(["none", "daily", "weekly", "monthly", "yearly"]).default("monthly").meta(Unrestricted19),
-  stripe_meter_id: z22.string().nullable().default(null).meta(Unrestricted19),
-  is_active: z22.boolean().default(true).meta(Unrestricted19),
-  metadata: MetadataField.meta(Unrestricted19)
+  handle: HandleField.meta({ ...Unrestricted22, readOnly: true }),
+  entitlement_id: z25.string().min(1).meta(Unrestricted22),
+  meter_key: z25.string().min(1).max(100).meta(Unrestricted22),
+  aggregation_type: z25.enum(["sum", "count", "max", "last_value"]).default("sum").meta(Unrestricted22),
+  reset_period: z25.enum(["none", "daily", "weekly", "monthly", "yearly"]).default("monthly").meta(Unrestricted22),
+  stripe_meter_id: z25.string().nullable().default(null).meta(Unrestricted22),
+  is_active: z25.boolean().default(true).meta(Unrestricted22),
+  metadata: MetadataField.meta(Unrestricted22)
 }).meta(
-  { id: "MeteringConfig", "x-revturbine-schema-persistence": Persisted15, "x-revturbine-schema-exposure": Internal16, ...METERING_FACETS, ...mintedIdentity() }
+  { id: "MeteringConfig", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal19, ...METERING_FACETS, ...mintedIdentity() }
 );
-var EnforcementActionSchema = z22.enum(["block", "warn", "downgrade", "throttle", "notify_admin", "custom"]).meta(
-  { id: "EnforcementAction", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
+var EnforcementActionSchema = z25.enum(["block", "warn", "downgrade", "throttle", "notify_admin", "custom"]).meta(
+  { id: "EnforcementAction", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": Internal19 }
 );
 var UsageEnforcementSettingsSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z22.string().min(1).meta({ ...Unrestricted19, readOnly: true }),
-  handle: HandleField.meta({ ...Unrestricted19, readOnly: true }),
-  entitlement_id: z22.string().min(1).meta(Unrestricted19),
-  soft_limit_percent: z22.number().min(0).max(100).default(80).meta(Unrestricted19),
-  hard_limit_percent: z22.number().min(0).max(100).default(100).meta(Unrestricted19),
-  soft_limit_action: EnforcementActionSchema.default("warn").meta(Unrestricted19),
-  hard_limit_action: EnforcementActionSchema.default("block").meta(Unrestricted19),
-  grace_period_hours: z22.number().int().min(0).default(0).meta(Unrestricted19),
-  notification_channels: z22.array(z22.enum(["email", "in_app", "webhook"])).default(["in_app"]).meta(Unrestricted19),
-  is_active: z22.boolean().default(true).meta(Unrestricted19)
+  anchor_id: z25.string().min(1).meta({ ...Unrestricted22, readOnly: true }),
+  handle: HandleField.meta({ ...Unrestricted22, readOnly: true }),
+  entitlement_id: z25.string().min(1).meta(Unrestricted22),
+  soft_limit_percent: z25.number().min(0).max(100).default(80).meta(Unrestricted22),
+  hard_limit_percent: z25.number().min(0).max(100).default(100).meta(Unrestricted22),
+  soft_limit_action: EnforcementActionSchema.default("warn").meta(Unrestricted22),
+  hard_limit_action: EnforcementActionSchema.default("block").meta(Unrestricted22),
+  grace_period_hours: z25.number().int().min(0).default(0).meta(Unrestricted22),
+  notification_channels: z25.array(z25.enum(["email", "in_app", "webhook"])).default(["in_app"]).meta(Unrestricted22),
+  is_active: z25.boolean().default(true).meta(Unrestricted22)
 }).meta(
-  { id: "UsageEnforcementSettings", "x-revturbine-schema-persistence": Persisted15, "x-revturbine-schema-exposure": Internal16, ...PENDING_PLAYBOOK_SDK_FACETS4, ...mintedIdentity() }
+  { id: "UsageEnforcementSettings", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal19, ...PENDING_PLAYBOOK_SDK_FACETS4, ...mintedIdentity() }
 );
 var UsageEnforcementSettingsAnchorSchema = makeAnchor("UsageEnforcementSettingsAnchor");
-var PlacementSettingsCapRuleGroupItemSchema = z22.object({
-  kind: z22.enum(["template", "slot"]).meta(Unrestricted19),
-  id: z22.string().min(1).meta(Unrestricted19),
-  label: z22.string().min(1).optional().meta(Unrestricted19)
+var PlacementSettingsCapRuleGroupItemSchema = z25.object({
+  kind: z25.enum(["template", "slot"]).meta(Unrestricted22),
+  id: z25.string().min(1).meta(Unrestricted22),
+  label: z25.string().min(1).optional().meta(Unrestricted22)
 }).meta(
-  { id: "PlacementSettingsCapRuleGroupItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
+  { id: "PlacementSettingsCapRuleGroupItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": Internal19 }
 );
-var PlacementSettingsCapRuleSchema = z22.object({
-  id: z22.string().min(1).meta(Unrestricted19),
-  group: z22.array(PlacementSettingsCapRuleGroupItemSchema).min(1).meta(Unrestricted19),
-  cap: z22.object({
-    count: z22.number().int().min(1).meta(Unrestricted19),
-    period: z22.enum(["session", "day", "week", "month"]).meta(Unrestricted19)
-  }).meta(Unrestricted19)
+var PlacementSettingsCapRuleSchema = z25.object({
+  id: z25.string().min(1).meta(Unrestricted22),
+  group: z25.array(PlacementSettingsCapRuleGroupItemSchema).min(1).meta(Unrestricted22),
+  cap: z25.object({
+    count: z25.number().int().min(1).meta(Unrestricted22),
+    period: z25.enum(["session", "day", "week", "month"]).meta(Unrestricted22)
+  }).meta(Unrestricted22)
 }).meta(
-  { id: "PlacementSettingsCapRule", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
+  { id: "PlacementSettingsCapRule", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": Internal19 }
 );
-var PlacementTestModeSchema = z22.enum(["off", "test_users", "all_traffic"]).meta(
-  { id: "PlacementTestMode", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
+var PlacementTestModeSchema = z25.enum(["off", "test_users", "all_traffic"]).meta(
+  { id: "PlacementTestMode", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": Internal19 }
 );
-var PlacementSettingsCapStateSchema = z22.object({
-  capRules: z22.array(PlacementSettingsCapRuleSchema).default([]).meta(Unrestricted19),
-  sessionCooldownMinutes: z22.number().int().min(0).default(30).meta(Unrestricted19),
+var PlacementSettingsCapStateSchema = z25.object({
+  capRules: z25.array(PlacementSettingsCapRuleSchema).default([]).meta(Unrestricted22),
+  sessionCooldownMinutes: z25.number().int().min(0).default(30).meta(Unrestricted22),
   // Tenant-level default remind-me-later (defer) window, in minutes. A
   // per-payload `remind_later_minutes` overrides it when set (plan 167 REQ-6,
   // Q-3). Rides in this global_frequency_cap jsonb wrapper — no column/`.fbs`.
-  remindLaterMinutes: z22.number().int().min(0).default(60).meta(Unrestricted19),
-  testMode: PlacementTestModeSchema.default("off").meta(Unrestricted19)
+  remindLaterMinutes: z25.number().int().min(0).default(60).meta(Unrestricted22),
+  testMode: PlacementTestModeSchema.default("off").meta(Unrestricted22)
 }).meta(
-  { id: "PlacementSettingsCapState", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": Internal16 }
+  { id: "PlacementSettingsCapState", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": Internal19 }
 );
 var PlacementSettingsSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z22.string().min(1).meta({ ...Unrestricted19, readOnly: true }),
-  handle: HandleField.meta({ ...Unrestricted19, readOnly: true }),
-  global_frequency_cap: PlacementSettingsCapStateSchema.nullable().default(null).meta(Unrestricted19),
+  anchor_id: z25.string().min(1).meta({ ...Unrestricted22, readOnly: true }),
+  handle: HandleField.meta({ ...Unrestricted22, readOnly: true }),
+  global_frequency_cap: PlacementSettingsCapStateSchema.nullable().default(null).meta(Unrestricted22),
   // Legacy companion column kept for migration continuity. The new
   // wrapper-object encoding above carries period information per
   // cap rule; this column is always null in v0.1.20+ writes.
-  global_frequency_cap_period: z22.enum(["hour", "day", "week", "month", "session"]).nullable().default(null).meta(Unrestricted19),
-  suppress_for_paid: z22.boolean().default(false).meta(Unrestricted19),
-  suppress_for_trial: z22.boolean().default(false).meta(Unrestricted19),
+  global_frequency_cap_period: z25.enum(["hour", "day", "week", "month", "session"]).nullable().default(null).meta(Unrestricted22),
+  suppress_for_paid: z25.boolean().default(false).meta(Unrestricted22),
+  suppress_for_trial: z25.boolean().default(false).meta(Unrestricted22),
   // `default_dismiss_cooldown_hours` removed (plan 167 Q-2): the dismiss
   // cooldown is defined per-payload in days (`cooldown_after_dismiss_days`).
-  allow_stacking: z22.boolean().default(false).meta(Unrestricted19),
-  priority_collision_strategy: z22.enum(["highest_priority", "most_recent", "random"]).default("highest_priority").meta(Unrestricted19)
+  allow_stacking: z25.boolean().default(false).meta(Unrestricted22),
+  priority_collision_strategy: z25.enum(["highest_priority", "most_recent", "random"]).default("highest_priority").meta(Unrestricted22)
 }).meta(
-  { id: "PlacementSettings", "x-revturbine-schema-persistence": Persisted15, "x-revturbine-schema-exposure": Internal16, ...PENDING_PLAYBOOK_SDK_FACETS4, ...mintedIdentity() }
+  { id: "PlacementSettings", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal19, ...PENDING_PLAYBOOK_SDK_FACETS4, ...mintedIdentity() }
 );
 var PlacementSettingsAnchorSchema = makeAnchor("PlacementSettingsAnchor");
-var RevTurbineConfigSegmentsItemPredicatesItemSchema = z22.object({
-  field: z22.string().min(1).meta(Unrestricted19),
-  operator: z22.enum(["eq", "neq", "gt", "lt", "gte", "lte", "contains", "in"]).meta(Unrestricted19),
-  value: z22.string().meta(Unrestricted19)
+var RevTurbineConfigSegmentsItemPredicatesItemSchema = z25.object({
+  field: z25.string().min(1).meta(Unrestricted22),
+  operator: z25.enum(["eq", "neq", "gt", "lt", "gte", "lte", "contains", "in"]).meta(Unrestricted22),
+  value: z25.string().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigSegmentsItemPredicatesItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigSegmentsItemPredicatesItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigSegmentsItemSchema = z22.object({
+var RevTurbineConfigSegmentsItemSchema = z25.object({
   // Plan 120 TASK-4: the config carries the handle as its sole logical
   // identifier — the redundant config-level `id` is dropped. The physical
   // UUID primary key stays in the persisted (Drizzle) row, never the config.
-  name: z22.string().min(1).meta(Unrestricted19),
-  handle: z22.string().min(1).meta(Unrestricted19),
-  predicates: z22.array(RevTurbineConfigSegmentsItemPredicatesItemSchema).optional().meta(Unrestricted19),
+  name: z25.string().min(1).meta(Unrestricted22),
+  handle: z25.string().min(1).meta(Unrestricted22),
+  predicates: z25.array(RevTurbineConfigSegmentsItemPredicatesItemSchema).optional().meta(Unrestricted22),
   // Dimension this segment belongs to (plan #39 REQ-28 / Route A). Optional
   // for back-compat: pre-plan-39 RevTurbineConfigs and segments not yet
   // categorised lack it. The entitlement-rule evaluator uses this to
   // apply intra-dimension OR + cross-dimension AND per spec §2.5; when
   // missing across all of a rule's segment_ids, the evaluator falls
   // back to flat-OR (legacy single-segment behaviour).
-  dimension_id: z22.string().optional().meta(Unrestricted19),
-  // Experiment enrollment (plan 183). Carries the experiment's HANDLE — the
-  // canonical, version-stable identifier — matched against the assignments an
-  // ExperimentProvider resolved for the user. Optional: most segments are
-  // trait-based and never reference an experiment.
-  experiment_id: z22.string().min(1).optional().meta(Unrestricted19)
+  dimension_id: z25.string().optional().meta(Unrestricted22),
+  // Experiment enrollment carries the canonical, version-stable handle.
+  // The old name stays readable through plan 199's alias window.
+  experiment_handle: z25.string().min(1).optional().meta(Unrestricted22),
+  /** @deprecated Read-only compatibility alias for `experiment_handle`. */
+  experiment_id: z25.string().min(1).optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigSegmentsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigSegmentsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigPlansItemSchema = z22.object({
+var RevTurbineConfigPlansItemSchema = z25.object({
   // Plan 120 TASK-4: `unique_handle` is the sole logical identifier; the
   // redundant config-level `id` is dropped (physical UUID PK stays in the row).
-  unique_handle: z22.string().min(1).meta(Unrestricted19),
-  name: z22.string().min(1).meta(Unrestricted19),
-  tier_position: z22.number().int().min(0).default(0).meta(Unrestricted19),
-  sort_order: z22.number().int().min(0).default(0).meta(Unrestricted19),
+  unique_handle: z25.string().min(1).meta(Unrestricted22),
+  name: z25.string().min(1).meta(Unrestricted22),
+  tier_position: z25.number().int().min(0).default(0).meta(Unrestricted22),
+  sort_order: z25.number().int().min(0).default(0).meta(Unrestricted22),
   // Plan-level visibility (to_do/91 Part B). Lives on the plan, not a
   // priced variation, so a free/custom tier with no variation can still be
   // marked unlisted/legacy and round-trip. Variations may still carry their
   // own visibility for per-price overrides; this is the plan's default.
-  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted19)
+  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigPlansItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigPlansItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigAddonsItemSchema = z22.object({
+var RevTurbineConfigAddonsItemSchema = z25.object({
   // Plan 120 TASK-4: `unique_handle` is the sole logical identifier; the
   // redundant config-level `id` is dropped (physical UUID PK stays in the row).
-  unique_handle: z22.string().min(1).meta(Unrestricted19),
-  name: z22.string().min(1).meta(Unrestricted19),
-  sort_order: z22.number().int().min(0).default(0).meta(Unrestricted19),
+  unique_handle: z25.string().min(1).meta(Unrestricted22),
+  name: z25.string().min(1).meta(Unrestricted22),
+  sort_order: z25.number().int().min(0).default(0).meta(Unrestricted22),
   // Add-on visibility (to_do/91 Part B) — same rationale as plans: metadata,
   // not price, so it lives in the config independent of addon_variations.
-  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted19)
+  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigAddonsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_AUTHORING_FACETS2 }
+  { id: "RevTurbineConfigAddonsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_AUTHORING_FACETS2 }
 );
-var RevTurbineConfigPlanVariationsItemSchema = z22.object({
-  handle: z22.string().min(1).meta(Unrestricted19),
-  plan_handle: z22.string().min(1).meta(Unrestricted19),
-  billing_period: z22.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted19),
-  segment_handle: z22.string().nullable().default(null).meta(Unrestricted19),
-  price_amount: z22.number().min(0).meta(Unrestricted19),
-  pricing_model: PricingModelSchema.meta(Unrestricted19),
-  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted19),
-  stripe_price_id: z22.string().nullable().default(null).meta(Unrestricted19),
-  price_source: PriceSourceSchema.meta(Unrestricted19)
+var RevTurbineConfigPlanVariationsItemSchema = z25.object({
+  handle: z25.string().min(1).meta(Unrestricted22),
+  plan_handle: z25.string().min(1).meta(Unrestricted22),
+  billing_period: z25.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted22),
+  segment_handle: z25.string().nullable().default(null).meta(Unrestricted22),
+  price_amount: z25.number().min(0).meta(Unrestricted22),
+  pricing_model: PricingModelSchema.meta(Unrestricted22),
+  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted22),
+  stripe_price_id: z25.string().nullable().default(null).meta(Unrestricted22),
+  price_source: PriceSourceSchema.meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigPlanVariationsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PENDING_PLAYBOOK_FACETS4 }
+  { id: "RevTurbineConfigPlanVariationsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PENDING_PLAYBOOK_FACETS4 }
 );
-var RevTurbineConfigAddonVariationsItemSchema = z22.object({
-  handle: z22.string().min(1).meta(Unrestricted19),
-  addon_handle: z22.string().min(1).meta(Unrestricted19),
-  billing_period: z22.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted19),
-  segment_handle: z22.string().nullable().default(null).meta(Unrestricted19),
-  price_amount: z22.number().min(0).meta(Unrestricted19),
-  pricing_model: PricingModelSchema.meta(Unrestricted19),
-  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted19),
-  stripe_price_id: z22.string().nullable().default(null).meta(Unrestricted19),
-  price_source: PriceSourceSchema.meta(Unrestricted19)
+var RevTurbineConfigAddonVariationsItemSchema = z25.object({
+  handle: z25.string().min(1).meta(Unrestricted22),
+  addon_handle: z25.string().min(1).meta(Unrestricted22),
+  billing_period: z25.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted22),
+  segment_handle: z25.string().nullable().default(null).meta(Unrestricted22),
+  price_amount: z25.number().min(0).meta(Unrestricted22),
+  pricing_model: PricingModelSchema.meta(Unrestricted22),
+  visibility: PlanVisibilitySchema.default("public").meta(Unrestricted22),
+  stripe_price_id: z25.string().nullable().default(null).meta(Unrestricted22),
+  price_source: PriceSourceSchema.meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigAddonVariationsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PENDING_PLAYBOOK_FACETS4 }
+  { id: "RevTurbineConfigAddonVariationsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PENDING_PLAYBOOK_FACETS4 }
 );
-var RevTurbineConfigSeatTypesItemSchema = z22.object({
-  handle: z22.string().min(1).meta(Unrestricted19),
-  name: z22.string().min(1).meta(Unrestricted19),
-  description: z22.string().nullable().default(null).meta(Unrestricted19),
-  is_default: z22.boolean().default(false).meta(Unrestricted19),
-  entitlement_handles: z22.array(z22.string()).default([]).meta(Unrestricted19)
+var RevTurbineConfigSeatTypesItemSchema = z25.object({
+  handle: z25.string().min(1).meta(Unrestricted22),
+  name: z25.string().min(1).meta(Unrestricted22),
+  description: z25.string().nullable().default(null).meta(Unrestricted22),
+  is_default: z25.boolean().default(false).meta(Unrestricted22),
+  entitlement_handles: z25.array(z25.string()).default([]).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigSeatTypesItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigSeatTypesItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigEnforcementDefaultsItemSchema = z22.object({
-  handle: z22.string().min(1).meta(Unrestricted19),
-  entitlement_handle: z22.string().nullable().default(null).meta(Unrestricted19),
-  soft_limit_percent: z22.number().int().min(0).nullable().default(null).meta(Unrestricted19),
-  hard_limit_percent: z22.number().int().min(0).nullable().default(null).meta(Unrestricted19),
-  soft_limit_action: z22.string().meta(Unrestricted19),
-  hard_limit_action: z22.string().meta(Unrestricted19),
-  grace_period_hours: z22.number().int().min(0).nullable().default(null).meta(Unrestricted19),
-  notification_channels: z22.array(z22.string()).default([]).meta(Unrestricted19),
-  is_active: z22.boolean().default(true).meta(Unrestricted19)
+var RevTurbineConfigEnforcementDefaultsItemSchema = z25.object({
+  handle: z25.string().min(1).meta(Unrestricted22),
+  entitlement_handle: z25.string().nullable().default(null).meta(Unrestricted22),
+  soft_limit_percent: z25.number().int().min(0).nullable().default(null).meta(Unrestricted22),
+  hard_limit_percent: z25.number().int().min(0).nullable().default(null).meta(Unrestricted22),
+  soft_limit_action: z25.string().meta(Unrestricted22),
+  hard_limit_action: z25.string().meta(Unrestricted22),
+  grace_period_hours: z25.number().int().min(0).nullable().default(null).meta(Unrestricted22),
+  notification_channels: z25.array(z25.string()).default([]).meta(Unrestricted22),
+  is_active: z25.boolean().default(true).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigEnforcementDefaultsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigEnforcementDefaultsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigPlacementSettingsItemSchema = z22.object({
-  handle: z22.string().min(1).meta(Unrestricted19),
-  global_frequency_cap: PlacementSettingsCapStateSchema.nullable().default(null).meta(Unrestricted19),
-  global_frequency_cap_period: z22.enum(["hour", "day", "week", "month", "session"]).nullable().default(null).meta(Unrestricted19),
-  suppress_for_paid: z22.boolean().default(false).meta(Unrestricted19),
-  suppress_for_trial: z22.boolean().default(false).meta(Unrestricted19),
+var RevTurbineConfigPlacementSettingsItemSchema = z25.object({
+  handle: z25.string().min(1).meta(Unrestricted22),
+  global_frequency_cap: PlacementSettingsCapStateSchema.nullable().default(null).meta(Unrestricted22),
+  global_frequency_cap_period: z25.enum(["hour", "day", "week", "month", "session"]).nullable().default(null).meta(Unrestricted22),
+  suppress_for_paid: z25.boolean().default(false).meta(Unrestricted22),
+  suppress_for_trial: z25.boolean().default(false).meta(Unrestricted22),
   // `default_dismiss_cooldown_hours` removed (plan 167 Q-2).
-  allow_stacking: z22.boolean().default(false).meta(Unrestricted19),
-  priority_collision_strategy: z22.string().nullable().default(null).meta(Unrestricted19)
+  allow_stacking: z25.boolean().default(false).meta(Unrestricted22),
+  priority_collision_strategy: z25.string().nullable().default(null).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigPlacementSettingsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigPlacementSettingsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigSegmentDimensionsItemSchema = z22.object({
-  handle: z22.string().min(1).meta(Unrestricted19),
-  name: z22.string().min(1).meta(Unrestricted19),
-  category: z22.string().nullable().default(null).meta(Unrestricted19),
-  visibility_toggle: z22.boolean().default(true).meta(Unrestricted19),
-  source_type: z22.string().nullable().default(null).meta(Unrestricted19)
+var RevTurbineConfigSegmentDimensionsItemSchema = z25.object({
+  handle: z25.string().min(1).meta(Unrestricted22),
+  name: z25.string().min(1).meta(Unrestricted22),
+  category: z25.string().nullable().default(null).meta(Unrestricted22),
+  visibility_toggle: z25.boolean().default(true).meta(Unrestricted22),
+  source_type: z25.string().nullable().default(null).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigSegmentDimensionsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigSegmentDimensionsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigMeterBindingsItemSchema = z22.object({
-  handle: z22.string().min(1).meta(Unrestricted19),
-  entitlement_handle: z22.string().min(1).meta(Unrestricted19),
-  meter_handle: z22.string().min(1).meta(Unrestricted19),
-  limit: z22.number().int().min(0).nullable().default(null).meta(Unrestricted19),
-  reset_period: z22.string().nullable().default(null).meta(Unrestricted19)
+var RevTurbineConfigMeterBindingsItemSchema = z25.object({
+  handle: z25.string().min(1).meta(Unrestricted22),
+  entitlement_handle: z25.string().min(1).meta(Unrestricted22),
+  meter_handle: z25.string().min(1).meta(Unrestricted22),
+  limit: z25.number().int().min(0).nullable().default(null).meta(Unrestricted22),
+  reset_period: z25.string().nullable().default(null).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigMeterBindingsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigMeterBindingsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigEntitlementsItemSchema = z22.object({
+var RevTurbineConfigEntitlementsItemSchema = z25.object({
   // Plan 120 TASK-4: `unique_handle` is the sole logical identifier; the
   // redundant config-level `id` is dropped (physical UUID PK stays in the row).
-  unique_handle: z22.string().min(1).meta(Unrestricted19),
-  name: z22.string().min(1).meta(Unrestricted19),
-  type: EntitlementTypeSchema.meta(Unrestricted19),
-  unit: z22.string().optional().meta(Unrestricted19),
+  unique_handle: z25.string().min(1).meta(Unrestricted22),
+  name: z25.string().min(1).meta(Unrestricted22),
+  type: EntitlementTypeSchema.meta(Unrestricted22),
+  unit: z25.string().optional().meta(Unrestricted22),
   // Ordered tier ladder for a `capability_tier` entitlement — projection of
   // the authored `EntitlementSchema.tier_definitions` (plan 138 TASK-4).
   // ARRAY ORDER IS THE RANK: the `entitlement_gate.tier_threshold` placement
   // trigger fires when the user's current tier ranks below the threshold tier
   // on this ladder. `name`/`description` are UI-helper denormalizations (plan
   // 118); the runtime gate reads only the ordered `handle`s.
-  tier_definitions: z22.array(z22.object({
-    name: z22.string(),
-    handle: z22.string(),
-    description: z22.string().optional()
-  })).optional().meta(Unrestricted19)
+  tier_definitions: z25.array(z25.object({
+    name: z25.string(),
+    handle: z25.string(),
+    description: z25.string().optional()
+  })).optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigEntitlementsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigEntitlementsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigEntitlementRulesItemSchema = z22.object({
-  id: z22.string().min(1).meta(Unrestricted19),
-  entitlement_id: z22.string().min(1).meta(Unrestricted19),
-  targets: z22.array(EntitlementRuleTargetSchema).min(1).meta(Unrestricted19),
+var RevTurbineConfigEntitlementRulesItemSchema = z25.object({
+  id: z25.string().min(1).meta(Unrestricted22),
+  entitlement_id: z25.string().min(1).meta(Unrestricted22),
+  targets: z25.array(EntitlementRuleTargetSchema).min(1).meta(Unrestricted22),
   // Plan #39 REQ-1: multi-segment scoping per spec §2.5. Empty array
   // means "match all users" (replaces the singular `segment_id` field
   // and its 'all'/null sentinels).
-  segment_ids: z22.array(z22.string()).default([]).meta(Unrestricted19),
+  segment_ids: z25.array(z25.string()).default([]).meta(Unrestricted22),
   // ── Derived denormalizations from the parent entitlement (plan 147, OQ-6).
   // Resolved via `entitlement_id` on export; ignored on import (the entitlement
   // is authoritative). `readOnly` → excluded from round-trip obligations: they
   // are computed, not authored, so requiring a sentinel to preserve them would
   // test derivation rather than authoring fidelity.
-  kind: EntitlementTypeSchema.optional().meta({ ...Unrestricted19, readOnly: true }),
-  unit: z22.string().optional().meta({ ...Unrestricted19, readOnly: true }),
-  tier_name: z22.string().optional().meta({ ...Unrestricted19, readOnly: true }),
-  tier_description: z22.string().optional().meta({ ...Unrestricted19, readOnly: true }),
+  kind: EntitlementTypeSchema.optional().meta({ ...Unrestricted22, readOnly: true }),
+  unit: z25.string().optional().meta({ ...Unrestricted22, readOnly: true }),
+  tier_name: z25.string().optional().meta({ ...Unrestricted22, readOnly: true }),
+  tier_description: z25.string().optional().meta({ ...Unrestricted22, readOnly: true }),
   // ── Flat per-rule fields (plan 147, OQ-6) — single-sourced from the persisted
   // `EntitlementRuleSchema` under its canonical names (REQ-1/REQ-2), replacing
   // the deleted nested `type_fields` union. Null-stripped on export. The
@@ -6373,44 +7514,44 @@ var RevTurbineConfigEntitlementRulesItemSchema = z22.object({
     amount_cents: true,
     currency: true
   }).shape,
-  current_usage: z22.number().default(0).meta(Unrestricted19),
+  current_usage: z25.number().default(0).meta(Unrestricted22),
   /** How usage is partitioned across the identity hierarchy. */
-  allocation: UsageAllocationSchema.optional().meta(Unrestricted19)
+  allocation: UsageAllocationSchema.optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigEntitlementRulesItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigEntitlementRulesItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigSlotConfigsItemSchema = z22.object({
-  slot_id: z22.string().min(1).meta(Unrestricted19),
-  active: z22.boolean().meta(Unrestricted19),
-  triggers: z22.array(z22.string()).meta(Unrestricted19)
+var RevTurbineConfigSlotConfigsItemSchema = z25.object({
+  slot_id: z25.string().min(1).meta(Unrestricted22),
+  active: z25.boolean().meta(Unrestricted22),
+  triggers: z25.array(z25.string()).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigSlotConfigsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigSlotConfigsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigPlacementSlotsItemSchema = z22.object({
-  id: z22.string().min(1).meta(Unrestricted19),
-  label: z22.string().min(1).meta(Unrestricted19),
-  description: z22.string().meta(Unrestricted19),
-  surface_type: z22.string().meta(Unrestricted19),
-  placement_handle: z22.string().min(1).meta(Unrestricted19),
-  template: z22.string().optional().meta(Unrestricted19)
+var RevTurbineConfigPlacementSlotsItemSchema = z25.object({
+  id: z25.string().min(1).meta(Unrestricted22),
+  label: z25.string().min(1).meta(Unrestricted22),
+  description: z25.string().meta(Unrestricted22),
+  surface_type: z25.string().meta(Unrestricted22),
+  placement_handle: z25.string().min(1).meta(Unrestricted22),
+  template: z25.string().optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigPlacementSlotsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigPlacementSlotsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigSurfaceTemplatesItemFieldsItemSchema = z22.object({
-  name: z22.string().min(1).meta(Unrestricted19),
-  type: z22.string().optional().meta(Unrestricted19),
-  required: z22.boolean().optional().meta(Unrestricted19)
+var RevTurbineConfigSurfaceTemplatesItemFieldsItemSchema = z25.object({
+  name: z25.string().min(1).meta(Unrestricted22),
+  type: z25.string().optional().meta(Unrestricted22),
+  required: z25.boolean().optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigSurfaceTemplatesItemFieldsItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigSurfaceTemplatesItemFieldsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigSurfaceTemplatesItemSchema = z22.object({
-  id: z22.string().min(1).meta(Unrestricted19),
-  surface_type: z22.string().meta(Unrestricted19),
-  fields: z22.array(RevTurbineConfigSurfaceTemplatesItemFieldsItemSchema).optional().meta(Unrestricted19)
+var RevTurbineConfigSurfaceTemplatesItemSchema = z25.object({
+  id: z25.string().min(1).meta(Unrestricted22),
+  surface_type: z25.string().meta(Unrestricted22),
+  fields: z25.array(RevTurbineConfigSurfaceTemplatesItemFieldsItemSchema).optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigSurfaceTemplatesItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigSurfaceTemplatesItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigUiPathActionTypeSchema = z22.enum([
+var RevTurbineConfigUiPathActionTypeSchema = z25.enum([
   "open_checkout_modal",
   "navigate_to_plans",
   "open_upgrade_modal",
@@ -6435,196 +7576,196 @@ var RevTurbineConfigUiPathActionTypeSchema = z22.enum([
   // (plan 174 TASK-6 / Q-5, spec-check F-65a).
   "snooze"
 ]).meta(
-  { id: "RevTurbineConfigUiPathActionType", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigUiPathActionType", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var ContentUiPathSchema = z22.object({
-  name: z22.string().min(1).meta(Unrestricted19),
-  action_type: RevTurbineConfigUiPathActionTypeSchema.meta(Unrestricted19),
-  plan_handle: z22.string().optional().meta(Unrestricted19),
-  promotion_id: z22.string().optional().meta(Unrestricted19),
-  placement_handle: z22.string().optional().meta(Unrestricted19),
-  url: z22.string().optional().meta(Unrestricted19),
-  tour_id: z22.string().optional().meta(Unrestricted19),
-  target_billing_period: z22.enum(["monthly", "annual"]).optional().meta(Unrestricted19),
-  description: z22.string().optional().meta(Unrestricted19)
+var ContentUiPathSchema = z25.object({
+  name: z25.string().min(1).meta(Unrestricted22),
+  action_type: RevTurbineConfigUiPathActionTypeSchema.meta(Unrestricted22),
+  plan_handle: z25.string().optional().meta(Unrestricted22),
+  promotion_id: z25.string().optional().meta(Unrestricted22),
+  placement_handle: z25.string().optional().meta(Unrestricted22),
+  url: z25.string().optional().meta(Unrestricted22),
+  tour_id: z25.string().optional().meta(Unrestricted22),
+  target_billing_period: z25.enum(["monthly", "annual"]).optional().meta(Unrestricted22),
+  description: z25.string().optional().meta(Unrestricted22)
 }).meta(
-  { id: "ContentUiPath", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "ContentUiPath", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var ContentPromotionSchema = z22.object({
-  id: z22.string().meta(Unrestricted19),
-  name: z22.string().meta(Unrestricted19),
-  discount: z22.string().meta(Unrestricted19),
-  type: z22.string().meta(Unrestricted19),
-  status: z22.string().meta(Unrestricted19)
+var ContentPromotionSchema = z25.object({
+  id: z25.string().meta(Unrestricted22),
+  name: z25.string().meta(Unrestricted22),
+  discount: z25.string().meta(Unrestricted22),
+  type: z25.string().meta(Unrestricted22),
+  status: z25.string().meta(Unrestricted22)
 }).meta(
-  { id: "ContentPromotion", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "ContentPromotion", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigPersonalizationTokensItemSchema = z22.object({
-  token: z22.string().regex(/^[a-z][a-z0-9_]*$/).meta(Unrestricted19),
-  label: z22.string().min(1).meta(Unrestricted19),
-  description: z22.string().optional().meta(Unrestricted19),
-  category: z22.enum(["user", "plan", "usage", "trial", "billing", "promotion", "custom"]).meta(Unrestricted19),
-  data_source: z22.string().optional().meta(Unrestricted19),
-  example_value: z22.string().optional().meta(Unrestricted19),
-  value_map: z22.record(z22.string(), z22.string()).optional().meta(Unrestricted19),
-  format: z22.enum(["string", "number", "currency", "percentage", "date"]).optional().meta(Unrestricted19)
+var RevTurbineConfigPersonalizationTokensItemSchema = z25.object({
+  token: z25.string().regex(/^[a-z][a-z0-9_]*$/).meta(Unrestricted22),
+  label: z25.string().min(1).meta(Unrestricted22),
+  description: z25.string().optional().meta(Unrestricted22),
+  category: z25.enum(["user", "plan", "usage", "trial", "billing", "promotion", "custom"]).meta(Unrestricted22),
+  data_source: z25.string().optional().meta(Unrestricted22),
+  example_value: z25.string().optional().meta(Unrestricted22),
+  value_map: z25.record(z25.string(), z25.string()).optional().meta(Unrestricted22),
+  format: z25.enum(["string", "number", "currency", "percentage", "date"]).optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigPersonalizationTokensItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigPersonalizationTokensItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var MessageBlockContentSchema = z22.object({
-  header: z22.string().optional().meta(Unrestricted19),
-  body: z22.string().optional().meta(Unrestricted19),
-  cta_label: z22.string().optional().meta(Unrestricted19),
-  secondary_cta_label: z22.string().optional().meta(Unrestricted19)
-}).catchall(z22.unknown()).meta(
-  { id: "MessageBlockContent", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+var MessageBlockContentSchema = z25.object({
+  header: z25.string().optional().meta(Unrestricted22),
+  body: z25.string().optional().meta(Unrestricted22),
+  cta_label: z25.string().optional().meta(Unrestricted22),
+  secondary_cta_label: z25.string().optional().meta(Unrestricted22)
+}).catchall(z25.unknown()).meta(
+  { id: "MessageBlockContent", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var MessageBlockSchema = z22.object({
-  block_id: z22.string().min(1).meta(Unrestricted19),
-  tenant_id: z22.string().min(1).meta(Unrestricted19),
-  name: z22.string().min(1).meta(Unrestricted19),
-  surface_template_id: z22.string().optional().meta(Unrestricted19),
-  default_content: MessageBlockContentSchema.meta(Unrestricted19),
-  segment_overrides: z22.array(z22.object({
-    segment_value_id: z22.string(),
+var MessageBlockSchema = z25.object({
+  block_id: z25.string().min(1).meta(Unrestricted22),
+  tenant_id: z25.string().min(1).meta(Unrestricted22),
+  name: z25.string().min(1).meta(Unrestricted22),
+  surface_template_id: z25.string().optional().meta(Unrestricted22),
+  default_content: MessageBlockContentSchema.meta(Unrestricted22),
+  segment_overrides: z25.array(z25.object({
+    segment_value_id: z25.string(),
     content: MessageBlockContentSchema
-  })).optional().meta(Unrestricted19),
-  child_blocks: z22.array(z22.object({
-    slot: z22.string(),
-    block_id: z22.string()
-  })).optional().meta(Unrestricted19),
-  tokens_used: z22.array(z22.string()).optional().meta(Unrestricted19),
-  status: z22.enum(["draft", "active", "archived"]).meta(Unrestricted19),
-  created_at: z22.string().datetime().meta({ ...Unrestricted19, readOnly: true }),
-  updated_at: z22.string().datetime().meta({ ...Unrestricted19, readOnly: true })
+  })).optional().meta(Unrestricted22),
+  child_blocks: z25.array(z25.object({
+    slot: z25.string(),
+    block_id: z25.string()
+  })).optional().meta(Unrestricted22),
+  tokens_used: z25.array(z25.string()).optional().meta(Unrestricted22),
+  status: z25.enum(["draft", "active", "archived"]).meta(Unrestricted22),
+  created_at: z25.string().datetime().meta({ ...Unrestricted22, readOnly: true }),
+  updated_at: z25.string().datetime().meta({ ...Unrestricted22, readOnly: true })
 }).meta(
-  { id: "MessageBlock", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "MessageBlock", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigStudioCtaConfigSchema = z22.object({
-  label: z22.string().meta(Unrestricted19),
-  path: CtaActionTypeSchema.meta(Unrestricted19),
-  config: z22.record(z22.string(), z22.string()).optional().meta(Unrestricted19)
+var RevTurbineConfigStudioCtaConfigSchema = z25.object({
+  label: z25.string().meta(Unrestricted22),
+  path: CtaActionTypeSchema.meta(Unrestricted22),
+  config: z25.record(z25.string(), z25.string()).optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigStudioCtaConfig", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigStudioCtaConfig", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigStudioPayloadSurfaceSchema = z22.object({
-  template_id: z22.string().min(1).meta(Unrestricted19),
-  fields: z22.record(z22.string(), z22.string()).meta(Unrestricted19),
-  ctas: z22.array(RevTurbineConfigStudioCtaConfigSchema).meta(Unrestricted19)
+var RevTurbineConfigStudioPayloadSurfaceSchema = z25.object({
+  template_id: z25.string().min(1).meta(Unrestricted22),
+  fields: z25.record(z25.string(), z25.string()).meta(Unrestricted22),
+  ctas: z25.array(RevTurbineConfigStudioCtaConfigSchema).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigStudioPayloadSurface", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigStudioPayloadSurface", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigStudioPayloadTargetSchema = z22.object({
-  plan_ids: z22.array(z22.string()).meta(Unrestricted19),
+var RevTurbineConfigStudioPayloadTargetSchema = z25.object({
+  plan_ids: z25.array(z25.string()).meta(Unrestricted22),
   // Billing-cadence dimension of the Plan Filter (spec §3.1.1 Target).
   // Empty/absent = no cadence filter. Optional so pre-plan-76 exports parse.
-  billing_cadences: z22.array(z22.string()).optional().meta(Unrestricted19),
-  segment_chips: z22.array(z22.string()).meta(Unrestricted19)
+  billing_cadences: z25.array(z25.string()).optional().meta(Unrestricted22),
+  segment_chips: z25.array(z25.string()).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigStudioPayloadTarget", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigStudioPayloadTarget", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigPeriodCapSchema = z22.object({
-  count: z22.number().int().min(1).meta(Unrestricted19),
-  period: z22.enum(["session", "day", "week", "month", "lifetime"]).meta(Unrestricted19)
+var RevTurbineConfigPeriodCapSchema = z25.object({
+  count: z25.number().int().min(1).meta(Unrestricted22),
+  period: z25.enum(["session", "day", "week", "month", "lifetime"]).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigPeriodCap", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigPeriodCap", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigStudioPayloadCapsSchema = z22.object({
-  max_per_period: RevTurbineConfigPeriodCapSchema.optional().meta(Unrestricted19),
-  cooldown_days: z22.number().int().min(0).optional().meta(Unrestricted19)
+var RevTurbineConfigStudioPayloadCapsSchema = z25.object({
+  max_per_period: RevTurbineConfigPeriodCapSchema.optional().meta(Unrestricted22),
+  cooldown_days: z25.number().int().min(0).optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigStudioPayloadCaps", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigStudioPayloadCaps", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigStudioPayloadSchema = z22.object({
-  id: z22.string().min(1).meta(Unrestricted19),
-  target: RevTurbineConfigStudioPayloadTargetSchema.meta(Unrestricted19),
-  surfaces: z22.array(RevTurbineConfigStudioPayloadSurfaceSchema).meta(Unrestricted19),
-  caps: RevTurbineConfigStudioPayloadCapsSchema.optional().meta(Unrestricted19),
+var RevTurbineConfigStudioPayloadSchema = z25.object({
+  id: z25.string().min(1).meta(Unrestricted22),
+  target: RevTurbineConfigStudioPayloadTargetSchema.meta(Unrestricted22),
+  surfaces: z25.array(RevTurbineConfigStudioPayloadSurfaceSchema).meta(Unrestricted22),
+  caps: RevTurbineConfigStudioPayloadCapsSchema.optional().meta(Unrestricted22),
   // Optional slot targeting (spec §3.1.1): empty/absent = any compatible slot.
-  surface_slot_ids: z22.array(z22.string()).optional().meta(Unrestricted19),
+  surface_slot_ids: z25.array(z25.string()).optional().meta(Unrestricted22),
   // Per-payload remind-me-later override (minutes); absent = inherit tenant default (plan 167 Q-3).
-  remind_later_minutes: z22.number().int().min(0).nullable().optional().meta(Unrestricted19),
-  created_at: z22.string().optional().meta({ ...Unrestricted19, readOnly: true }),
-  recommendation_strategy: z22.enum(["next_tier_up", "best_value", "custom"]).optional().default("next_tier_up").meta(Unrestricted19),
-  recommendation_plan_override: z22.string().optional().meta(Unrestricted19)
+  remind_later_minutes: z25.number().int().min(0).nullable().optional().meta(Unrestricted22),
+  created_at: z25.string().optional().meta({ ...Unrestricted22, readOnly: true }),
+  recommendation_strategy: z25.enum(["next_tier_up", "best_value", "custom"]).optional().default("next_tier_up").meta(Unrestricted22),
+  recommendation_plan_override: z25.string().optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigStudioPayload", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigStudioPayload", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigPlacementTriggerSchema = z22.discriminatedUnion("type", [
-  z22.object({ type: z22.literal("surface_render"), slot_id: z22.string().min(1) }),
-  z22.object({ type: z22.literal("entitlement_gate"), entitlement_handle: z22.string().min(1), tier_threshold: z22.string().optional() }),
-  z22.object({ type: z22.literal("usage_threshold"), entitlement_handle: z22.string().min(1), threshold_percent: ThresholdPercentField }),
-  z22.object({ type: z22.literal("credit_threshold"), entitlement_handle: z22.string().min(1), threshold_percent: ThresholdPercentField }),
-  z22.object({ type: z22.literal("seat_threshold"), entitlement_handle: z22.string().min(1), threshold_percent: ThresholdPercentField }),
-  z22.object({ type: z22.literal("trial_started"), trial_type: z22.enum(["free", "reverse"]).optional() }),
-  z22.object({ type: z22.literal("trial_progress"), progress_percent: z22.number().min(1).max(100) }),
-  z22.object({ type: z22.literal("trial_ending"), days_before_end: z22.number().int().min(0) }),
-  z22.object({ type: z22.literal("trial_ended") }),
-  z22.object({ type: z22.literal("trial_converted") }),
-  z22.object({ type: z22.literal("qualifier"), qualifier: z22.string().min(1) })
+var RevTurbineConfigPlacementTriggerSchema = z25.discriminatedUnion("type", [
+  z25.object({ type: z25.literal("surface_render"), slot_id: z25.string().min(1) }),
+  z25.object({ type: z25.literal("entitlement_gate"), entitlement_handle: z25.string().min(1), tier_threshold: z25.string().optional() }),
+  z25.object({ type: z25.literal("usage_threshold"), entitlement_handle: z25.string().min(1), threshold_percent: ThresholdPercentField }),
+  z25.object({ type: z25.literal("credit_threshold"), entitlement_handle: z25.string().min(1), threshold_percent: ThresholdPercentField }),
+  z25.object({ type: z25.literal("seat_threshold"), entitlement_handle: z25.string().min(1), threshold_percent: ThresholdPercentField }),
+  z25.object({ type: z25.literal("trial_started"), trial_type: z25.enum(["free", "reverse"]).optional() }),
+  z25.object({ type: z25.literal("trial_progress"), progress_percent: z25.number().min(1).max(100) }),
+  z25.object({ type: z25.literal("trial_ending"), days_before_end: z25.number().int().min(0) }),
+  z25.object({ type: z25.literal("trial_ended") }),
+  z25.object({ type: z25.literal("trial_converted") }),
+  z25.object({ type: z25.literal("qualifier"), qualifier: z25.string().min(1) })
 ]).meta(
-  { id: "RevTurbineConfigPlacementTrigger", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+  { id: "RevTurbineConfigPlacementTrigger", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigPlacementCategorySchema = z22.enum(["fixed", "gated", "usage_credit_seat", "trials", "other_conversion", "retention"]).meta(
-  { id: "RevTurbineConfigPlacementCategory", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11 }
+var RevTurbineConfigPlacementCategorySchema = z25.enum(["fixed", "gated", "usage_credit_seat", "trials", "other_conversion", "retention"]).meta(
+  { id: "RevTurbineConfigPlacementCategory", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11 }
 );
-var RevTurbineConfigPlacementItemSchema = z22.object({
-  id: z22.string().min(1).meta(Unrestricted19),
-  name: z22.string().min(1).meta(Unrestricted19),
-  category: RevTurbineConfigPlacementCategorySchema.meta(Unrestricted19),
-  trigger: RevTurbineConfigPlacementTriggerSchema.meta(Unrestricted19),
-  payloads: z22.array(RevTurbineConfigStudioPayloadSchema).meta(Unrestricted19),
-  order: z22.number().int().min(0).meta(Unrestricted19)
+var RevTurbineConfigPlacementItemSchema = z25.object({
+  id: z25.string().min(1).meta(Unrestricted22),
+  name: z25.string().min(1).meta(Unrestricted22),
+  category: RevTurbineConfigPlacementCategorySchema.meta(Unrestricted22),
+  trigger: RevTurbineConfigPlacementTriggerSchema.meta(Unrestricted22),
+  payloads: z25.array(RevTurbineConfigStudioPayloadSchema).meta(Unrestricted22),
+  order: z25.number().int().min(0).meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigPlacementItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigPlacementItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigPlacementPayloadItemSchema = z22.object({
-  payload_id: z22.string().min(1).meta(Unrestricted19),
-  placement_id: z22.string().min(1).meta(Unrestricted19),
-  target: RevTurbineConfigStudioPayloadTargetSchema.meta(Unrestricted19),
-  caps: RevTurbineConfigStudioPayloadCapsSchema.optional().meta(Unrestricted19),
+var RevTurbineConfigPlacementPayloadItemSchema = z25.object({
+  payload_id: z25.string().min(1).meta(Unrestricted22),
+  placement_id: z25.string().min(1).meta(Unrestricted22),
+  target: RevTurbineConfigStudioPayloadTargetSchema.meta(Unrestricted22),
+  caps: RevTurbineConfigStudioPayloadCapsSchema.optional().meta(Unrestricted22),
   // Per-payload remind-me-later override (minutes); absent = inherit tenant default (plan 167 Q-3).
-  remind_later_minutes: z22.number().int().min(0).nullable().optional().meta(Unrestricted19),
-  created_at: z22.string().meta({ ...Unrestricted19, readOnly: true }),
-  updated_at: z22.string().datetime().optional().meta({ ...Unrestricted19, readOnly: true }),
-  source_mode: z22.enum(["inline", "content_linked"]).meta(Unrestricted19),
-  surfaces: z22.array(RevTurbineConfigStudioPayloadSurfaceSchema).optional().meta(Unrestricted19),
+  remind_later_minutes: z25.number().int().min(0).nullable().optional().meta(Unrestricted22),
+  created_at: z25.string().meta({ ...Unrestricted22, readOnly: true }),
+  updated_at: z25.string().datetime().optional().meta({ ...Unrestricted22, readOnly: true }),
+  source_mode: z25.enum(["inline", "content_linked"]).meta(Unrestricted22),
+  surfaces: z25.array(RevTurbineConfigStudioPayloadSurfaceSchema).optional().meta(Unrestricted22),
   // Optional slot targeting (spec §3.1.1): empty/absent = any compatible slot.
-  surface_slot_ids: z22.array(z22.string()).optional().meta(Unrestricted19),
-  content_link: z22.object({
-    message_block_id: z22.string().optional(),
-    ui_path_id: z22.string().optional(),
-    promotion_id: z22.string().optional(),
-    content_payload_id: z22.string().optional()
-  }).optional().meta(Unrestricted19)
+  surface_slot_ids: z25.array(z25.string()).optional().meta(Unrestricted22),
+  content_link: z25.object({
+    message_block_id: z25.string().optional(),
+    ui_path_id: z25.string().optional(),
+    promotion_id: z25.string().optional(),
+    content_payload_id: z25.string().optional()
+  }).optional().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigPlacementPayloadItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigPlacementPayloadItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
-var RevTurbineConfigExtensionRulesItemSchema = z22.object({
-  kind: z22.string().min(1).meta(Unrestricted19),
-  schema_version: z22.number().int().nonnegative().meta(Unrestricted19),
-  config: z22.unknown().meta(Unrestricted19)
+var RevTurbineConfigExtensionRulesItemSchema = z25.object({
+  kind: z25.string().min(1).meta(Unrestricted22),
+  schema_version: z25.number().int().nonnegative().meta(Unrestricted22),
+  config: z25.unknown().meta(Unrestricted22)
 }).meta(
-  { id: "RevTurbineConfigExtensionRulesItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
+  { id: "RevTurbineConfigExtensionRulesItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PLAYBOOK_SDK_FACETS8 }
 );
 var RevTurbineConfigFreeTrialRuleItemSchema = IdField.merge(FreeTrialRuleCoreFieldsSchema).meta(
-  { id: "RevTurbineConfigFreeTrialRuleItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PENDING_PLAYBOOK_FACETS4 }
+  { id: "RevTurbineConfigFreeTrialRuleItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PENDING_PLAYBOOK_FACETS4 }
 );
 var RevTurbineConfigReverseTrialRuleItemSchema = IdField.merge(ReverseTrialRuleCoreFieldsSchema).meta(
-  { id: "RevTurbineConfigReverseTrialRuleItem", "x-revturbine-schema-persistence": Transient19, "x-revturbine-schema-exposure": External11, ...PENDING_PLAYBOOK_FACETS4 }
+  { id: "RevTurbineConfigReverseTrialRuleItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External11, ...PENDING_PLAYBOOK_FACETS4 }
 );
-var PlaybookBodySchema = z22.object({
-  plans: z22.array(RevTurbineConfigPlansItemSchema).meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
+var PlaybookBodySchema = z25.object({
+  plans: z25.array(RevTurbineConfigPlansItemSchema).meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
   // Optional for back-compat: pre-plan-88 configs (and the live export until web
   // adopts the new @revt-eng/schema) omit it. Add-on definitions only; pricing
   // (addon_variations) stays in the Stripe layer, like plan_variations.
-  addons: z22.array(RevTurbineConfigAddonsItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_AUTHORING_FACETS2 }),
-  entitlements: z22.array(RevTurbineConfigEntitlementsItemSchema).meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  entitlement_rules: z22.array(RevTurbineConfigEntitlementRulesItemSchema).meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  segments: z22.array(RevTurbineConfigSegmentsItemSchema).meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  content_ui_paths: z22.array(ContentUiPathSchema).meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  slot_configs: z22.array(RevTurbineConfigSlotConfigsItemSchema).optional().meta({
-    ...Unrestricted19,
+  addons: z25.array(RevTurbineConfigAddonsItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  entitlements: z25.array(RevTurbineConfigEntitlementsItemSchema).meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  entitlement_rules: z25.array(RevTurbineConfigEntitlementRulesItemSchema).meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  segments: z25.array(RevTurbineConfigSegmentsItemSchema).meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  content_ui_paths: z25.array(ContentUiPathSchema).meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  slot_configs: z25.array(RevTurbineConfigSlotConfigsItemSchema).optional().meta({
+    ...Unrestricted22,
     ...PLAYBOOK_SDK_FACETS8,
     ...schemaDeprecation({
       since: "0.1.117",
@@ -6633,8 +7774,8 @@ var PlaybookBodySchema = z22.object({
       reason: "Slot activation moved to SDK-local state (plan 118 TASK-6); no longer a Playbook authoring input."
     })
   }),
-  content_overrides: z22.record(z22.string(), z22.record(z22.string(), z22.string())).optional().meta({
-    ...Unrestricted19,
+  content_overrides: z25.record(z25.string(), z25.record(z25.string(), z25.string())).optional().meta({
+    ...Unrestricted22,
     ...PLAYBOOK_SDK_FACETS8,
     ...schemaDeprecation({
       since: "0.1.117",
@@ -6643,8 +7784,8 @@ var PlaybookBodySchema = z22.object({
       reason: "Content overrides moved to Message Block / Payload content (plan 118 TASK-6); no longer a Playbook authoring input."
     })
   }),
-  theme: z22.record(z22.string(), z22.unknown()).optional().meta({
-    ...Unrestricted19,
+  theme: z25.record(z25.string(), z25.unknown()).optional().meta({
+    ...Unrestricted22,
     ...LEGACY_BRANDING_FACETS,
     ...schemaDeprecation({
       since: "0.1.111",
@@ -6653,47 +7794,47 @@ var PlaybookBodySchema = z22.object({
       reason: "Branding is independently owned and is not Playbook strategy."
     })
   }),
-  placement_slots: z22.array(RevTurbineConfigPlacementSlotsItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  message_blocks: z22.array(MessageBlockSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  placement_payloads: z22.array(RevTurbineConfigPlacementPayloadItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  placements: z22.array(RevTurbineConfigPlacementItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  content_promotions: z22.array(ContentPromotionSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  personalization_tokens: z22.array(RevTurbineConfigPersonalizationTokensItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  surface_templates: z22.array(RevTurbineConfigSurfaceTemplatesItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
+  placement_slots: z25.array(RevTurbineConfigPlacementSlotsItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  message_blocks: z25.array(MessageBlockSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  placement_payloads: z25.array(RevTurbineConfigPlacementPayloadItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  placements: z25.array(RevTurbineConfigPlacementItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  content_promotions: z25.array(ContentPromotionSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  personalization_tokens: z25.array(RevTurbineConfigPersonalizationTokensItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  surface_templates: z25.array(RevTurbineConfigSurfaceTemplatesItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
   /**
    * Free + reverse trial rule configurations (plan 43). Optional so
    * pre-trial-runtime configs continue to parse. /api/config/import
    * applies these to the tenant's free_trial_rules / reverse_trial_rules
    * tables; /api/config/export reads them out for round-trip.
    */
-  free_trial_rules: z22.array(RevTurbineConfigFreeTrialRuleItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_AUTHORING_FACETS2 }),
-  reverse_trial_rules: z22.array(RevTurbineConfigReverseTrialRuleItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  free_trial_rules: z25.array(RevTurbineConfigFreeTrialRuleItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  reverse_trial_rules: z25.array(RevTurbineConfigReverseTrialRuleItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_AUTHORING_FACETS2 }),
   // Plan / add-on variation prices carried by handle (plan 118 TASK-16). These
   // live on the legacy schema (not just the canonical Playbook body) so that a
   // legacy `version`-shaped config — the shape the demo-data configs and the
   // pre-sales/CLI upload flow still use — can carry variation prices through
   // normalization instead of having them stripped. Pending until web
   // import/export activates them (TASK-21).
-  plan_variations: z22.array(RevTurbineConfigPlanVariationsItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_AUTHORING_FACETS2 }),
-  addon_variations: z22.array(RevTurbineConfigAddonVariationsItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  plan_variations: z25.array(RevTurbineConfigPlanVariationsItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  addon_variations: z25.array(RevTurbineConfigAddonVariationsItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_AUTHORING_FACETS2 }),
   /**
    * Tagged-opaque rule entries (Phase 3 / strategy 2). Each entry is
    * dispatched to the corresponding `RuleAuthoringModule.kind` at
    * compile time; unknown kinds are skipped silently so authoring can
    * stage new kinds before the runtime catches up.
    */
-  extension_rules: z22.array(RevTurbineConfigExtensionRulesItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
+  extension_rules: z25.array(RevTurbineConfigExtensionRulesItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
   // Authored-config projections carried as active SDK inputs (plan 118
   // TASK-13/18). Declared here (not only on PlaybookBody) so the Bundle
   // compiler — which lowers the legacy `RevTurbineConfig` view — reads them
   // with proper types. Projected into the RuleBundle; see core/bundle.
-  seat_types: z22.array(RevTurbineConfigSeatTypesItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  enforcement_defaults: z22.array(RevTurbineConfigEnforcementDefaultsItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  placement_settings: z22.array(RevTurbineConfigPlacementSettingsItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  segment_dimensions: z22.array(RevTurbineConfigSegmentDimensionsItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  meter_bindings: z22.array(RevTurbineConfigMeterBindingsItemSchema).optional().meta({ ...Unrestricted19, ...PLAYBOOK_SDK_FACETS8 }),
-  experiments: z22.array(z22.unknown()).max(0).optional().meta({
-    ...Unrestricted19,
+  seat_types: z25.array(RevTurbineConfigSeatTypesItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  enforcement_defaults: z25.array(RevTurbineConfigEnforcementDefaultsItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  placement_settings: z25.array(RevTurbineConfigPlacementSettingsItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  segment_dimensions: z25.array(RevTurbineConfigSegmentDimensionsItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  meter_bindings: z25.array(RevTurbineConfigMeterBindingsItemSchema).optional().meta({ ...Unrestricted22, ...PLAYBOOK_SDK_FACETS8 }),
+  experiments: z25.array(z25.unknown()).max(0).optional().meta({
+    ...Unrestricted22,
     ...PENDING_PLAYBOOK_FACETS4
   }),
   // Reserved like `experiments` above: claim the key now, ship the
@@ -6708,35 +7849,35 @@ var PlaybookBodySchema = z22.object({
   // populated `{ id, version }` rather than letting it round-trip as
   // config nothing reads. Catalog *definitions* stay server-side and must
   // never reach the browser Playbook; only the reference will live here.
-  signal_catalog: z22.object({}).strict().optional().meta({
-    ...Unrestricted19,
+  signal_catalog: z25.object({}).strict().optional().meta({
+    ...Unrestricted22,
     ...PENDING_PLAYBOOK_FACETS4
   })
 }).meta(
   {
     id: "PlaybookBody",
-    "x-revturbine-schema-persistence": Transient19,
+    "x-revturbine-schema-persistence": Transient22,
     "x-revturbine-schema-exposure": External11,
     ...PLAYBOOK_SDK_FACETS8
   }
 );
-var PlaybookHeaderSchema = z22.object({
-  artifact_type: z22.literal("playbook").meta({
-    ...Unrestricted19,
+var PlaybookHeaderSchema = z25.object({
+  artifact_type: z25.literal("playbook").meta({
+    ...Unrestricted22,
     ...PLAYBOOK_VERSION_HEADER_FACETS,
     readOnly: true
   }),
-  format_version: z22.literal(PLAYBOOK_FORMAT_VERSION).meta({
-    ...Unrestricted19,
+  format_version: z25.literal(PLAYBOOK_FORMAT_VERSION).meta({
+    ...Unrestricted22,
     ...PLAYBOOK_VERSION_HEADER_FACETS,
     readOnly: true
   }),
-  playbook_handle: z22.string().min(1).default("default").meta({
-    ...Unrestricted19,
+  playbook_handle: z25.string().min(1).default("default").meta({
+    ...Unrestricted22,
     ...PLAYBOOK_VERSION_HEADER_FACETS
   }),
-  playbook_version_id: z22.string().nullable().default(null).meta({
-    ...Unrestricted19,
+  playbook_version_id: z25.string().nullable().default(null).meta({
+    ...Unrestricted22,
     ...PLAYBOOK_PROVENANCE_HEADER_FACETS,
     readOnly: true
   }),
@@ -6745,33 +7886,33 @@ var PlaybookHeaderSchema = z22.object({
   // the plan 147 TASK-1 header reconciliation: the one config schema must
   // absorb legacy files that predate target stamping. Stamped by the server
   // on export when present.
-  tenant_id: z22.string().min(1).optional().meta({
-    ...Unrestricted19,
+  tenant_id: z25.string().min(1).optional().meta({
+    ...Unrestricted22,
     ...PLAYBOOK_TARGET_FACETS,
     readOnly: true
   }),
-  environment_id: z22.string().min(1).optional().meta({
-    ...Unrestricted19,
+  environment_id: z25.string().min(1).optional().meta({
+    ...Unrestricted22,
     ...PLAYBOOK_TARGET_FACETS,
     readOnly: true
   }),
-  project_id: z22.string().min(1).optional().meta({
-    ...Unrestricted19,
+  project_id: z25.string().min(1).optional().meta({
+    ...Unrestricted22,
     ...PLAYBOOK_TARGET_FACETS,
     readOnly: true
   }),
-  exported_at: z22.string().datetime().optional().meta({
-    ...Unrestricted19,
+  exported_at: z25.string().datetime().optional().meta({
+    ...Unrestricted22,
     ...PLAYBOOK_PROVENANCE_HEADER_FACETS,
     readOnly: true
   }),
-  schema_version: z22.string().min(1).optional().meta({
-    ...Unrestricted19,
+  schema_version: z25.string().min(1).optional().meta({
+    ...Unrestricted22,
     ...PLAYBOOK_VERSION_HEADER_FACETS,
     readOnly: true
   }),
-  bundle_schema_version: z22.number().int().nonnegative().optional().meta({
-    ...Unrestricted19,
+  bundle_schema_version: z25.number().int().nonnegative().optional().meta({
+    ...Unrestricted22,
     ...PLAYBOOK_VERSION_HEADER_FACETS,
     readOnly: true
   }),
@@ -6781,22 +7922,22 @@ var PlaybookHeaderSchema = z22.object({
   // instead of partially applying config it cannot fully parse. Stamped by
   // the payload producer (`buildPlaybookPayload`); absent on hand-authored
   // configs, where readers treat the floor as `bundle_schema_version`.
-  bundle_min_readable_schema_version: z22.number().int().nonnegative().optional().meta({
-    ...Unrestricted19,
+  bundle_min_readable_schema_version: z25.number().int().nonnegative().optional().meta({
+    ...Unrestricted22,
     ...PLAYBOOK_VERSION_HEADER_FACETS,
     readOnly: true
   })
 }).meta(
   {
     id: "PlaybookHeader",
-    "x-revturbine-schema-persistence": Transient19,
+    "x-revturbine-schema-persistence": Transient22,
     "x-revturbine-schema-exposure": External11,
     ...PLAYBOOK_PROVENANCE_HEADER_FACETS
   }
 );
 var PlaybookObjectSchema = PlaybookHeaderSchema.extend(PlaybookBodySchema.shape).meta(
   {
-    "x-revturbine-schema-persistence": Transient19,
+    "x-revturbine-schema-persistence": Transient22,
     "x-revturbine-schema-exposure": External11,
     ...PLAYBOOK_SDK_FACETS8
   }
@@ -6820,15 +7961,15 @@ function normalizeConfigHeaderInput(input) {
   }
   return next;
 }
-var PlaybookSchema = z22.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema).meta({
+var PlaybookSchema = z25.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema).meta({
   id: "Playbook",
-  "x-revturbine-schema-persistence": Transient19,
+  "x-revturbine-schema-persistence": Transient22,
   "x-revturbine-schema-exposure": External11,
   ...PLAYBOOK_SDK_FACETS8
 });
-var PlaybookStrictSchema = z22.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema.strict()).meta({
+var PlaybookStrictSchema = z25.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema.strict()).meta({
   id: "PlaybookStrict",
-  "x-revturbine-schema-persistence": Transient19,
+  "x-revturbine-schema-persistence": Transient22,
   "x-revturbine-schema-exposure": External11,
   ...PLAYBOOK_SDK_FACETS8
 });
@@ -6877,7 +8018,7 @@ var configPaths = {
   "/api/config/seat-types/{id}": {
     patch: operation({
       operationId: "updateSeatType",
-      requestParams: { path: z22.object({ id: z22.string() }) },
+      requestParams: { path: z25.object({ id: z25.string() }) },
       summary: "Update seat type",
       tags: ["config"],
       requestBody: { required: true, content: { "application/json": { schema: SeatTypeSchema.partial() } } },
@@ -6886,7 +8027,7 @@ var configPaths = {
     }),
     delete: operation({
       operationId: "deleteSeatType",
-      requestParams: { path: z22.object({ id: z22.string() }) },
+      requestParams: { path: z25.object({ id: z25.string() }) },
       summary: "Delete seat type",
       tags: ["config"],
       responses: { "204": { description: "Deleted" } },
@@ -6927,7 +8068,7 @@ var configPaths = {
   "/api/config/personalization-tokens/{id}": {
     patch: operation({
       operationId: "updatePersonalizationToken",
-      requestParams: { path: z22.object({ id: z22.string() }) },
+      requestParams: { path: z25.object({ id: z25.string() }) },
       summary: "Update personalization token",
       tags: ["config"],
       requestBody: { required: true, content: { "application/json": { schema: PersonalizationTokenSchema.partial() } } },
@@ -6936,7 +8077,7 @@ var configPaths = {
     }),
     delete: operation({
       operationId: "deletePersonalizationToken",
-      requestParams: { path: z22.object({ id: z22.string() }) },
+      requestParams: { path: z25.object({ id: z25.string() }) },
       summary: "Delete personalization token",
       tags: ["config"],
       responses: { "204": { description: "Deleted" } },
@@ -6981,7 +8122,7 @@ var configPaths = {
   "/api/config/metering/{meteringId}": {
     patch: operation({
       operationId: "updateMeteringConfig",
-      requestParams: { path: z22.object({ meteringId: z22.string() }) },
+      requestParams: { path: z25.object({ meteringId: z25.string() }) },
       summary: "Update metering configuration",
       tags: ["config"],
       requestBody: { required: true, content: { "application/json": { schema: MeteringConfigSchema.partial() } } },
@@ -6990,7 +8131,7 @@ var configPaths = {
     }),
     delete: operation({
       operationId: "deleteMeteringConfig",
-      requestParams: { path: z22.object({ meteringId: z22.string() }) },
+      requestParams: { path: z25.object({ meteringId: z25.string() }) },
       summary: "Delete metering configuration",
       tags: ["config"],
       responses: { "204": { description: "Deleted" } },
@@ -7031,7 +8172,7 @@ var configPaths = {
   "/api/config/usage-enforcement/{settingsId}": {
     patch: operation({
       operationId: "updateUsageEnforcementSettings",
-      requestParams: { path: z22.object({ settingsId: z22.string() }) },
+      requestParams: { path: z25.object({ settingsId: z25.string() }) },
       summary: "Update usage enforcement settings",
       tags: ["config"],
       requestBody: { required: true, content: { "application/json": { schema: UsageEnforcementSettingsSchema.partial() } } },
@@ -7040,7 +8181,7 @@ var configPaths = {
     }),
     delete: operation({
       operationId: "deleteUsageEnforcementSettings",
-      requestParams: { path: z22.object({ settingsId: z22.string() }) },
+      requestParams: { path: z25.object({ settingsId: z25.string() }) },
       summary: "Delete usage enforcement settings",
       tags: ["config"],
       responses: { "204": { description: "Deleted" } },
@@ -7079,29 +8220,29 @@ var configPaths = {
   }
 };
 
-// ../scaffold-205/src/changemgmt/models/changelog-schema.ts
-import { z as z23 } from "zod";
-var { Unrestricted: Unrestricted20 } = DataClassification;
-var { Persisted: Persisted16 } = SchemaPersistence;
-var { Internal: Internal17 } = SchemaExposure;
-var ChangeLogActionSchema = z23.enum(["create", "update", "delete", "archive", "restore", "reorder", "duplicate", "sync", "publish"]).meta(
-  { id: "ChangeLogAction", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal17 }
+// ../scaffold/src/changemgmt/models/changelog-schema.ts
+import { z as z26 } from "zod";
+var { Unrestricted: Unrestricted23 } = DataClassification;
+var { Persisted: Persisted17 } = SchemaPersistence;
+var { Internal: Internal20 } = SchemaExposure;
+var ChangeLogActionSchema = z26.enum(["create", "update", "delete", "archive", "restore", "reorder", "duplicate", "sync", "publish"]).meta(
+  { id: "ChangeLogAction", "x-revturbine-schema-persistence": Persisted17, "x-revturbine-schema-exposure": Internal20 }
 );
 var ChangeLogEntrySchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  action: ChangeLogActionSchema.meta(Unrestricted20),
-  resource_type: z23.string().min(1).max(100).meta(Unrestricted20),
-  resource_id: z23.string().min(1).meta(Unrestricted20),
-  resource_name: z23.string().max(200).optional().meta(Unrestricted20),
-  actor_id: z23.string().min(1).meta(Unrestricted20),
-  actor_email: z23.string().email().optional().meta(Unrestricted20),
-  diff: z23.object({
-    before: z23.record(z23.string(), z23.unknown()).optional(),
-    after: z23.record(z23.string(), z23.unknown()).optional()
-  }).optional().meta(Unrestricted20),
-  summary: z23.string().max(1e3).optional().meta(Unrestricted20),
-  metadata: MetadataField.meta(Unrestricted20)
+  action: ChangeLogActionSchema.meta(Unrestricted23),
+  resource_type: z26.string().min(1).max(100).meta(Unrestricted23),
+  resource_id: z26.string().min(1).meta(Unrestricted23),
+  resource_name: z26.string().max(200).optional().meta(Unrestricted23),
+  actor_id: z26.string().min(1).meta(Unrestricted23),
+  actor_email: z26.string().email().optional().meta(Unrestricted23),
+  diff: z26.object({
+    before: z26.record(z26.string(), z26.unknown()).optional(),
+    after: z26.record(z26.string(), z26.unknown()).optional()
+  }).optional().meta(Unrestricted23),
+  summary: z26.string().max(1e3).optional().meta(Unrestricted23),
+  metadata: MetadataField.meta(Unrestricted23)
 }).meta(
-  { id: "ChangeLogEntry", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal17 }
+  { id: "ChangeLogEntry", "x-revturbine-schema-persistence": Persisted17, "x-revturbine-schema-exposure": Internal20 }
 );
 var changelogPaths = {
   "/api/changelog": {
@@ -7117,7 +8258,7 @@ var changelogPaths = {
   "/api/changelog/{entryId}": {
     get: operation({
       operationId: "getChangeLogEntry",
-      requestParams: { path: z23.object({ entryId: z23.string() }) },
+      requestParams: { path: z26.object({ entryId: z26.string() }) },
       summary: "Get change log entry by ID",
       tags: ["changelog"],
       responses: { "200": { description: "Change log entry", content: { "application/json": { schema: ChangeLogEntrySchema } } } },
@@ -7126,21 +8267,21 @@ var changelogPaths = {
   }
 };
 
-// ../scaffold-205/src/core/tenant/schema.ts
-import { z as z24 } from "zod";
-var { Unrestricted: Unrestricted21 } = DataClassification;
-var { Persisted: Persisted17, Transient: Transient20 } = SchemaPersistence;
-var { Internal: Internal18 } = SchemaExposure;
-var TenantStatusSchema = z24.enum(["active", "suspended", "archived"]).meta(
-  { id: "TenantStatus", "x-revturbine-schema-persistence": Transient20, "x-revturbine-schema-exposure": Internal18 }
+// ../scaffold/src/core/tenant/schema.ts
+import { z as z27 } from "zod";
+var { Unrestricted: Unrestricted24 } = DataClassification;
+var { Persisted: Persisted18, Transient: Transient23 } = SchemaPersistence;
+var { Internal: Internal21 } = SchemaExposure;
+var TenantStatusSchema = z27.enum(["active", "suspended", "archived"]).meta(
+  { id: "TenantStatus", "x-revturbine-schema-persistence": Transient23, "x-revturbine-schema-exposure": Internal21 }
 );
 var TenantSchema = IdField.merge(TimestampFields).extend({
-  name: NameField.meta(Unrestricted21),
-  handle: HandleField.meta(Unrestricted21),
-  status: TenantStatusSchema.default("active").meta(Unrestricted21),
-  metadata: MetadataField.meta(Unrestricted21)
+  name: NameField.meta(Unrestricted24),
+  handle: HandleField.meta(Unrestricted24),
+  status: TenantStatusSchema.default("active").meta(Unrestricted24),
+  metadata: MetadataField.meta(Unrestricted24)
 }).meta(
-  { id: "Tenant", "x-revturbine-schema-persistence": Persisted17, "x-revturbine-schema-exposure": Internal18 }
+  { id: "Tenant", "x-revturbine-schema-persistence": Persisted18, "x-revturbine-schema-exposure": Internal21 }
 );
 var tenantPaths = {
   "/api/tenants": {
@@ -7167,7 +8308,7 @@ var tenantPaths = {
   "/api/tenants/{tenantId}": {
     get: operation({
       operationId: "getTenant",
-      requestParams: { path: z24.object({ tenantId: z24.string() }) },
+      requestParams: { path: z27.object({ tenantId: z27.string() }) },
       summary: "Get tenant by ID",
       tags: ["tenants"],
       responses: { "200": { description: "Tenant", content: { "application/json": { schema: TenantSchema } } } },
@@ -7175,7 +8316,7 @@ var tenantPaths = {
     }),
     patch: operation({
       operationId: "updateTenant",
-      requestParams: { path: z24.object({ tenantId: z24.string() }) },
+      requestParams: { path: z27.object({ tenantId: z27.string() }) },
       summary: "Update tenant",
       tags: ["tenants"],
       requestBody: { required: true, content: { "application/json": { schema: TenantSchema.partial() } } },
@@ -7186,7 +8327,7 @@ var tenantPaths = {
   "/api/tenants/{tenantId}/suspend": {
     post: operation({
       operationId: "suspendTenant",
-      requestParams: { path: z24.object({ tenantId: z24.string() }) },
+      requestParams: { path: z27.object({ tenantId: z27.string() }) },
       summary: "Suspend tenant (disables all API access)",
       tags: ["tenants"],
       responses: { "200": { description: "Suspended", content: { "application/json": { schema: TenantSchema } } } },
@@ -7196,7 +8337,7 @@ var tenantPaths = {
   "/api/tenants/{tenantId}/reactivate": {
     post: operation({
       operationId: "reactivateTenant",
-      requestParams: { path: z24.object({ tenantId: z24.string() }) },
+      requestParams: { path: z27.object({ tenantId: z27.string() }) },
       summary: "Reactivate a suspended tenant",
       tags: ["tenants"],
       responses: { "200": { description: "Reactivated", content: { "application/json": { schema: TenantSchema } } } },
@@ -7205,40 +8346,40 @@ var tenantPaths = {
   }
 };
 
-// ../scaffold-205/src/core/environment/schema.ts
-import { z as z25 } from "zod";
-var { Unrestricted: Unrestricted22 } = DataClassification;
-var { Persisted: Persisted18, Transient: Transient21 } = SchemaPersistence;
-var { Internal: Internal19 } = SchemaExposure;
-var EnvironmentStatusSchema = z25.enum(["active", "archived", "locked"]).meta(
-  { id: "EnvironmentStatus", "x-revturbine-schema-persistence": Transient21, "x-revturbine-schema-exposure": Internal19 }
+// ../scaffold/src/core/environment/schema.ts
+import { z as z28 } from "zod";
+var { Unrestricted: Unrestricted25 } = DataClassification;
+var { Persisted: Persisted19, Transient: Transient24 } = SchemaPersistence;
+var { Internal: Internal22 } = SchemaExposure;
+var EnvironmentStatusSchema = z28.enum(["active", "archived", "locked"]).meta(
+  { id: "EnvironmentStatus", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": Internal22 }
 );
 var EnvironmentSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  name: NameField.meta(Unrestricted22),
-  handle: HandleField.meta(Unrestricted22),
-  description: DescriptionField.meta(Unrestricted22),
-  is_production: z25.boolean().default(false).meta({ ...Unrestricted22, readOnly: true }),
-  status: EnvironmentStatusSchema.default("active").meta(Unrestricted22),
+  name: NameField.meta(Unrestricted25),
+  handle: HandleField.meta(Unrestricted25),
+  description: DescriptionField.meta(Unrestricted25),
+  is_production: z28.boolean().default(false).meta({ ...Unrestricted25, readOnly: true }),
+  status: EnvironmentStatusSchema.default("active").meta(Unrestricted25),
   // Branching lineage
-  cloned_from_environment_id: z25.string().nullable().default(null).meta({ ...Unrestricted22, readOnly: true }),
-  cloned_at: NullableDatetimeField.meta({ ...Unrestricted22, readOnly: true }),
-  cloned_at_sequence: z25.number().int().min(0).nullable().default(null).meta({ ...Unrestricted22, readOnly: true }),
+  cloned_from_environment_id: z28.string().nullable().default(null).meta({ ...Unrestricted25, readOnly: true }),
+  cloned_at: NullableDatetimeField.meta({ ...Unrestricted25, readOnly: true }),
+  cloned_at_sequence: z28.number().int().min(0).nullable().default(null).meta({ ...Unrestricted25, readOnly: true }),
   // Protection settings (analogous to protected branches)
-  requires_approval: z25.boolean().default(false).meta(Unrestricted22),
-  auto_deploy_on_approval: z25.boolean().default(false).meta(Unrestricted22),
+  requires_approval: z28.boolean().default(false).meta(Unrestricted25),
+  auto_deploy_on_approval: z28.boolean().default(false).meta(Unrestricted25),
   // Audit
-  created_by: z25.string().optional().meta(Unrestricted22),
-  metadata: MetadataField.meta(Unrestricted22)
+  created_by: z28.string().optional().meta(Unrestricted25),
+  metadata: MetadataField.meta(Unrestricted25)
 }).meta(
-  { id: "Environment", "x-revturbine-schema-persistence": Persisted18, "x-revturbine-schema-exposure": Internal19 }
+  { id: "Environment", "x-revturbine-schema-persistence": Persisted19, "x-revturbine-schema-exposure": Internal22 }
 );
-var EnvironmentPromotionRequestSchema = z25.object({
-  source_environment_id: z25.string().min(1),
-  target_environment_id: z25.string().min(1),
-  playbook_version_ids: z25.array(z25.string()).optional(),
-  strategy: z25.enum(["all_current", "selected_playbook_versions"]).default("all_current")
+var EnvironmentPromotionRequestSchema = z28.object({
+  source_environment_id: z28.string().min(1),
+  target_environment_id: z28.string().min(1),
+  playbook_version_ids: z28.array(z28.string()).optional(),
+  strategy: z28.enum(["all_current", "selected_playbook_versions"]).default("all_current")
 }).meta(
-  { id: "EnvironmentPromotionRequest", "x-revturbine-schema-persistence": Transient21, "x-revturbine-schema-exposure": Internal19 }
+  { id: "EnvironmentPromotionRequest", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": Internal22 }
 );
 var environmentPaths = {
   "/api/environments": {
@@ -7254,12 +8395,12 @@ var environmentPaths = {
       operationId: "createEnvironment",
       summary: "Create environment (optionally cloned from another)",
       tags: ["environments"],
-      requestBody: { required: true, content: { "application/json": { schema: z25.object({
-        name: z25.string().min(1).max(200),
-        handle: z25.string().min(1).max(100),
-        description: z25.string().max(500).optional(),
-        clone_from_environment_id: z25.string().optional(),
-        requires_approval: z25.boolean().optional()
+      requestBody: { required: true, content: { "application/json": { schema: z28.object({
+        name: z28.string().min(1).max(200),
+        handle: z28.string().min(1).max(100),
+        description: z28.string().max(500).optional(),
+        clone_from_environment_id: z28.string().optional(),
+        requires_approval: z28.boolean().optional()
       }) } } },
       responses: {
         "201": { description: "Created", content: { "application/json": { schema: EnvironmentSchema } } },
@@ -7271,7 +8412,7 @@ var environmentPaths = {
   "/api/environments/{environmentId}": {
     get: operation({
       operationId: "getEnvironment",
-      requestParams: { path: z25.object({ environmentId: z25.string() }) },
+      requestParams: { path: z28.object({ environmentId: z28.string() }) },
       summary: "Get environment by ID",
       tags: ["environments"],
       responses: { "200": { description: "Environment", content: { "application/json": { schema: EnvironmentSchema } } } },
@@ -7279,7 +8420,7 @@ var environmentPaths = {
     }),
     patch: operation({
       operationId: "updateEnvironment",
-      requestParams: { path: z25.object({ environmentId: z25.string() }) },
+      requestParams: { path: z28.object({ environmentId: z28.string() }) },
       summary: "Update environment settings",
       tags: ["environments"],
       requestBody: { required: true, content: { "application/json": { schema: EnvironmentSchema.partial() } } },
@@ -7290,7 +8431,7 @@ var environmentPaths = {
   "/api/environments/{environmentId}/archive": {
     post: operation({
       operationId: "archiveEnvironment",
-      requestParams: { path: z25.object({ environmentId: z25.string() }) },
+      requestParams: { path: z28.object({ environmentId: z28.string() }) },
       summary: "Archive environment (production cannot be archived)",
       tags: ["environments"],
       responses: {
@@ -7307,14 +8448,14 @@ var environmentPaths = {
       tags: ["environments"],
       requestBody: { required: true, content: { "application/json": { schema: EnvironmentPromotionRequestSchema } } },
       responses: {
-        "200": { description: "Promotion result", content: { "application/json": { schema: z25.object({
-          promoted_count: z25.number().int(),
-          conflict_count: z25.number().int(),
-          conflicts: z25.array(z25.object({
-            handle: z25.string(),
-            resource_type: z25.string(),
-            source_sequence: z25.number().int(),
-            target_sequence: z25.number().int()
+        "200": { description: "Promotion result", content: { "application/json": { schema: z28.object({
+          promoted_count: z28.number().int(),
+          conflict_count: z28.number().int(),
+          conflicts: z28.array(z28.object({
+            handle: z28.string(),
+            resource_type: z28.string(),
+            source_sequence: z28.number().int(),
+            target_sequence: z28.number().int()
           }))
         }) } } },
         default: { description: "Error", content: { "application/json": { schema: ErrorEnvelope } } }
@@ -7324,40 +8465,51 @@ var environmentPaths = {
   }
 };
 
-// ../scaffold-205/src/decisions/models/schema.ts
-import { z as z26 } from "zod";
-var { Unrestricted: Unrestricted23, Pii: Pii5 } = DataClassification;
-var { Transient: Transient22, Persisted: Persisted19 } = SchemaPersistence;
+// ../scaffold/src/decisions/models/schema.ts
+import { z as z29 } from "zod";
+var { Unrestricted: Unrestricted26, Pii: Pii5 } = DataClassification;
+var { Transient: Transient25, Persisted: Persisted20 } = SchemaPersistence;
 var { External: External12 } = SchemaExposure;
-var SupersessionReasonSchema = z26.enum(["milestone_version", "milestone_order"]).meta({ id: "SupersessionReason", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
-var SupersessionRecordSchema = z26.object({
-  superseded_output_id: z26.string().min(1).meta(Unrestricted23),
-  superseded_by: z26.string().min(1).meta(Unrestricted23),
-  reason: SupersessionReasonSchema.meta(Unrestricted23)
+var SupersessionReasonSchema = z29.enum(["milestone_version", "milestone_order"]).meta({ id: "SupersessionReason", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
+var SupersessionRecordSchema = z29.object({
+  superseded_output_id: z29.string().min(1).meta(Unrestricted26),
+  superseded_by: z29.string().min(1).meta(Unrestricted26),
+  reason: SupersessionReasonSchema.meta(Unrestricted26)
 }).meta({
   id: "SupersessionRecord",
-  "x-revturbine-schema-persistence": Persisted19,
+  "x-revturbine-schema-persistence": Persisted20,
   "x-revturbine-schema-exposure": External12,
   ...DataClassification.Operational
 });
-var EntitlementStatusSchema = z26.enum(ENTITLEMENT_STATUS_VALUES).meta({ id: "EntitlementStatus", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
-var PlacementDecisionOutputSchema = z26.object({
-  output_id: z26.string().meta(Unrestricted23),
-  category: z26.string().meta(Unrestricted23),
-  surface: z26.object({
-    template: z26.string().optional().meta(Unrestricted23),
-    type: SurfaceTypeSchema.meta(Unrestricted23),
-    slot_id: z26.string().optional().meta(Unrestricted23)
-  }).meta(Unrestricted23),
-  content: z26.record(z26.string(), z26.unknown()).meta(Unrestricted23),
-  promotion: z26.record(z26.string(), z26.unknown()).optional().meta(Unrestricted23),
-  cta_path: z26.record(z26.string(), z26.unknown()).optional().meta(Unrestricted23),
+var EntitlementStatusSchema = z29.enum(ENTITLEMENT_STATUS_VALUES).meta({ id: "EntitlementStatus", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
+var PlacementDecisionOutputSchema = z29.object({
+  output_id: z29.string().meta(Unrestricted26),
+  category: z29.string().meta(Unrestricted26),
+  surface: z29.object({
+    template: z29.string().optional().meta(Unrestricted26),
+    type: SurfaceTypeSchema.meta(Unrestricted26),
+    slot_id: z29.string().optional().meta(Unrestricted26)
+  }).meta(Unrestricted26),
+  content: z29.record(z29.string(), z29.unknown()).meta(Unrestricted26),
+  promotion: z29.record(z29.string(), z29.unknown()).optional().meta(Unrestricted26),
+  cta_path: z29.record(z29.string(), z29.unknown()).optional().meta(Unrestricted26),
   /** @deprecated Use cta_path. Kept for compatibility with older SDK consumers. */
-  ui_path: z26.record(z26.string(), z26.unknown()).optional().meta(Unrestricted23),
-  rule_id: z26.string().meta(Unrestricted23),
-  decision_id: z26.string().meta(Unrestricted23),
-  config_version: z26.string().meta(Unrestricted23),
-  present_upsell: z26.boolean().meta(Unrestricted23),
+  ui_path: z29.record(z29.string(), z29.unknown()).optional().meta(Unrestricted26),
+  rule_id: z29.string().meta(Unrestricted26),
+  decision_id: z29.string().meta(Unrestricted26),
+  config_version: z29.string().meta(Unrestricted26),
+  present_upsell: z29.boolean().meta(Unrestricted26),
+  /**
+   * Canonical, version-stable handle of the message block whose content was
+   * rendered. Analytics groups on this value across message edits (plan 182).
+   */
+  message_block_handle: z29.string().optional().meta(Unrestricted26),
+  /**
+   * Immutable message-block version id, when the resolver has one. The
+   * current Playbook projection carries only the canonical handle, so local
+   * decisions omit this field rather than mislabelling a handle as a version.
+   */
+  message_block_id: z29.string().optional().meta(Unrestricted26),
   /**
    * Experiment this decision belonged to, as the experiment's **handle** —
    * canonical and version-stable, so editing an experiment does not break the
@@ -7369,9 +8521,9 @@ var PlacementDecisionOutputSchema = z26.object({
    * assign, so a holdout stays analysable rather than collapsing into the
    * unenrolled population (REQ-6).
    */
-  experiment_id: z26.string().optional().meta(Unrestricted23),
+  experiment_id: z29.string().optional().meta(Unrestricted26),
   /** Assigned arm within `experiment_id`, as the variant's handle. Present iff `experiment_id` is. */
-  variant_key: z26.string().optional().meta(Unrestricted23),
+  variant_key: z29.string().optional().meta(Unrestricted26),
   /**
    * Version of the experiment definition that produced this decision, where
    * known. `experiment_id` answers "how is this experiment performing" across
@@ -7379,74 +8531,74 @@ var PlacementDecisionOutputSchema = z26.object({
    * makes a mid-flight edit analysable instead of silently corrupting the
    * series (REQ-10).
    */
-  experiment_version_id: z26.string().optional().meta(Unrestricted23)
-}).meta({ id: "PlacementDecisionOutput", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
-var EntitlementCheckResultSchema = z26.object({
-  status: EntitlementStatusSchema.meta(Unrestricted23),
-  allowed: z26.boolean().meta(Unrestricted23),
-  reason: z26.string().optional().meta(Unrestricted23),
-  current_tier: z26.string().optional().meta(Unrestricted23),
+  experiment_version_id: z29.string().optional().meta(Unrestricted26)
+}).meta({ id: "PlacementDecisionOutput", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
+var EntitlementCheckResultSchema = z29.object({
+  status: EntitlementStatusSchema.meta(Unrestricted26),
+  allowed: z29.boolean().meta(Unrestricted26),
+  reason: z29.string().optional().meta(Unrestricted26),
+  current_tier: z29.string().optional().meta(Unrestricted26),
   /**
    * Effective numeric limit from the matched entitlement rule (or usage
    * snapshot) — plan 133. Present only on limit-bearing outcomes
    * (usage_limit / credits); absence means limit-agnostic, not unlimited.
    */
-  limit: z26.number().optional().meta(Unrestricted23),
+  limit: z29.number().optional().meta(Unrestricted26),
   /** Consumed amount the evaluation applied against `limit`. */
-  used: z26.number().optional().meta(Unrestricted23),
+  used: z29.number().optional().meta(Unrestricted26),
   /** `max(0, limit - used)`. */
-  remaining: z26.number().optional().meta(Unrestricted23),
+  remaining: z29.number().optional().meta(Unrestricted26),
   /** Upsell placement to render when entitlement is denied. */
-  placement: PlacementDecisionOutputSchema.optional().meta(Unrestricted23)
-}).meta({ id: "EntitlementCheckResult", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
-var RuntimePromotionSnapshotSchema = z26.object({
-  id: z26.string().meta(Unrestricted23),
-  name: z26.string().optional().meta(Unrestricted23),
-  discount: z26.string().optional().meta(Unrestricted23),
-  type: z26.string().optional().meta(Unrestricted23),
-  status: z26.string().optional().meta(Unrestricted23)
-}).meta({ id: "RuntimePromotionSnapshot", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
-var ServerEvaluationPayloadUserSchema = z26.object({
-  id: z26.string().meta(Pii5),
-  anonymous_id: z26.string().optional().meta(Unrestricted23),
-  traits: z26.record(z26.string(), z26.unknown()).optional().meta(Pii5)
-}).meta({ id: "ServerEvaluationPayloadUser", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
-var ServerEvaluationPayloadDecisionsItemSchema = z26.object({
-  slot_id: z26.string().optional().meta(Unrestricted23),
-  entitlement_handle: z26.string().optional().meta(Unrestricted23),
-  plan_handle: z26.string().optional().meta(Unrestricted23),
-  placement_handle: z26.string().optional().meta(Unrestricted23),
-  visible: z26.boolean().meta(Unrestricted23),
-  output: PlacementDecisionOutputSchema.optional().meta(Unrestricted23),
-  reason_codes: z26.array(z26.string()).optional().meta(Unrestricted23)
-}).meta({ id: "ServerEvaluationPayloadDecisionsItem", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
+  placement: PlacementDecisionOutputSchema.optional().meta(Unrestricted26)
+}).meta({ id: "EntitlementCheckResult", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
+var RuntimePromotionSnapshotSchema = z29.object({
+  id: z29.string().meta(Unrestricted26),
+  name: z29.string().optional().meta(Unrestricted26),
+  discount: z29.string().optional().meta(Unrestricted26),
+  type: z29.string().optional().meta(Unrestricted26),
+  status: z29.string().optional().meta(Unrestricted26)
+}).meta({ id: "RuntimePromotionSnapshot", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
+var ServerEvaluationPayloadUserSchema = z29.object({
+  id: z29.string().meta(Pii5),
+  anonymous_id: z29.string().optional().meta(Unrestricted26),
+  traits: z29.record(z29.string(), z29.unknown()).optional().meta(Pii5)
+}).meta({ id: "ServerEvaluationPayloadUser", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
+var ServerEvaluationPayloadDecisionsItemSchema = z29.object({
+  slot_id: z29.string().optional().meta(Unrestricted26),
+  entitlement_handle: z29.string().optional().meta(Unrestricted26),
+  plan_handle: z29.string().optional().meta(Unrestricted26),
+  placement_handle: z29.string().optional().meta(Unrestricted26),
+  visible: z29.boolean().meta(Unrestricted26),
+  output: PlacementDecisionOutputSchema.optional().meta(Unrestricted26),
+  reason_codes: z29.array(z29.string()).optional().meta(Unrestricted26)
+}).meta({ id: "ServerEvaluationPayloadDecisionsItem", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
 var ServerEvaluationPayloadEntitlementsValueSchema = EntitlementCheckResultSchema;
-var ServerEvaluationPayloadTrialStatusSchema = UserTrialStatusSchema.meta({ id: "ServerEvaluationPayloadTrialStatus", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
-var ServerEvaluationPayloadUserContextSchema = z26.object({
-  segments: z26.array(z26.string()).optional().meta(Unrestricted23),
-  traits: z26.record(z26.string(), z26.unknown()).optional().meta(Pii5),
-  usage_balances: z26.record(z26.string(), z26.number()).optional().meta(Unrestricted23)
-}).meta({ id: "ServerEvaluationPayloadUserContext", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
-var ServerEvaluationPayloadSchema = z26.object({
-  version: z26.literal("1.0.0").meta(Unrestricted23),
-  request_id: z26.string().meta(Unrestricted23),
-  tenant_id: z26.string().meta(Unrestricted23),
-  evaluated_at: z26.string().datetime().meta(Unrestricted23),
-  ttl_seconds: z26.number().int().min(0).max(86400).meta(Unrestricted23),
+var ServerEvaluationPayloadTrialStatusSchema = UserTrialStatusSchema.meta({ id: "ServerEvaluationPayloadTrialStatus", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
+var ServerEvaluationPayloadUserContextSchema = z29.object({
+  segments: z29.array(z29.string()).optional().meta(Unrestricted26),
+  traits: z29.record(z29.string(), z29.unknown()).optional().meta(Pii5),
+  usage_balances: z29.record(z29.string(), z29.number()).optional().meta(Unrestricted26)
+}).meta({ id: "ServerEvaluationPayloadUserContext", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
+var ServerEvaluationPayloadSchema = z29.object({
+  version: z29.literal("1.0.0").meta(Unrestricted26),
+  request_id: z29.string().meta(Unrestricted26),
+  tenant_id: z29.string().meta(Unrestricted26),
+  evaluated_at: z29.string().datetime().meta(Unrestricted26),
+  ttl_seconds: z29.number().int().min(0).max(86400).meta(Unrestricted26),
   user: ServerEvaluationPayloadUserSchema.meta(Pii5),
-  decisions: z26.array(ServerEvaluationPayloadDecisionsItemSchema).meta(Unrestricted23),
-  entitlements: z26.record(z26.string(), ServerEvaluationPayloadEntitlementsValueSchema).optional().meta(Unrestricted23),
-  theme: z26.record(z26.string(), z26.unknown()).optional().meta(Unrestricted23),
-  trial_status: ServerEvaluationPayloadTrialStatusSchema.optional().meta(Unrestricted23),
+  decisions: z29.array(ServerEvaluationPayloadDecisionsItemSchema).meta(Unrestricted26),
+  entitlements: z29.record(z29.string(), ServerEvaluationPayloadEntitlementsValueSchema).optional().meta(Unrestricted26),
+  theme: z29.record(z29.string(), z29.unknown()).optional().meta(Unrestricted26),
+  trial_status: ServerEvaluationPayloadTrialStatusSchema.optional().meta(Unrestricted26),
   user_context: ServerEvaluationPayloadUserContextSchema.optional().meta(Pii5)
-}).meta({ id: "ServerEvaluationPayload", "x-revturbine-schema-persistence": Transient22, "x-revturbine-schema-exposure": External12 });
+}).meta({ id: "ServerEvaluationPayload", "x-revturbine-schema-persistence": Transient25, "x-revturbine-schema-exposure": External12 });
 
-// ../scaffold-205/src/changemgmt/models/changesets-schema.ts
-import { z as z27 } from "zod";
-var { Unrestricted: Unrestricted24 } = DataClassification;
-var { Persisted: Persisted20, Transient: Transient23 } = SchemaPersistence;
-var { Internal: Internal20 } = SchemaExposure;
-var PlaybookVersionStatusSchema = z27.enum([
+// ../scaffold/src/changemgmt/models/changesets-schema.ts
+import { z as z30 } from "zod";
+var { Unrestricted: Unrestricted27 } = DataClassification;
+var { Persisted: Persisted21, Transient: Transient26 } = SchemaPersistence;
+var { Internal: Internal23 } = SchemaExposure;
+var PlaybookVersionStatusSchema = z30.enum([
   "draft",
   "awaiting_approval",
   "approved",
@@ -7455,78 +8607,78 @@ var PlaybookVersionStatusSchema = z27.enum([
   "rejected",
   "archived"
 ]).meta(
-  { id: "PlaybookVersionStatus", "x-revturbine-schema-persistence": Transient23, "x-revturbine-schema-exposure": Internal20 }
+  { id: "PlaybookVersionStatus", "x-revturbine-schema-persistence": Transient26, "x-revturbine-schema-exposure": Internal23 }
 );
 var PlaybookVersionSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  environment_id: z27.string().min(1).meta(Unrestricted24),
-  name: NameField.meta(Unrestricted24),
-  description: z27.string().max(2e3).optional().meta(Unrestricted24),
-  status: PlaybookVersionStatusSchema.default("draft").meta(Unrestricted24),
-  labels: z27.array(z27.string()).default([]).meta(Unrestricted24),
+  environment_id: z30.string().min(1).meta(Unrestricted27),
+  name: NameField.meta(Unrestricted27),
+  description: z30.string().max(2e3).optional().meta(Unrestricted27),
+  status: PlaybookVersionStatusSchema.default("draft").meta(Unrestricted27),
+  labels: z30.array(z30.string()).default([]).meta(Unrestricted27),
   // People
-  created_by: z27.string().min(1).meta(Unrestricted24),
-  submitted_by: z27.string().nullable().default(null).meta({ ...Unrestricted24, readOnly: true }),
-  reviewed_by: z27.string().nullable().default(null).meta({ ...Unrestricted24, readOnly: true }),
-  deployed_by: z27.string().nullable().default(null).meta({ ...Unrestricted24, readOnly: true }),
+  created_by: z30.string().min(1).meta(Unrestricted27),
+  submitted_by: z30.string().nullable().default(null).meta({ ...Unrestricted27, readOnly: true }),
+  reviewed_by: z30.string().nullable().default(null).meta({ ...Unrestricted27, readOnly: true }),
+  deployed_by: z30.string().nullable().default(null).meta({ ...Unrestricted27, readOnly: true }),
   // Dates
-  submitted_at: NullableDatetimeField.meta({ ...Unrestricted24, readOnly: true }),
-  reviewed_at: NullableDatetimeField.meta({ ...Unrestricted24, readOnly: true }),
-  deployed_at: NullableDatetimeField.meta({ ...Unrestricted24, readOnly: true }),
+  submitted_at: NullableDatetimeField.meta({ ...Unrestricted27, readOnly: true }),
+  reviewed_at: NullableDatetimeField.meta({ ...Unrestricted27, readOnly: true }),
+  deployed_at: NullableDatetimeField.meta({ ...Unrestricted27, readOnly: true }),
   // Snapshot (analogous to HEAD at branch creation)
-  base_snapshot_sequence: z27.number().int().min(0).default(0).meta({ ...Unrestricted24, readOnly: true }),
+  base_snapshot_sequence: z30.number().int().min(0).default(0).meta({ ...Unrestricted27, readOnly: true }),
   // Computed counts
-  entry_count: z27.number().int().min(0).default(0).meta({ ...Unrestricted24, readOnly: true }),
-  conflict_count: z27.number().int().min(0).default(0).meta({ ...Unrestricted24, readOnly: true }),
+  entry_count: z30.number().int().min(0).default(0).meta({ ...Unrestricted27, readOnly: true }),
+  conflict_count: z30.number().int().min(0).default(0).meta({ ...Unrestricted27, readOnly: true }),
   // Lineage
-  rollback_of_playbook_version_id: z27.string().nullable().default(null).meta(Unrestricted24),
-  cherry_picked_from_playbook_version_id: z27.string().nullable().default(null).meta(Unrestricted24),
+  rollback_of_playbook_version_id: z30.string().nullable().default(null).meta(Unrestricted27),
+  cherry_picked_from_playbook_version_id: z30.string().nullable().default(null).meta(Unrestricted27),
   // Review
-  review_notes: z27.string().max(2e3).optional().meta(Unrestricted24),
-  rejection_reason: z27.string().max(2e3).optional().meta(Unrestricted24),
+  review_notes: z30.string().max(2e3).optional().meta(Unrestricted27),
+  rejection_reason: z30.string().max(2e3).optional().meta(Unrestricted27),
   // Immutable frozen artifacts, written once when the playbook version is activated
   // (plan 70): `snapshot` is the fully-rendered RevTurbineConfig JSON; `bundle`
   // is the compiled FlatBuffer bundle, base64-encoded (the Zod→drizzle
   // generator has no bytea type). readOnly — only the activation path writes
   // them, and never overwrites a populated value.
-  snapshot: z27.record(z27.string(), z27.unknown()).nullable().default(null).meta({ ...Unrestricted24, readOnly: true }),
-  bundle: z27.string().nullable().default(null).meta({ ...Unrestricted24, readOnly: true }),
-  metadata: MetadataField.meta(Unrestricted24)
+  snapshot: z30.record(z30.string(), z30.unknown()).nullable().default(null).meta({ ...Unrestricted27, readOnly: true }),
+  bundle: z30.string().nullable().default(null).meta({ ...Unrestricted27, readOnly: true }),
+  metadata: MetadataField.meta(Unrestricted27)
 }).meta(
-  { id: "PlaybookVersion", "x-revturbine-schema-persistence": Persisted20, "x-revturbine-schema-exposure": Internal20 }
+  { id: "PlaybookVersion", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal23 }
 );
-var PlaybookVersionEntrySummarySchema = z27.object({
-  handle: z27.string().meta(Unrestricted24),
-  resource_type: z27.string().meta(Unrestricted24),
-  resource_name: z27.string().optional().meta(Unrestricted24),
-  action: z27.enum(["create", "update", "delete"]).meta(Unrestricted24),
-  has_conflict: z27.boolean().meta(Unrestricted24)
+var PlaybookVersionEntrySummarySchema = z30.object({
+  handle: z30.string().meta(Unrestricted27),
+  resource_type: z30.string().meta(Unrestricted27),
+  resource_name: z30.string().optional().meta(Unrestricted27),
+  action: z30.enum(["create", "update", "delete"]).meta(Unrestricted27),
+  has_conflict: z30.boolean().meta(Unrestricted27)
 }).meta(
-  { id: "PlaybookVersionEntrySummary", "x-revturbine-schema-persistence": Transient23, "x-revturbine-schema-exposure": Internal20 }
+  { id: "PlaybookVersionEntrySummary", "x-revturbine-schema-persistence": Transient26, "x-revturbine-schema-exposure": Internal23 }
 );
-var PlaybookVersionDiffSchema = z27.object({
-  playbook_version_id: z27.string().meta(Unrestricted24),
-  entries: z27.array(PlaybookVersionEntrySummarySchema).meta(Unrestricted24),
-  total_entries: z27.number().int().min(0).meta(Unrestricted24),
-  total_conflicts: z27.number().int().min(0).meta(Unrestricted24),
-  deployable: z27.boolean().meta(Unrestricted24)
+var PlaybookVersionDiffSchema = z30.object({
+  playbook_version_id: z30.string().meta(Unrestricted27),
+  entries: z30.array(PlaybookVersionEntrySummarySchema).meta(Unrestricted27),
+  total_entries: z30.number().int().min(0).meta(Unrestricted27),
+  total_conflicts: z30.number().int().min(0).meta(Unrestricted27),
+  deployable: z30.boolean().meta(Unrestricted27)
 }).meta(
-  { id: "PlaybookVersionDiff", "x-revturbine-schema-persistence": Transient23, "x-revturbine-schema-exposure": Internal20 }
+  { id: "PlaybookVersionDiff", "x-revturbine-schema-persistence": Transient26, "x-revturbine-schema-exposure": Internal23 }
 );
-var PlaybookVersionDeployResultSchema = z27.object({
-  playbook_version_id: z27.string().meta(Unrestricted24),
-  deployed_count: z27.number().int().min(0).meta(Unrestricted24),
-  superseded_count: z27.number().int().min(0).meta(Unrestricted24),
-  skipped_conflicts: z27.number().int().min(0).meta(Unrestricted24),
-  deployed_at: z27.string().datetime().meta(Unrestricted24)
+var PlaybookVersionDeployResultSchema = z30.object({
+  playbook_version_id: z30.string().meta(Unrestricted27),
+  deployed_count: z30.number().int().min(0).meta(Unrestricted27),
+  superseded_count: z30.number().int().min(0).meta(Unrestricted27),
+  skipped_conflicts: z30.number().int().min(0).meta(Unrestricted27),
+  deployed_at: z30.string().datetime().meta(Unrestricted27)
 }).meta(
-  { id: "PlaybookVersionDeployResult", "x-revturbine-schema-persistence": Transient23, "x-revturbine-schema-exposure": Internal20 }
+  { id: "PlaybookVersionDeployResult", "x-revturbine-schema-persistence": Transient26, "x-revturbine-schema-exposure": Internal23 }
 );
 var playbookVersionPaths = {
   // ── Lifecycle transitions ────────────────────────────────────────────────
   "/api/playbook-versions/{playbookVersionId}/submit": {
     post: operation({
       operationId: "submitPlaybookVersion",
-      requestParams: { path: z27.object({ playbookVersionId: z27.string() }) },
+      requestParams: { path: z30.object({ playbookVersionId: z30.string() }) },
       summary: "Submit playbook version for approval",
       tags: ["playbook-versions"],
       responses: {
@@ -7539,10 +8691,10 @@ var playbookVersionPaths = {
   "/api/playbook-versions/{playbookVersionId}/approve": {
     post: operation({
       operationId: "approvePlaybookVersion",
-      requestParams: { path: z27.object({ playbookVersionId: z27.string() }) },
+      requestParams: { path: z30.object({ playbookVersionId: z30.string() }) },
       summary: "Approve playbook version (may auto-deploy if environment allows)",
       tags: ["playbook-versions"],
-      requestBody: { required: true, content: { "application/json": { schema: z27.object({ review_notes: z27.string().max(2e3).optional() }) } } },
+      requestBody: { required: true, content: { "application/json": { schema: z30.object({ review_notes: z30.string().max(2e3).optional() }) } } },
       responses: {
         "200": { description: "Approved", content: { "application/json": { schema: PlaybookVersionSchema } } },
         default: { description: "Error", content: { "application/json": { schema: ErrorEnvelope } } }
@@ -7553,10 +8705,10 @@ var playbookVersionPaths = {
   "/api/playbook-versions/{playbookVersionId}/reject": {
     post: operation({
       operationId: "rejectPlaybookVersion",
-      requestParams: { path: z27.object({ playbookVersionId: z27.string() }) },
+      requestParams: { path: z30.object({ playbookVersionId: z30.string() }) },
       summary: "Reject playbook version",
       tags: ["playbook-versions"],
-      requestBody: { required: true, content: { "application/json": { schema: z27.object({ rejection_reason: z27.string().max(2e3) }) } } },
+      requestBody: { required: true, content: { "application/json": { schema: z30.object({ rejection_reason: z30.string().max(2e3) }) } } },
       responses: {
         "200": { description: "Rejected", content: { "application/json": { schema: PlaybookVersionSchema } } },
         default: { description: "Error", content: { "application/json": { schema: ErrorEnvelope } } }
@@ -7567,10 +8719,10 @@ var playbookVersionPaths = {
   "/api/playbook-versions/{playbookVersionId}/deploy": {
     post: operation({
       operationId: "deployPlaybookVersion",
-      requestParams: { path: z27.object({ playbookVersionId: z27.string() }) },
+      requestParams: { path: z30.object({ playbookVersionId: z30.string() }) },
       summary: "Deploy playbook version \u2014 activates all entries, supersedes previous versions",
       tags: ["playbook-versions"],
-      requestBody: { required: true, content: { "application/json": { schema: z27.object({ force: z27.boolean().default(false) }) } } },
+      requestBody: { required: true, content: { "application/json": { schema: z30.object({ force: z30.boolean().default(false) }) } } },
       responses: {
         "200": { description: "Deploy result", content: { "application/json": { schema: PlaybookVersionDeployResultSchema } } },
         default: { description: "Error (conflicts exist)", content: { "application/json": { schema: ErrorEnvelope } } }
@@ -7581,7 +8733,7 @@ var playbookVersionPaths = {
   "/api/playbook-versions/{playbookVersionId}/archive": {
     post: operation({
       operationId: "archivePlaybookVersion",
-      requestParams: { path: z27.object({ playbookVersionId: z27.string() }) },
+      requestParams: { path: z30.object({ playbookVersionId: z30.string() }) },
       summary: "Archive (abandon) a playbook version",
       tags: ["playbook-versions"],
       responses: { "200": { description: "Archived", content: { "application/json": { schema: PlaybookVersionSchema } } } },
@@ -7592,7 +8744,7 @@ var playbookVersionPaths = {
   "/api/playbook-versions/{playbookVersionId}/preview": {
     get: operation({
       operationId: "previewPlaybookVersion",
-      requestParams: { path: z27.object({ playbookVersionId: z27.string() }) },
+      requestParams: { path: z30.object({ playbookVersionId: z30.string() }) },
       summary: "Preview diff of all entries vs current state (dry-run deploy)",
       tags: ["playbook-versions"],
       responses: { "200": { description: "Diff preview", content: { "application/json": { schema: PlaybookVersionDiffSchema } } } },
@@ -7602,7 +8754,7 @@ var playbookVersionPaths = {
   "/api/playbook-versions/{playbookVersionId}/conflicts": {
     get: operation({
       operationId: "listPlaybookVersionConflicts",
-      requestParams: { path: z27.object({ playbookVersionId: z27.string() }), query: ListQueryParamsSchema },
+      requestParams: { path: z30.object({ playbookVersionId: z30.string() }), query: ListQueryParamsSchema },
       summary: "List entries with sequence conflicts (base_sequence \u2260 current)",
       tags: ["playbook-versions"],
       responses: { "200": { description: "Conflict list", content: { "application/json": { schema: ListEnvelope(PlaybookVersionEntrySummarySchema) } } } },
@@ -7613,11 +8765,11 @@ var playbookVersionPaths = {
   "/api/playbook-versions/{playbookVersionId}/rollback": {
     post: operation({
       operationId: "rollbackPlaybookVersion",
-      requestParams: { path: z27.object({ playbookVersionId: z27.string() }) },
+      requestParams: { path: z30.object({ playbookVersionId: z30.string() }) },
       summary: "Create a rollback playbook version that reverts a deployed one",
       tags: ["playbook-versions"],
-      requestBody: { required: true, content: { "application/json": { schema: z27.object({
-        name: z27.string().min(1).max(200).optional()
+      requestBody: { required: true, content: { "application/json": { schema: z30.object({
+        name: z30.string().min(1).max(200).optional()
       }) } } },
       responses: {
         "201": { description: "Rollback PlaybookVersion created", content: { "application/json": { schema: PlaybookVersionSchema } } },
@@ -7629,15 +8781,15 @@ var playbookVersionPaths = {
   "/api/playbook-versions/{playbookVersionId}/cherry-pick": {
     post: operation({
       operationId: "cherryPickEntries",
-      requestParams: { path: z27.object({ playbookVersionId: z27.string() }) },
+      requestParams: { path: z30.object({ playbookVersionId: z30.string() }) },
       summary: "Cherry-pick individual entries from this PlaybookVersion into another",
       tags: ["playbook-versions"],
-      requestBody: { required: true, content: { "application/json": { schema: z27.object({
-        handles: z27.array(z27.string()).min(1),
-        target_playbook_version_id: z27.string().min(1)
+      requestBody: { required: true, content: { "application/json": { schema: z30.object({
+        handles: z30.array(z30.string()).min(1),
+        target_playbook_version_id: z30.string().min(1)
       }) } } },
       responses: {
-        "200": { description: "Cherry-picked", content: { "application/json": { schema: z27.object({ copied_count: z27.number().int() }) } } },
+        "200": { description: "Cherry-picked", content: { "application/json": { schema: z30.object({ copied_count: z30.number().int() }) } } },
         default: { description: "Error", content: { "application/json": { schema: ErrorEnvelope } } }
       },
       "x-revturbine-operation": { exposure: "internal", resource: "playbook-versions", persistence: { table: "playbookVersions", mode: "update" } }
@@ -7645,80 +8797,107 @@ var playbookVersionPaths = {
   }
 };
 
-// ../scaffold-205/src/settings/models/schema.ts
-import { z as z28 } from "zod";
-var { Unrestricted: Unrestricted25, Pii: Pii6 } = DataClassification;
-var { Persisted: Persisted21 } = SchemaPersistence;
-var { Internal: Internal21 } = SchemaExposure;
-var ApiKeyStatusSchema = z28.enum(["active", "revoked", "rotating"]).meta({ id: "ApiKeyStatus", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
+// ../scaffold/src/settings/models/schema.ts
+import { z as z31 } from "zod";
+var { Unrestricted: Unrestricted28, Pii: Pii6 } = DataClassification;
+var { Persisted: Persisted22 } = SchemaPersistence;
+var { Internal: Internal24 } = SchemaExposure;
+var PROVIDER_CONNECTION_FACETS = schemaFacets(SchemaContext.CustomerOperations, {
+  sdkInput: false,
+  source: SchemaSource.Customer
+});
+var DEFAULT_ANALYTICS_RETENTION_DAYS = 365;
+var ProviderConnectionSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
+  provider_handle: HandleField.meta(Unrestricted28),
+  provider_type: HandleField.meta(Unrestricted28),
+  endpoint: z31.string().url().max(2048).nullable().default(null).meta(Unrestricted28),
+  credential_reference: z31.string().min(1).max(255).nullable().default(null).meta({ ...Unrestricted28, readOnly: true }),
+  environment_id: z31.string().min(1).max(200).default("production").meta(Unrestricted28),
+  health_state: ProviderAvailabilitySchema.default("unavailable").meta({ ...Unrestricted28, readOnly: true }),
+  last_health_check_at: NullableDatetimeField.meta({ ...Unrestricted28, readOnly: true }),
+  supported_capability_versions: z31.record(
+    z31.string().min(1).max(100),
+    z31.array(z31.number().int().min(1)).min(1)
+  ).default({}).meta({ ...Unrestricted28, readOnly: true }),
+  external_project_id: z31.string().min(1).max(255).nullable().default(null).meta(Unrestricted28),
+  external_workspace_id: z31.string().min(1).max(255).nullable().default(null).meta(Unrestricted28),
+  timeout_ms: z31.number().int().min(1).max(12e4).default(1e4).meta(Unrestricted28),
+  stale_after_ms: z31.number().int().min(1).default(3e5).meta(Unrestricted28),
+  unavailable_after_failures: z31.number().int().min(1).max(100).default(3).meta(Unrestricted28)
+}).meta({ id: "ProviderConnection", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24, ...PROVIDER_CONNECTION_FACETS });
+var ApiKeyStatusSchema = z31.enum(["active", "revoked", "rotating"]).meta({ id: "ApiKeyStatus", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
 var ApiKeySchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  name: NameField.meta(Unrestricted25),
-  key_hash: z28.string().min(1).meta({ ...Pii6, readOnly: true }),
-  key_prefix: z28.string().min(1).max(20).meta({ ...Unrestricted25, readOnly: true }),
-  key_last4: z28.string().length(4).meta({ ...Unrestricted25, readOnly: true }),
-  status: ApiKeyStatusSchema.default("active").meta(Unrestricted25),
-  last_used_at: NullableDatetimeField.meta({ ...Unrestricted25, readOnly: true }),
-  expires_at: NullableDatetimeField.meta(Unrestricted25)
-}).meta({ id: "ApiKey", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
-var FlagValueTypeSchema = z28.enum(["boolean", "string", "number", "json"]).meta({ id: "FlagValueType", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
+  name: NameField.meta(Unrestricted28),
+  key_hash: z31.string().min(1).meta({ ...Pii6, readOnly: true }),
+  key_prefix: z31.string().min(1).max(20).meta({ ...Unrestricted28, readOnly: true }),
+  key_last4: z31.string().length(4).meta({ ...Unrestricted28, readOnly: true }),
+  status: ApiKeyStatusSchema.default("active").meta(Unrestricted28),
+  last_used_at: NullableDatetimeField.meta({ ...Unrestricted28, readOnly: true }),
+  expires_at: NullableDatetimeField.meta(Unrestricted28)
+}).meta({ id: "ApiKey", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
+var FlagValueTypeSchema = z31.enum(["boolean", "string", "number", "json"]).meta({ id: "FlagValueType", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
 var FeatureFlagSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  key: z28.string().min(1).max(100).meta(Unrestricted25),
-  value_type: FlagValueTypeSchema.default("boolean").meta(Unrestricted25),
-  value: z28.string().max(4e3).default("false").meta(Unrestricted25),
-  description: DescriptionField.meta(Unrestricted25),
-  enabled: z28.boolean().default(true).meta(Unrestricted25)
-}).meta({ id: "FeatureFlag", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
+  key: z31.string().min(1).max(100).meta(Unrestricted28),
+  value_type: FlagValueTypeSchema.default("boolean").meta(Unrestricted28),
+  value: z31.string().max(4e3).default("false").meta(Unrestricted28),
+  description: DescriptionField.meta(Unrestricted28),
+  enabled: z31.boolean().default(true).meta(Unrestricted28)
+}).meta({ id: "FeatureFlag", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
 var TenantConfigSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  workspace_name: z28.string().min(1).max(200).meta(Unrestricted25),
-  support_email: z28.string().email().nullable().default(null).meta(Unrestricted25),
-  timezone: z28.string().max(50).default("UTC").meta(Unrestricted25),
-  default_currency: z28.string().length(3).default("USD").meta(Unrestricted25),
-  logo_url: z28.string().url().nullable().default(null).meta(Unrestricted25),
+  workspace_name: z31.string().min(1).max(200).meta(Unrestricted28),
+  support_email: z31.string().email().nullable().default(null).meta(Unrestricted28),
+  timezone: z31.string().max(50).default("UTC").meta(Unrestricted28),
+  default_currency: z31.string().length(3).default("USD").meta(Unrestricted28),
+  logo_url: z31.string().url().nullable().default(null).meta(Unrestricted28),
   // ── Activity thresholds (plan 180 D4/D5) ─────────────────────────────
   // Tenant-level settings applied AT CONTEXT RETRIEVAL against the
   // persisted `user_contexts.activity_score` to derive the activity level
   // (`deriveActivityLevel`). The window governs the score job's counting
   // period; the mins are the level cut points (score ≥ high_min → high,
   // ≥ medium_min → medium, ≥ low_min → low, else inactive; no score → new).
-  activity_window_days: z28.number().int().min(1).default(30).meta(Unrestricted25),
-  activity_high_min: z28.number().int().min(1).default(10).meta(Unrestricted25),
-  activity_medium_min: z28.number().int().min(1).default(3).meta(Unrestricted25),
-  activity_low_min: z28.number().int().min(1).default(1).meta(Unrestricted25)
-}).meta({ id: "TenantConfig", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
+  activity_window_days: z31.number().int().min(1).default(DEFAULT_ACTIVITY_THRESHOLDS.window_days).meta(Unrestricted28),
+  activity_high_min: z31.number().int().min(1).default(DEFAULT_ACTIVITY_THRESHOLDS.high_min).meta(Unrestricted28),
+  activity_medium_min: z31.number().int().min(1).default(DEFAULT_ACTIVITY_THRESHOLDS.medium_min).meta(Unrestricted28),
+  activity_low_min: z31.number().int().min(1).default(DEFAULT_ACTIVITY_THRESHOLDS.low_min).meta(Unrestricted28),
+  // Shared retention policy for activity-scaled analytics artifacts. Plan
+  // 200 applies it to experiment evidence/results; plan 210 reuses it for
+  // saved-view revisions instead of defining another tenant setting.
+  analytics_retention_days: z31.number().int().min(1).default(DEFAULT_ANALYTICS_RETENTION_DAYS).meta(Unrestricted28)
+}).meta({ id: "TenantConfig", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
 var McpConfigSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
   /** @deprecated Plan 28 ships a hosted MCP server at `/api/mcp/streamable-http`; no outbound server URL is needed. Column remains for backward compatibility. */
-  server_url: z28.string().url().max(500).meta(Unrestricted25),
+  server_url: z31.string().url().max(500).meta(Unrestricted28),
   /** @deprecated Plan 28 mints per-tenant MCP tokens at Settings → MCP and stores only a SHA-256 hash; this free-text hint is unused. Column remains for backward compatibility. */
-  api_token_hint: z28.string().max(50).nullable().default(null).meta(Unrestricted25),
-  allow_write_actions: z28.boolean().default(false).meta(Unrestricted25),
-  enabled_tools: z28.array(z28.string().max(100)).default([]).meta(Unrestricted25),
-  enabled: z28.boolean().default(false).meta(Unrestricted25)
-}).meta({ id: "McpConfig", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
+  api_token_hint: z31.string().max(50).nullable().default(null).meta(Unrestricted28),
+  allow_write_actions: z31.boolean().default(false).meta(Unrestricted28),
+  enabled_tools: z31.array(z31.string().max(100)).default([]).meta(Unrestricted28),
+  enabled: z31.boolean().default(false).meta(Unrestricted28)
+}).meta({ id: "McpConfig", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
 var OnboardingChecklistSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
-  step_key: z28.string().min(1).max(100).meta(Unrestricted25),
-  label: z28.string().min(1).max(200).meta(Unrestricted25),
-  done: z28.boolean().default(false).meta(Unrestricted25),
-  completed_at: NullableDatetimeField.meta({ ...Unrestricted25, readOnly: true })
-}).meta({ id: "OnboardingChecklist", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
-var AuditActorTypeSchema = z28.enum(["user", "agent", "system", "webhook"]).meta({ id: "AuditActorType", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
+  step_key: z31.string().min(1).max(100).meta(Unrestricted28),
+  label: z31.string().min(1).max(200).meta(Unrestricted28),
+  done: z31.boolean().default(false).meta(Unrestricted28),
+  completed_at: NullableDatetimeField.meta({ ...Unrestricted28, readOnly: true })
+}).meta({ id: "OnboardingChecklist", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
+var AuditActorTypeSchema = z31.enum(["user", "agent", "system", "webhook"]).meta({ id: "AuditActorType", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
 var AuditEventSchema = IdField.merge(TenantIdField).extend({
-  environment_id: z28.string().min(1).default("production").meta(Unrestricted25),
-  actor_type: AuditActorTypeSchema.meta(Unrestricted25),
-  actor_id: z28.string().nullable().default(null).meta(Unrestricted25),
-  action: z28.string().min(1).max(120).meta(Unrestricted25),
-  object_type: z28.string().max(120).nullable().default(null).meta(Unrestricted25),
-  object_id: z28.string().max(200).nullable().default(null).meta(Unrestricted25),
-  payload: z28.record(z28.string(), z28.unknown()).nullable().default(null).meta(Unrestricted25),
-  occurred_at: z28.string().datetime().meta({ ...Unrestricted25, readOnly: true })
-}).meta({ id: "AuditEvent", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
-var PlacementTestUserIdentifierTypeSchema = z28.enum(["user_id", "account_id", "email"]).meta({ id: "PlacementTestUserIdentifierType", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21 });
+  environment_id: z31.string().min(1).default("production").meta(Unrestricted28),
+  actor_type: AuditActorTypeSchema.meta(Unrestricted28),
+  actor_id: z31.string().nullable().default(null).meta(Unrestricted28),
+  action: z31.string().min(1).max(120).meta(Unrestricted28),
+  object_type: z31.string().max(120).nullable().default(null).meta(Unrestricted28),
+  object_id: z31.string().max(200).nullable().default(null).meta(Unrestricted28),
+  payload: z31.record(z31.string(), z31.unknown()).nullable().default(null).meta(Unrestricted28),
+  occurred_at: z31.string().datetime().meta({ ...Unrestricted28, readOnly: true })
+}).meta({ id: "AuditEvent", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
+var PlacementTestUserIdentifierTypeSchema = z31.enum(["user_id", "account_id", "email"]).meta({ id: "PlacementTestUserIdentifierType", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24 });
 var PlacementTestUserSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  handle: HandleField.meta({ ...Unrestricted25, readOnly: true }),
-  identifier: z28.string().min(1).max(200).meta(Unrestricted25),
-  identifier_type: PlacementTestUserIdentifierTypeSchema.default("user_id").meta(Unrestricted25),
-  note: z28.string().max(500).nullable().default(null).meta(Unrestricted25),
-  added_by: z28.string().meta(Unrestricted25)
-}).meta({ id: "PlacementTestUser", "x-revturbine-schema-persistence": Persisted21, "x-revturbine-schema-exposure": Internal21, ...mintedIdentity() });
+  handle: HandleField.meta({ ...Unrestricted28, readOnly: true }),
+  identifier: z31.string().min(1).max(200).meta(Unrestricted28),
+  identifier_type: PlacementTestUserIdentifierTypeSchema.default("user_id").meta(Unrestricted28),
+  note: z31.string().max(500).nullable().default(null).meta(Unrestricted28),
+  added_by: z31.string().meta(Unrestricted28)
+}).meta({ id: "PlacementTestUser", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal24, ...mintedIdentity() });
 var settingsPaths = {
   // ── API Keys ─────────────────────────────────────────────────────────────
   "/api/settings/api-keys": {
@@ -7742,7 +8921,7 @@ var settingsPaths = {
   "/api/settings/api-keys/{keyId}": {
     delete: operation({
       operationId: "revokeApiKey",
-      requestParams: { path: z28.object({ keyId: z28.string() }) },
+      requestParams: { path: z31.object({ keyId: z31.string() }) },
       summary: "Revoke an API key",
       tags: ["settings"],
       responses: { "200": { description: "API key revoked", content: { "application/json": { schema: ApiKeySchema } } } },
@@ -7771,7 +8950,7 @@ var settingsPaths = {
   "/api/flags/{flagId}": {
     get: operation({
       operationId: "getFeatureFlag",
-      requestParams: { path: z28.object({ flagId: z28.string() }) },
+      requestParams: { path: z31.object({ flagId: z31.string() }) },
       summary: "Get a feature flag",
       tags: ["settings"],
       responses: { "200": { description: "Feature flag", content: { "application/json": { schema: FeatureFlagSchema } } } },
@@ -7779,7 +8958,7 @@ var settingsPaths = {
     }),
     put: operation({
       operationId: "updateFeatureFlag",
-      requestParams: { path: z28.object({ flagId: z28.string() }) },
+      requestParams: { path: z31.object({ flagId: z31.string() }) },
       summary: "Update a feature flag",
       tags: ["settings"],
       requestBody: { required: true, content: { "application/json": { schema: toWritableSchema(FeatureFlagSchema).partial() } } },
@@ -7788,7 +8967,7 @@ var settingsPaths = {
     }),
     delete: operation({
       operationId: "deleteFeatureFlag",
-      requestParams: { path: z28.object({ flagId: z28.string() }) },
+      requestParams: { path: z31.object({ flagId: z31.string() }) },
       summary: "Delete a feature flag",
       tags: ["settings"],
       responses: { "200": { description: "Feature flag deleted", content: { "application/json": { schema: FeatureFlagSchema } } } },
@@ -7845,7 +9024,7 @@ var settingsPaths = {
   "/api/settings/onboarding/{stepId}": {
     get: operation({
       operationId: "getOnboardingStep",
-      requestParams: { path: z28.object({ stepId: z28.string() }) },
+      requestParams: { path: z31.object({ stepId: z31.string() }) },
       summary: "Get an onboarding step",
       tags: ["settings"],
       responses: { "200": { description: "Onboarding step", content: { "application/json": { schema: OnboardingChecklistSchema } } } },
@@ -7853,7 +9032,7 @@ var settingsPaths = {
     }),
     put: operation({
       operationId: "updateOnboardingStep",
-      requestParams: { path: z28.object({ stepId: z28.string() }) },
+      requestParams: { path: z31.object({ stepId: z31.string() }) },
       summary: "Update an onboarding step",
       tags: ["settings"],
       requestBody: { required: true, content: { "application/json": { schema: toWritableSchema(OnboardingChecklistSchema).partial() } } },
@@ -7894,79 +9073,125 @@ var settingsPaths = {
   "/api/config/placement-test-users/{testUserId}": {
     delete: operation({
       operationId: "deletePlacementTestUser",
-      requestParams: { path: z28.object({ testUserId: z28.string() }) },
+      requestParams: { path: z31.object({ testUserId: z31.string() }) },
       summary: "Remove a placement test user",
       tags: ["settings"],
       responses: { "200": { description: "Placement test user removed", content: { "application/json": { schema: PlacementTestUserSchema } } } },
       "x-revturbine-operation": { exposure: "internal", resource: "placement-test-users", persistence: { table: "placementTestUsers", mode: "delete" } }
     })
+  },
+  // ── Provider Connections ────────────────────────────────────────────────
+  "/api/settings/provider-connections": {
+    get: operation({
+      operationId: "listProviderConnections",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List provider connections for the tenant",
+      tags: ["settings"],
+      responses: { "200": { description: "Provider connections", content: { "application/json": { schema: ListEnvelope(ProviderConnectionSchema) } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "provider-connections", persistence: { table: "providerConnections", mode: "list" } }
+    }),
+    post: operation({
+      operationId: "createProviderConnection",
+      summary: "Create a provider connection",
+      tags: ["settings"],
+      requestBody: { required: true, content: { "application/json": { schema: toCreateSchema(ProviderConnectionSchema) } } },
+      responses: { "201": { description: "Provider connection created", content: { "application/json": { schema: ProviderConnectionSchema } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "provider-connections", persistence: { table: "providerConnections", mode: "create", writeSchema: "ProviderConnectionSchema#writable" } }
+    })
+  },
+  "/api/settings/provider-connections/{connectionId}": {
+    get: operation({
+      operationId: "getProviderConnection",
+      requestParams: { path: z31.object({ connectionId: z31.string() }) },
+      summary: "Get a provider connection",
+      tags: ["settings"],
+      responses: { "200": { description: "Provider connection", content: { "application/json": { schema: ProviderConnectionSchema } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "provider-connections", persistence: { table: "providerConnections", mode: "get" } }
+    }),
+    put: operation({
+      operationId: "updateProviderConnection",
+      requestParams: { path: z31.object({ connectionId: z31.string() }) },
+      summary: "Update a provider connection",
+      tags: ["settings"],
+      requestBody: { required: true, content: { "application/json": { schema: toWritableSchema(ProviderConnectionSchema).partial() } } },
+      responses: { "200": { description: "Provider connection updated", content: { "application/json": { schema: ProviderConnectionSchema } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "provider-connections", persistence: { table: "providerConnections", mode: "update", writeSchema: "ProviderConnectionSchema#writable" } }
+    }),
+    delete: operation({
+      operationId: "deleteProviderConnection",
+      requestParams: { path: z31.object({ connectionId: z31.string() }) },
+      summary: "Delete a provider connection",
+      tags: ["settings"],
+      responses: { "200": { description: "Provider connection deleted", content: { "application/json": { schema: ProviderConnectionSchema } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "provider-connections", persistence: { table: "providerConnections", mode: "delete" } }
+    })
   }
 };
 
-// ../scaffold-205/src/core/auth/schema.ts
-import { z as z29 } from "zod";
-var { Unrestricted: Unrestricted26, Pii: Pii7 } = DataClassification;
-var { Persisted: Persisted22, Transient: Transient24 } = SchemaPersistence;
-var { Internal: Internal22 } = SchemaExposure;
-var UserRoleSchema = z29.enum(["user", "admin"]).meta({ id: "UserRole", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+// ../scaffold/src/core/auth/schema.ts
+import { z as z32 } from "zod";
+var { Unrestricted: Unrestricted29, Pii: Pii7 } = DataClassification;
+var { Persisted: Persisted23, Transient: Transient27 } = SchemaPersistence;
+var { Internal: Internal25 } = SchemaExposure;
+var UserRoleSchema = z32.enum(["user", "admin"]).meta({ id: "UserRole", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthUserSchema = IdField.merge(TimestampFields).extend({
-  name: NameField.meta(Unrestricted26),
-  email: z29.string().email().meta(Pii7),
-  email_verified: z29.boolean().default(false).meta(Unrestricted26),
-  image: z29.string().url().nullable().default(null).meta(Pii7),
-  role: UserRoleSchema.default("user").meta(Unrestricted26),
-  banned: z29.boolean().default(false).meta({ ...Unrestricted26, readOnly: true }),
-  ban_reason: z29.string().nullable().default(null).meta({ ...Unrestricted26, readOnly: true }),
-  ban_expires: NullableDatetimeField.meta({ ...Unrestricted26, readOnly: true }),
-  two_factor_enabled: z29.boolean().default(false).meta({ ...Unrestricted26, readOnly: true })
-}).meta({ id: "AuthUser", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  name: NameField.meta(Unrestricted29),
+  email: z32.string().email().meta(Pii7),
+  email_verified: z32.boolean().default(false).meta(Unrestricted29),
+  image: z32.string().url().nullable().default(null).meta(Pii7),
+  role: UserRoleSchema.default("user").meta(Unrestricted29),
+  banned: z32.boolean().default(false).meta({ ...Unrestricted29, readOnly: true }),
+  ban_reason: z32.string().nullable().default(null).meta({ ...Unrestricted29, readOnly: true }),
+  ban_expires: NullableDatetimeField.meta({ ...Unrestricted29, readOnly: true }),
+  two_factor_enabled: z32.boolean().default(false).meta({ ...Unrestricted29, readOnly: true })
+}).meta({ id: "AuthUser", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthSessionSchema = IdField.merge(TimestampFields).extend({
-  expires_at: z29.string().datetime().meta(Unrestricted26),
-  token: z29.string().min(1).meta({ ...Pii7, readOnly: true }),
-  ip_address: z29.string().nullable().default(null).meta(Pii7),
-  user_agent: z29.string().nullable().default(null).meta(Pii7),
-  user_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true }),
-  active_organization_id: z29.string().nullable().default(null).meta(Unrestricted26),
-  impersonated_by: z29.string().nullable().default(null).meta({ ...Unrestricted26, readOnly: true })
-}).meta({ id: "AuthSession", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  expires_at: z32.string().datetime().meta(Unrestricted29),
+  token: z32.string().min(1).meta({ ...Pii7, readOnly: true }),
+  ip_address: z32.string().nullable().default(null).meta(Pii7),
+  user_agent: z32.string().nullable().default(null).meta(Pii7),
+  user_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true }),
+  active_organization_id: z32.string().nullable().default(null).meta(Unrestricted29),
+  impersonated_by: z32.string().nullable().default(null).meta({ ...Unrestricted29, readOnly: true })
+}).meta({ id: "AuthSession", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthAccountSchema = IdField.merge(TimestampFields).extend({
-  account_id: z29.string().min(1).meta(Unrestricted26),
-  provider_id: z29.string().min(1).meta(Unrestricted26),
-  user_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true }),
-  access_token: z29.string().nullable().default(null).meta({ ...Pii7, readOnly: true }),
-  refresh_token: z29.string().nullable().default(null).meta({ ...Pii7, readOnly: true }),
-  id_token: z29.string().nullable().default(null).meta({ ...Pii7, readOnly: true }),
-  access_token_expires_at: NullableDatetimeField.meta({ ...Unrestricted26, readOnly: true }),
-  refresh_token_expires_at: NullableDatetimeField.meta({ ...Unrestricted26, readOnly: true }),
-  scope: z29.string().nullable().default(null).meta(Unrestricted26),
-  password: z29.string().nullable().default(null).meta({ ...Pii7, readOnly: true })
-}).meta({ id: "AuthAccount", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  account_id: z32.string().min(1).meta(Unrestricted29),
+  provider_id: z32.string().min(1).meta(Unrestricted29),
+  user_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true }),
+  access_token: z32.string().nullable().default(null).meta({ ...Pii7, readOnly: true }),
+  refresh_token: z32.string().nullable().default(null).meta({ ...Pii7, readOnly: true }),
+  id_token: z32.string().nullable().default(null).meta({ ...Pii7, readOnly: true }),
+  access_token_expires_at: NullableDatetimeField.meta({ ...Unrestricted29, readOnly: true }),
+  refresh_token_expires_at: NullableDatetimeField.meta({ ...Unrestricted29, readOnly: true }),
+  scope: z32.string().nullable().default(null).meta(Unrestricted29),
+  password: z32.string().nullable().default(null).meta({ ...Pii7, readOnly: true })
+}).meta({ id: "AuthAccount", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthVerificationSchema = IdField.merge(TimestampFields).extend({
-  identifier: z29.string().min(1).meta(Pii7),
-  value: z29.string().min(1).meta({ ...Pii7, readOnly: true }),
-  expires_at: z29.string().datetime().meta(Unrestricted26)
-}).meta({ id: "AuthVerification", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  identifier: z32.string().min(1).meta(Pii7),
+  value: z32.string().min(1).meta({ ...Pii7, readOnly: true }),
+  expires_at: z32.string().datetime().meta(Unrestricted29)
+}).meta({ id: "AuthVerification", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthTwoFactorSchema = IdField.extend({
-  secret: z29.string().min(1).meta({ ...Pii7, readOnly: true }),
-  backup_codes: z29.string().min(1).meta({ ...Pii7, readOnly: true }),
-  user_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true }),
-  verified: z29.boolean().default(false).meta({ ...Unrestricted26, readOnly: true })
-}).meta({ id: "AuthTwoFactor", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  secret: z32.string().min(1).meta({ ...Pii7, readOnly: true }),
+  backup_codes: z32.string().min(1).meta({ ...Pii7, readOnly: true }),
+  user_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true }),
+  verified: z32.boolean().default(false).meta({ ...Unrestricted29, readOnly: true })
+}).meta({ id: "AuthTwoFactor", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthOrganizationSchema = IdField.extend({
-  name: NameField.meta(Unrestricted26),
-  slug: z29.string().min(1).max(100).nullable().default(null).meta(Unrestricted26),
-  logo: z29.string().url().nullable().default(null).meta(Unrestricted26),
-  created_at: z29.string().datetime().meta({ ...Unrestricted26, readOnly: true }),
-  metadata: z29.string().nullable().default(null).meta(Unrestricted26)
-}).meta({ id: "AuthOrganization", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
-var RoleSchema = z29.enum(["viewer", "collaborator", "approver", "admin"]).meta({ id: "Role", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  name: NameField.meta(Unrestricted29),
+  slug: z32.string().min(1).max(100).nullable().default(null).meta(Unrestricted29),
+  logo: z32.string().url().nullable().default(null).meta(Unrestricted29),
+  created_at: z32.string().datetime().meta({ ...Unrestricted29, readOnly: true }),
+  metadata: z32.string().nullable().default(null).meta(Unrestricted29)
+}).meta({ id: "AuthOrganization", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
+var RoleSchema = z32.enum(["viewer", "collaborator", "approver", "admin"]).meta({ id: "Role", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var ROLE_RANK = {
   viewer: 0,
   collaborator: 1,
   approver: 2,
   admin: 3
 };
-var PermissionResourceSchema = z29.enum([
+var PermissionResourceSchema = z32.enum([
   "tenant",
   "users",
   "plans",
@@ -7980,8 +9205,8 @@ var PermissionResourceSchema = z29.enum([
   "mcp",
   "api_tokens",
   "settings"
-]).meta({ id: "PermissionResource", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": Internal22 });
-var PermissionActionSchema = z29.enum([
+]).meta({ id: "PermissionResource", "x-revturbine-schema-persistence": Transient27, "x-revturbine-schema-exposure": Internal25 });
+var PermissionActionSchema = z32.enum([
   "read",
   "create",
   "update",
@@ -7990,11 +9215,11 @@ var PermissionActionSchema = z29.enum([
   "approve",
   "invite",
   "manage_roles"
-]).meta({ id: "PermissionAction", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": Internal22 });
-var PermissionSchema = z29.object({
+]).meta({ id: "PermissionAction", "x-revturbine-schema-persistence": Transient27, "x-revturbine-schema-exposure": Internal25 });
+var PermissionSchema = z32.object({
   resource: PermissionResourceSchema,
   action: PermissionActionSchema
-}).meta({ id: "Permission", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": Internal22 });
+}).meta({ id: "Permission", "x-revturbine-schema-persistence": Transient27, "x-revturbine-schema-exposure": Internal25 });
 var VIEWER_RESOURCES = [
   "tenant",
   "plans",
@@ -8069,7 +9294,7 @@ var ROLE_PERMISSIONS = {
 var SCOPE_VALUES = PermissionResourceSchema.options.flatMap(
   (resource) => PermissionActionSchema.options.map((action) => `${resource}:${action}`)
 );
-var McpTokenScopeSchema = z29.enum(SCOPE_VALUES).meta({ id: "McpTokenScope", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+var McpTokenScopeSchema = z32.enum(SCOPE_VALUES).meta({ id: "McpTokenScope", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 function scopesSubsetOfRole(scopes, role) {
   const granted = ROLE_PERMISSIONS[role];
   return scopes.every((scope) => {
@@ -8080,63 +9305,63 @@ function scopesSubsetOfRole(scopes, role) {
 var INGEST_WRITE_SCOPE = "ingest:write";
 var OrgMemberRoleSchema = RoleSchema;
 var AuthMemberSchema = IdField.extend({
-  organization_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true }),
-  user_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true }),
-  role: RoleSchema.default("viewer").meta(Unrestricted26),
-  created_at: z29.string().datetime().meta({ ...Unrestricted26, readOnly: true })
-}).meta({ id: "AuthMember", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
-var InvitationStatusSchema = z29.enum(["pending", "accepted", "rejected", "canceled", "expired"]).meta({ id: "InvitationStatus", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  organization_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true }),
+  user_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true }),
+  role: RoleSchema.default("viewer").meta(Unrestricted29),
+  created_at: z32.string().datetime().meta({ ...Unrestricted29, readOnly: true })
+}).meta({ id: "AuthMember", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
+var InvitationStatusSchema = z32.enum(["pending", "accepted", "rejected", "canceled", "expired"]).meta({ id: "InvitationStatus", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthInvitationSchema = IdField.extend({
-  organization_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true }),
-  email: z29.string().email().meta(Pii7),
-  role: RoleSchema.nullable().default(null).meta(Unrestricted26),
-  status: InvitationStatusSchema.default("pending").meta(Unrestricted26),
-  expires_at: z29.string().datetime().meta(Unrestricted26),
-  created_at: z29.string().datetime().meta({ ...Unrestricted26, readOnly: true }),
-  inviter_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true })
-}).meta({ id: "AuthInvitation", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  organization_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true }),
+  email: z32.string().email().meta(Pii7),
+  role: RoleSchema.nullable().default(null).meta(Unrestricted29),
+  status: InvitationStatusSchema.default("pending").meta(Unrestricted29),
+  expires_at: z32.string().datetime().meta(Unrestricted29),
+  created_at: z32.string().datetime().meta({ ...Unrestricted29, readOnly: true }),
+  inviter_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true })
+}).meta({ id: "AuthInvitation", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthPasskeySchema = IdField.extend({
-  name: z29.string().max(200).nullable().default(null).meta(Unrestricted26),
-  public_key: z29.string().min(1).meta({ ...Pii7, readOnly: true }),
-  user_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true }),
-  credential_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true }),
-  counter: z29.number().int().default(0).meta({ ...Unrestricted26, readOnly: true }),
-  device_type: z29.string().min(1).meta(Unrestricted26),
-  backed_up: z29.boolean().default(false).meta(Unrestricted26),
-  transports: z29.string().nullable().default(null).meta(Unrestricted26),
-  created_at: z29.string().datetime().meta({ ...Unrestricted26, readOnly: true }),
-  aaguid: z29.string().nullable().default(null).meta(Unrestricted26)
-}).meta({ id: "AuthPasskey", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  name: z32.string().max(200).nullable().default(null).meta(Unrestricted29),
+  public_key: z32.string().min(1).meta({ ...Pii7, readOnly: true }),
+  user_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true }),
+  credential_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true }),
+  counter: z32.number().int().default(0).meta({ ...Unrestricted29, readOnly: true }),
+  device_type: z32.string().min(1).meta(Unrestricted29),
+  backed_up: z32.boolean().default(false).meta(Unrestricted29),
+  transports: z32.string().nullable().default(null).meta(Unrestricted29),
+  created_at: z32.string().datetime().meta({ ...Unrestricted29, readOnly: true }),
+  aaguid: z32.string().nullable().default(null).meta(Unrestricted29)
+}).meta({ id: "AuthPasskey", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthApiKeySchema = IdField.merge(TimestampFields).extend({
-  config_id: z29.string().min(1).meta(Unrestricted26),
-  name: z29.string().max(200).nullable().default(null).meta(Unrestricted26),
-  start: z29.string().nullable().default(null).meta(Unrestricted26),
-  reference_id: z29.string().min(1).meta(Unrestricted26),
-  prefix: z29.string().nullable().default(null).meta(Unrestricted26),
-  key: z29.string().min(1).meta({ ...Pii7, readOnly: true }),
-  refill_interval: z29.number().int().nullable().default(null).meta(Unrestricted26),
-  refill_amount: z29.number().int().nullable().default(null).meta(Unrestricted26),
-  last_refill_at: NullableDatetimeField.meta({ ...Unrestricted26, readOnly: true }),
-  enabled: z29.boolean().default(true).meta(Unrestricted26),
-  rate_limit_enabled: z29.boolean().default(false).meta(Unrestricted26),
-  rate_limit_time_window: z29.number().int().nullable().default(null).meta(Unrestricted26),
-  rate_limit_max: z29.number().int().nullable().default(null).meta(Unrestricted26),
-  request_count: z29.number().int().default(0).meta({ ...Unrestricted26, readOnly: true }),
-  remaining: z29.number().int().nullable().default(null).meta({ ...Unrestricted26, readOnly: true }),
-  last_request: NullableDatetimeField.meta({ ...Unrestricted26, readOnly: true }),
-  expires_at: NullableDatetimeField.meta(Unrestricted26),
-  permissions: z29.string().nullable().default(null).meta(Unrestricted26),
-  metadata: z29.string().nullable().default(null).meta(Unrestricted26)
-}).meta({ id: "AuthApiKey", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  config_id: z32.string().min(1).meta(Unrestricted29),
+  name: z32.string().max(200).nullable().default(null).meta(Unrestricted29),
+  start: z32.string().nullable().default(null).meta(Unrestricted29),
+  reference_id: z32.string().min(1).meta(Unrestricted29),
+  prefix: z32.string().nullable().default(null).meta(Unrestricted29),
+  key: z32.string().min(1).meta({ ...Pii7, readOnly: true }),
+  refill_interval: z32.number().int().nullable().default(null).meta(Unrestricted29),
+  refill_amount: z32.number().int().nullable().default(null).meta(Unrestricted29),
+  last_refill_at: NullableDatetimeField.meta({ ...Unrestricted29, readOnly: true }),
+  enabled: z32.boolean().default(true).meta(Unrestricted29),
+  rate_limit_enabled: z32.boolean().default(false).meta(Unrestricted29),
+  rate_limit_time_window: z32.number().int().nullable().default(null).meta(Unrestricted29),
+  rate_limit_max: z32.number().int().nullable().default(null).meta(Unrestricted29),
+  request_count: z32.number().int().default(0).meta({ ...Unrestricted29, readOnly: true }),
+  remaining: z32.number().int().nullable().default(null).meta({ ...Unrestricted29, readOnly: true }),
+  last_request: NullableDatetimeField.meta({ ...Unrestricted29, readOnly: true }),
+  expires_at: NullableDatetimeField.meta(Unrestricted29),
+  permissions: z32.string().nullable().default(null).meta(Unrestricted29),
+  metadata: z32.string().nullable().default(null).meta(Unrestricted29)
+}).meta({ id: "AuthApiKey", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 var AuthSsoProviderSchema = IdField.extend({
-  issuer: z29.string().min(1).meta(Unrestricted26),
-  oidc_config: z29.string().nullable().default(null).meta(Unrestricted26),
-  saml_config: z29.string().nullable().default(null).meta(Unrestricted26),
-  user_id: z29.string().min(1).meta({ ...Unrestricted26, readOnly: true }),
-  provider_id: z29.string().min(1).meta(Unrestricted26),
-  organization_id: z29.string().nullable().default(null).meta(Unrestricted26),
-  domain: z29.string().min(1).meta(Unrestricted26)
-}).meta({ id: "AuthSsoProvider", "x-revturbine-schema-persistence": Persisted22, "x-revturbine-schema-exposure": Internal22 });
+  issuer: z32.string().min(1).meta(Unrestricted29),
+  oidc_config: z32.string().nullable().default(null).meta(Unrestricted29),
+  saml_config: z32.string().nullable().default(null).meta(Unrestricted29),
+  user_id: z32.string().min(1).meta({ ...Unrestricted29, readOnly: true }),
+  provider_id: z32.string().min(1).meta(Unrestricted29),
+  organization_id: z32.string().nullable().default(null).meta(Unrestricted29),
+  domain: z32.string().min(1).meta(Unrestricted29)
+}).meta({ id: "AuthSsoProvider", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal25 });
 export {
   ANALYTICS_VALIDATION_CODES,
   ANALYTICS_VIEW_SCHEMA_VERSION,
@@ -8144,6 +9369,7 @@ export {
   AddOnSchema,
   AddOnVariationSchema,
   AlertSchema,
+  AnalysisProvenanceSchema,
   AnalyticsAgentCatalogEntryKindSchema,
   AnalyticsAgentCatalogEntrySchema,
   AnalyticsAnalyticalUnitSchema,
@@ -8154,6 +9380,8 @@ export {
   AnalyticsCatalogDeprecationSchema,
   AnalyticsCatalogDimensionSchema,
   AnalyticsCatalogMetricSchema,
+  AnalyticsCatalogProvenanceKindSchema,
+  AnalyticsCatalogProvenanceSchema,
   AnalyticsCatalogSchema,
   AnalyticsCatalogSearchResultSchema,
   AnalyticsCatalogSourceSchema,
@@ -8172,6 +9400,9 @@ export {
   AnalyticsFilterValueSchema,
   AnalyticsFormatSpecSchema,
   AnalyticsHistoricalModeSchema,
+  AnalyticsMetricAggregationSemanticsSchema,
+  AnalyticsMetricDirectionSchema,
+  AnalyticsMetricStatisticalTypeSchema,
   AnalyticsQueryFamilySchema,
   AnalyticsQueryRequestSchema,
   AnalyticsQueryResponseSchema,
@@ -8186,6 +9417,7 @@ export {
   AnalyticsResultMetaSchema,
   AnalyticsResultSchema,
   AnalyticsSafeChartOptionsSchema,
+  AnalyticsSavedViewSchema,
   AnalyticsSemanticFilterSchema,
   AnalyticsSemanticIdSchema,
   AnalyticsSourceScopeSchema,
@@ -8194,6 +9426,8 @@ export {
   AnalyticsTimeGrainSchema,
   AnalyticsValidationIssueSchema,
   AnalyticsValidationResultSchema,
+  AnalyticsViewAccessRoleSchema,
+  AnalyticsViewAccessSchema,
   AnalyticsViewBlockDraftSchema,
   AnalyticsViewBlockSchema,
   AnalyticsViewDraftSchema,
@@ -8203,6 +9437,7 @@ export {
   AnalyticsViewHandoffSchema,
   AnalyticsViewLayoutSchema,
   AnalyticsViewQuerySchema,
+  AnalyticsViewRevisionSchema,
   AnalyticsViewSchema,
   AnalyticsViewVisibilitySchema,
   AnalyticsWarningSchema,
@@ -8222,6 +9457,7 @@ export {
   AuthTwoFactorSchema,
   AuthUserSchema,
   AuthVerificationSchema,
+  BUILT_IN_TEMPLATE_COMPONENT_TYPES,
   BillingCadenceSchema,
   BillingHealthStatusSchema,
   BrandingConfigSchema,
@@ -8232,6 +9468,7 @@ export {
   ClientContextSchema,
   ClientSafe,
   CohortMonthSchema,
+  ComponentTypeSchema,
   ContentPayloadSegmentEntrySchema,
   ContentPlacementPayloadSchema,
   ContentPromotionSchema,
@@ -8250,11 +9487,15 @@ export {
   CustomerOverrideStatusSchema,
   CustomerOverrideTypeSchema,
   CustomerSchema,
+  DEFAULT_ANALYTICS_RETENTION_DAYS,
+  DEFAULT_TEMPLATE_COMPONENT_TYPES,
   DEPRECATED_EVENT_NAMES,
   DOGFOOD_CLIENT_EVENT_NAMES,
   DataClassification,
   DecisionOnly,
+  DefaultTemplateIdsSchema,
   DescriptionField,
+  DetectorRequirementsSchema,
   DimensionCategorySchema,
   DimensionSourceTypeSchema,
   DiscountTypeSchema,
@@ -8289,10 +9530,20 @@ export {
   EventSurfaceSchema,
   EventTaxonomyEntrySchema,
   EventTaxonomySchema,
+  EvidenceRequirementSchema,
+  ExperimentAnalysisConfigSchema,
+  ExperimentAnalysisConfigVersionError,
+  ExperimentAnalysisResultRecordSchema,
+  ExperimentAnalysisResultSchema,
+  ExperimentEvidenceSchema,
+  ExperimentEvidenceSnapshotSchema,
+  ExperimentHealthSchema,
+  ExperimentMetricResultSchema,
   ExperimentSchema,
   ExperimentStatusSchema,
   ExperimentTypeSchema,
   ExperimentVariantSchema,
+  ExperimentVariantTargetSchema,
   RevTurbineConfigPlacementItemSchema as ExportedConfigPlacementItemSchema,
   RevTurbineConfigSchema as ExportedConfigSchema,
   RevTurbineConfigSegmentsItemPredicatesItemSchema as ExportedConfigSegmentsItemPredicatesItemSchema,
@@ -8308,6 +9559,9 @@ export {
   FreeTrialRuleSchema,
   FreeTrialSettingsSchema,
   FunnelStepSchema,
+  GrowthSignalBundleSchema,
+  GrowthSignalPointSchema,
+  GrowthSignalSeriesSchema,
   HANDLE_PATTERN,
   HandleField,
   INGEST_WRITE_SCOPE,
@@ -8330,6 +9584,9 @@ export {
   NullableDatetimeField,
   OnboardingChecklistSchema,
   OnboardingStateSchema,
+  OpportunityCandidateSchema,
+  OpportunityEvidenceSchema,
+  OpportunityInterpretationSchema,
   OptimizationSuggestionSchema,
   OrgMemberRoleSchema,
   PERSISTED_SCHEMA_FACET_EXEMPTIONS,
@@ -8376,6 +9633,11 @@ export {
   PricingModelSchema,
   PromotionSchema,
   PromotionStatusSchema,
+  ProviderAvailabilitySchema,
+  ProviderBindingRefSchema,
+  ProviderCapabilitySchema,
+  ProviderConnectionSchema,
+  ProviderProvenanceSchema,
   ROLE_PERMISSIONS,
   ROLE_RANK,
   RevTurbineConfigAddonVariationsItemSchema,
@@ -8464,6 +9726,7 @@ export {
   TrackIngestBatchSchema,
   TreatmentInteractionInputSchema,
   TreatmentInteractionTypeSchema,
+  TrendFeaturesSchema,
   TrialEligibilityScopeSchema,
   TrialInstanceSchema,
   TrialLimitPolicySchema,
@@ -8482,12 +9745,14 @@ export {
   UserTrialStatusSchema,
   UserUsageEntrySchema,
   VIEW_ELEMENT_ID_PATTERN,
+  VariantStatisticalSummarySchema,
   VersionFields,
   WebhookEventLogSchema,
   WebhookEventSourceSchema,
   WebhookEventStatusSchema,
   analyticsPaths,
   analyticsViewPaths,
+  assertExperimentAnalysisConfigUpdateAllowed,
   buildAgentCatalogProjection,
   changelogPaths,
   collectPersistedSchemas,
@@ -8527,6 +9792,7 @@ export {
   projectClientSafe,
   promotionPaths,
   requireSchemaFacets,
+  resolveComponentType,
   schemaDeprecation,
   schemaFacets,
   scopesSubsetOfRole,
