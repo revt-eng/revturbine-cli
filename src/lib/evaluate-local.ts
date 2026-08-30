@@ -29,14 +29,24 @@ export interface EvaluateLocalInput {
   entitlementHandles?: string[];
   /** Placement ids/names to decide (one decision each). */
   placementIds?: string[];
-  /** Surface-keyed resolution: the winning placement for a slot/surface type. */
-  slot?: { slotId?: string; surfaceType?: string };
+  /** Slot-keyed resolution: the winning placement for a slot/component type. */
+  slot?: { slotId?: string; componentType?: string; surfaceType?: string };
 }
 
 export interface EvaluateLocalResult {
   decisions: unknown[];
   entitlements: Record<string, unknown>;
   placement: unknown;
+}
+
+/**
+ * Resolve the component type at the sole `surfaceType` compatibility boundary.
+ * The canonical name wins when both names are supplied.
+ */
+export function resolvePlacementComponentType(
+  input: { componentType?: string; surfaceType?: string },
+): string | undefined {
+  return input.componentType ?? input.surfaceType;
 }
 
 /** Evaluate a user context against a Playbook, entirely in-process. */
@@ -67,11 +77,12 @@ export async function evaluateLocal(
     decisions.push(controller.state.decision);
   }
 
+  const componentType = input.slot ? resolvePlacementComponentType(input.slot) : undefined;
   const placement =
-    input.slot && (input.slot.slotId || input.slot.surfaceType)
+    input.slot && (input.slot.slotId || componentType)
       ? await session.getPlacement({
           ...(input.slot.slotId ? { slotId: input.slot.slotId } : {}),
-          ...(input.slot.surfaceType ? { surfaceType: input.slot.surfaceType } : {}),
+          ...(componentType ? { componentType } : {}),
           ...(input.planHandle ? { planHandle: input.planHandle } : {}),
         } as PlacementRequest)
       : null;
