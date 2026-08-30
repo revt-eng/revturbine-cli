@@ -25,7 +25,7 @@ There is no `pnpm verify` in this repo.
 
 Specs live in the `revturbine-devkit` repo at `docs/specs/cli/`:
 
-- [`cli.md`](../../revturbine-devkit/docs/specs/cli/cli.md) — the command surface, the Config File → Draft → Release model, design principles.
+- [`cli.md`](../../revturbine-devkit/docs/specs/cli/cli.md) — the command surface, the Playbook file → Draft → Release model, design principles.
 - [`installable-skills.md`](../../revturbine-devkit/docs/specs/cli/installable-skills.md) — the skills catalog. **§6 is superseded**; skill distribution is `npx skills`, not a `revturbine skills` command group.
 
 Read the relevant spec before implementing. Note affected specs in the PR.
