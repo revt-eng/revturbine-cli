@@ -83,9 +83,23 @@ Commands that read a config name the version explicitly — there is no default:
 | `evaluate` | Run a config version's placement/entitlement decisions locally for a user context. Use `--slot` with optional `--component-type`; deprecated `--surface-type` remains an alias. |
 | `generate types` | Generate a TypeScript module of typed Playbook handles from any config version — `Entitlements` (namespaced by type, with the `EntitlementHandle` union for type-safe `can()`/`gate()`/`checkEntitlement()` call sites), plus `Plans`, `Segments`, `SurfaceTemplates`, and `UiPathActionTypes`. Const objects + literal-union types (erasable — no enums). `--out <path>` writes the file; the generated header records the exact command to regenerate it. `--json` for the raw handle map. |
 | `analytics catalog\|templates\|views\|view\|create\|preview\|query` | Work with the hosted Semantic Catalog and canonical analytics-view documents. Create and preview pass the document through unchanged to the same server contract used by the web editor and MCP tools; preview remains subject to the server's query limits. |
+| `ingest-keys create` (alias `mint`) | Mint a tenant-bound public ingest token for browser SDK use. Requires one or more `--origin` values; optional `--ip` restrictions. The full token is returned once. `ingest-keys list` shows ids/previews and `ingest-keys revoke <id>` invalidates one. |
 
 `--json` on read commands emits machine-readable output. Results go to stdout,
 diagnostics to stderr.
+
+### Mint a publishable ingest token
+
+```bash
+revturbine login
+revturbine ingest-keys mint --origin https://app.example.com --json
+# Store the once-only token, then use the returned id when it is no longer needed:
+revturbine ingest-keys revoke <ingest-key-id> --yes
+```
+
+Public ingest tokens are intentionally embeddable but remain tenant-bound,
+origin-restricted, and optionally IP-restricted. They cannot mint other tokens
+or access private control-plane APIs.
 
 ## Exit-code classes
 
