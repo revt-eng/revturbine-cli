@@ -443,7 +443,7 @@ Command groups:
   Inspect       status, history, preview, evaluate
   Codegen       generate types
   Analytics     analytics catalog|templates|views|view|create|preview|query
-  Keys          ingest-keys create|list|revoke
+  Keys          ingest-keys create (alias: mint)|list|revoke
 
 Version selectors (no defaults — a command that reads a config requires one):
   <file>            a local Playbook file (positional, or --file <path>)
@@ -472,6 +472,11 @@ Common workflows:
   revturbine status
   revturbine history
   revturbine restore <playbook-version-id> --launch
+
+  # Mint an origin-restricted browser token (shown once), then revoke it
+  revturbine ingest-keys mint --origin https://app.example.com --json
+  revturbine ingest-keys list
+  revturbine ingest-keys revoke <ingest-key-id> --yes
 
 Exit-code classes: 0 ok · 1 unexpected · 2 usage · 3 auth · 4 validation
 blocked · 5 conflict/stale · 6 network · 7 server error.
@@ -1552,12 +1557,25 @@ const ingestKeys = program
 
 ingestKeys
   .command('create')
+  .alias('mint')
   .description('Mint a public ingest key. The full token is printed ONCE and cannot be retrieved again.')
   .requiredOption('--origin <url...>', 'Allowed browser origin(s), e.g. https://app.example.com (repeatable; at least one required)')
   .option('--ip <cidr...>', 'Optional IP / CIDR allowlist (empty = no IP restriction)')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option('--json', 'Machine-readable output (token on stdout for scripted capture)')
+  .addHelpText(
+    'after',
+    [
+      '',
+      'Examples:',
+      '  revturbine ingest-keys mint --origin https://app.example.com',
+      '  revturbine ingest-keys create --origin https://app.example.com --ip 203.0.113.0/24 --json',
+      '',
+      'The full token is returned only by this command. Store it securely or',
+      'capture --json output, and revoke it by id when the integration or test ends.',
+    ].join('\n'),
+  )
   .action(async (opts: { origin: string[]; ip?: string[]; url: string; tenantId?: string; json?: boolean }) => {
     const conn = connect(opts.url, opts.tenantId);
     const result = await createIngestKey(conn.url, conn.headers, { originAllowlist: opts.origin, ipAllowlist: opts.ip });
