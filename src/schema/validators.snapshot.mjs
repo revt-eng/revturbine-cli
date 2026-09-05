@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.261
+// Vendored validation engine bundled from @revt-eng/schema@0.1.291
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -54,19 +54,6 @@ var ValidationFindingSchema = z.object({
 
 // ../scaffold/src/core/validation/catalog.ts
 var CATALOG = {
-  // no-Stripe-price. Interim `warning` (does not block): a plan price that has
-  // all its billing info but is entered statically rather than synced from
-  // Stripe is valid to launch — it should warn, not block. The stricter
-  // three-way model (block if billing info is INCOMPLETE; warn if complete-but-
-  // static; pass if complete-and-Stripe-connected) is a tracked follow-up
-  // (static-pricing plan). Spec §5.3's blanket error_launch is superseded by
-  // that follow-up; see the plan.
-  "VAL-PLN-01": {
-    id: "VAL-PLN-01",
-    severity: "warning",
-    message: "Plan '{plan}' has no Stripe price linked.",
-    specRef: "optimization-studio-ui.md \xA73.1; plans-entitlements-studio-ui.md \xA72.2"
-  },
   // entitlement-rule overlap. Origin: the `rule.overlap` check (plan 40);
   // scoped to same-entitlement pairs per §5.8 (plan 179 / devkit #597).
   "VAL-PLN-05": {
@@ -147,7 +134,6 @@ function disposition(finding2, callSite) {
 
 // ../scaffold/src/core/validation/rules.ts
 var SEMANTIC_RULE_CODES = [
-  "VAL-PLN-01",
   "VAL-PLN-05",
   "VAL-PLN-06",
   "VAL-PLN-07",
@@ -158,7 +144,6 @@ var SEMANTIC_RULE_CODES = [
 ];
 function runSemanticRules(graph, opts = {}) {
   return [
-    ...checkPlansHaveStripePrice(graph),
     ...checkRuleOverlaps(graph),
     ...checkLimitRuleEnforcement(graph),
     ...checkPublicVariationCollisions(graph),
@@ -282,7 +267,7 @@ function checkSegmentExperimentRefs(graph) {
   }
   const findings = [];
   for (const segment of segments) {
-    const ref = segment.experiment_handle ?? segment.experiment_id;
+    const ref = segment.experiment_handle;
     if (typeof ref !== "string" || ref.length === 0) continue;
     if (knownHandles.has(ref)) continue;
     const segmentId = String(segment.handle ?? segment.id ?? "");
@@ -336,45 +321,6 @@ function finding(catalogId, target, opts = {}) {
     ...entry?.specRef ? { specRef: entry.specRef } : {},
     ...opts.detail ? { detail: opts.detail } : {}
   };
-}
-function checkPlansHaveStripePrice(graph) {
-  const plans = graph.plans;
-  if (!plans?.length) return [];
-  const plansWithVariations = /* @__PURE__ */ new Set();
-  const pricedPlanIds = /* @__PURE__ */ new Set();
-  for (const v of graph.plan_variations ?? []) {
-    const planId = String(v.plan_id ?? "");
-    if (!planId) continue;
-    plansWithVariations.add(planId);
-    const priceId = v.stripe_price_id;
-    if (typeof priceId === "string" && priceId.length > 0) pricedPlanIds.add(planId);
-  }
-  const findings = [];
-  for (const row of plans) {
-    const planKeys = [String(row.handle ?? ""), String(row.id ?? "")].filter(Boolean);
-    const hasVariations = planKeys.some((k) => plansWithVariations.has(k));
-    if (!hasVariations) continue;
-    const hasStripePrice = planKeys.some((k) => pricedPlanIds.has(k));
-    if (hasStripePrice) continue;
-    const id = String(row.handle ?? row.id ?? "");
-    const name = String(row.name ?? id);
-    findings.push(
-      finding(
-        "VAL-PLN-01",
-        {
-          object_type: "plan",
-          object_id: id,
-          field: "plan_variations",
-          studio: "plans-entitlements"
-        },
-        {
-          message: `Plan '${name}' has no Stripe price linked.`,
-          detail: "Link a Plan Variation to a Stripe Price before activating the plan for paid customers."
-        }
-      )
-    );
-  }
-  return findings;
 }
 function checkRuleOverlaps(graph) {
   const rules = graph.entitlement_rules;
@@ -792,7 +738,7 @@ var EntitlementTypeSchema = z3.enum([
     "x-revturbine-schema-exposure": External
   }
 );
-var CurrencySchema = z3.enum(["usd", "eur", "gbp"]).default("usd").meta(
+var CurrencySchema = z3.string().regex(/^[a-z]{3}$/, "Currency must be a lowercase ISO 4217 code").default("usd").meta(
   {
     id: "Currency",
     "x-revturbine-schema-persistence": Transient,
@@ -1798,6 +1744,7 @@ var PlanVariationSchema = IdField.merge(TimestampFields).merge(TenantIdField).me
   billing_period: z8.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted4),
   segment_id: z8.string().nullable().default(null).meta(Unrestricted4),
   price_amount: z8.number().min(0).meta(Financial),
+  currency: CurrencySchema.meta(Financial),
   pricing_model: PricingModelSchema.meta(Unrestricted4),
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted4),
   // Soft reference → StripePrice.stripe_price_id (the backend Stripe-price mirror).
@@ -1843,6 +1790,7 @@ var AddOnVariationSchema = IdField.merge(TimestampFields).merge(TenantIdField).m
   billing_period: z8.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted4),
   segment_id: z8.string().nullable().default(null).meta(Unrestricted4),
   price_amount: z8.number().min(0).meta(Financial),
+  currency: CurrencySchema.meta(Financial),
   pricing_model: PricingModelSchema.meta(Unrestricted4),
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted4),
   // Soft reference → StripePrice.stripe_price_id (the backend Stripe-price mirror).
@@ -2403,10 +2351,7 @@ var RevTurbineConfigSegmentsItemSchema = z9.object({
   // back to flat-OR (legacy single-segment behaviour).
   dimension_id: z9.string().optional().meta(Unrestricted5),
   // Experiment enrollment carries the canonical, version-stable handle.
-  // The old name stays readable through plan 199's alias window.
-  experiment_handle: z9.string().min(1).optional().meta(Unrestricted5),
-  /** @deprecated Read-only compatibility alias for `experiment_handle`. */
-  experiment_id: z9.string().min(1).optional().meta(Unrestricted5)
+  experiment_handle: z9.string().min(1).optional().meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigSegmentsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
@@ -2435,7 +2380,7 @@ var RevTurbineConfigAddonsItemSchema = z9.object({
   // not price, so it lives in the config independent of addon_variations.
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted5)
 }).meta(
-  { id: "RevTurbineConfigAddonsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_AUTHORING_FACETS2 }
+  { id: "RevTurbineConfigAddonsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
 var RevTurbineConfigPlanVariationsItemSchema = z9.object({
   handle: z9.string().min(1).meta(Unrestricted5),
@@ -2443,12 +2388,13 @@ var RevTurbineConfigPlanVariationsItemSchema = z9.object({
   billing_period: z9.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted5),
   segment_handle: z9.string().nullable().default(null).meta(Unrestricted5),
   price_amount: z9.number().min(0).meta(Unrestricted5),
+  currency: CurrencySchema.meta(Unrestricted5),
   pricing_model: PricingModelSchema.meta(Unrestricted5),
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted5),
   stripe_price_id: z9.string().nullable().default(null).meta(Unrestricted5),
   price_source: PriceSourceSchema.meta(Unrestricted5)
 }).meta(
-  { id: "RevTurbineConfigPlanVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PENDING_PLAYBOOK_FACETS2 }
+  { id: "RevTurbineConfigPlanVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
 var RevTurbineConfigAddonVariationsItemSchema = z9.object({
   handle: z9.string().min(1).meta(Unrestricted5),
@@ -2456,12 +2402,13 @@ var RevTurbineConfigAddonVariationsItemSchema = z9.object({
   billing_period: z9.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted5),
   segment_handle: z9.string().nullable().default(null).meta(Unrestricted5),
   price_amount: z9.number().min(0).meta(Unrestricted5),
+  currency: CurrencySchema.meta(Unrestricted5),
   pricing_model: PricingModelSchema.meta(Unrestricted5),
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted5),
   stripe_price_id: z9.string().nullable().default(null).meta(Unrestricted5),
   price_source: PriceSourceSchema.meta(Unrestricted5)
 }).meta(
-  { id: "RevTurbineConfigAddonVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PENDING_PLAYBOOK_FACETS2 }
+  { id: "RevTurbineConfigAddonVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
 var RevTurbineConfigSeatTypesItemSchema = z9.object({
   handle: z9.string().min(1).meta(Unrestricted5),
@@ -2822,7 +2769,7 @@ var PlaybookBodySchema = z9.object({
   // Optional for back-compat: pre-plan-88 configs (and the live export until web
   // adopts the new @revt-eng/schema) omit it. Add-on definitions only; pricing
   // (addon_variations) stays in the Stripe layer, like plan_variations.
-  addons: z9.array(RevTurbineConfigAddonsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  addons: z9.array(RevTurbineConfigAddonsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
   entitlements: z9.array(RevTurbineConfigEntitlementsItemSchema).meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
   entitlement_rules: z9.array(RevTurbineConfigEntitlementRulesItemSchema).meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
   segments: z9.array(RevTurbineConfigSegmentsItemSchema).meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
@@ -2878,8 +2825,8 @@ var PlaybookBodySchema = z9.object({
   // pre-sales/CLI upload flow still use — can carry variation prices through
   // normalization instead of having them stripped. Pending until web
   // import/export activates them (TASK-21).
-  plan_variations: z9.array(RevTurbineConfigPlanVariationsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_AUTHORING_FACETS2 }),
-  addon_variations: z9.array(RevTurbineConfigAddonVariationsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  plan_variations: z9.array(RevTurbineConfigPlanVariationsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
+  addon_variations: z9.array(RevTurbineConfigAddonVariationsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
   /**
    * Tagged-opaque rule entries (Phase 3 / strategy 2). Each entry is
    * dispatched to the corresponding `RuleAuthoringModule.kind` at
