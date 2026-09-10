@@ -47,6 +47,14 @@ import {
 import { resolveActiveDraft } from './lib/drafts';
 import { evaluateLocal, resolvePlacementComponentType } from './lib/evaluate-local';
 import { createIngestKey, listIngestKeys, revokeIngestKey, formatIngestKeyLine } from './lib/ingest-keys';
+import {
+  MAX_EVENTS_PER_BATCH,
+  chunkEvents,
+  formatSummary,
+  parseEventBatch,
+  postBatch,
+  summarize,
+} from './lib/events-ingest';
 import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib/delegate';
 import { schemaForConfig } from './lib/offline-schema';
 import { checkOfflineConfig, offlineAdvisories } from './lib/offline-config-check';
@@ -444,6 +452,7 @@ Command groups:
   Codegen       generate types
   Analytics     analytics catalog|templates|views|view|create|preview|query
   Keys          ingest-keys create (alias: mint)|list|revoke
+  Events        events track
 
 Version selectors (no defaults — a command that reads a config requires one):
   <file>            a local Playbook file (positional, or --file <path>)
@@ -475,6 +484,9 @@ Common workflows:
 
   # Mint an origin-restricted browser token (shown once), then revoke it
   revturbine ingest-keys mint --origin https://app.example.com --json
+
+  # Send analytics events with your own login (no ingest key, no browser origin)
+  revturbine events track --file ./events.ndjson
   revturbine ingest-keys list
   revturbine ingest-keys revoke <ingest-key-id> --yes
 
@@ -1632,6 +1644,91 @@ ingestKeys
     const result = await revokeIngestKey(conn.url, conn.headers, id);
     if (!result.ok) httpFail(conn, 'ingest-keys revoke', result.status);
     diag(`✓ Revoked ingest key ${id}.`);
+  });
+
+const events = program
+  .command('events')
+  .description('Send analytics events to the RevTurbine ingest pipeline.');
+
+events
+  .command('track')
+  .description('Ingest a batch of analytics events from a file or inline JSON.')
+  .option('-f, --file <path>', 'Batch file: JSON array, { "events": [...] } envelope, or NDJSON')
+  .option('-e, --event <json>', 'A single event as inline JSON')
+  .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
+  .option('-t, --tenant-id <id>', 'x-tenant-id (selects among your tenants; defaults to the stored token tenant)')
+  .option('--json', 'Machine-readable per-batch results')
+  .addHelpText(
+    'after',
+    [
+      '',
+      'Examples:',
+      '  revturbine events track --file ./events.ndjson',
+      '  revturbine events track --file ./batch.json --json',
+      `  revturbine events track --event '{"environment_id":"production","user_id":"u1","account_id":"a1","event_name":"product_used","event_ts":"2026-09-10T00:00:00.000Z"}'`,
+      '',
+      `Every event needs environment_id, user_id, account_id, event_name and`,
+      `event_ts. Batches larger than ${MAX_EVENTS_PER_BATCH} are chunked automatically.`,
+      '',
+      'This authenticates with your device-auth token, so it needs no ingest key',
+      'and no browser origin. Quarantined and rejected counts are always reported',
+      'separately from accepted — a load is not "clean" because it returned 202.',
+    ].join('\n'),
+  )
+  .action(async (opts: { file?: string; event?: string; url: string; tenantId?: string; json?: boolean }) => {
+    if (!opts.file && !opts.event) fail(EXIT.USAGE, 'events track needs --file <path> or --event <json>');
+    if (opts.file && opts.event) fail(EXIT.USAGE, 'events track takes --file or --event, not both');
+
+    let text: string;
+    if (opts.file) {
+      try {
+        text = readFileSync(path.resolve(opts.file), 'utf8');
+      } catch (err) {
+        fail(EXIT.USAGE, `cannot read ${opts.file}: ${(err as Error).message}`);
+      }
+    } else {
+      text = opts.event as string;
+    }
+
+    const parsed = parseEventBatch(text);
+    if (parsed.errors.length > 0) {
+      // Every malformed line at once — fixing a batch one rejected line per
+      // run is a bad loop.
+      for (const e of parsed.errors) diagRaw(`  ${e}`);
+      fail(EXIT.VALIDATION, `${parsed.errors.length} event(s) failed local validation; nothing was sent`);
+    }
+    if (parsed.events.length === 0) fail(EXIT.VALIDATION, 'no events to send');
+
+    const conn = connect(opts.url, opts.tenantId);
+    const chunks = chunkEvents(parsed.events);
+    const results = [];
+    for (const [i, chunk] of chunks.entries()) {
+      if (chunks.length > 1 && !opts.json) {
+        diag(`sending batch ${i + 1}/${chunks.length} (${chunk.length} event(s))…`);
+      }
+      let posted;
+      try {
+        posted = await postBatch(conn.url, conn.headers, chunk);
+      } catch (err) {
+        if (isNetworkError(err)) {
+          fail(EXIT.NETWORK, `network failure reaching ${conn.url}: ${(err as Error).message}`);
+        }
+        throw err;
+      }
+      // Stop on the first failed batch rather than pressing on: a partial load
+      // whose failure scrolled past is worse than one that stopped where it
+      // broke, and the batches already accepted are reported by the failure.
+      if (!posted.ok || !posted.result) {
+        if (results.length > 0) {
+          diag(`${summarize(results, parsed.events.length).accepted} event(s) were accepted before this failure.`);
+        }
+        httpFail(conn, `events track (batch ${i + 1}/${chunks.length})`, posted.status, posted.error);
+      }
+      results.push(posted.result);
+    }
+
+    const summary = summarize(results, parsed.events.length);
+    emit(summary, !!opts.json, formatSummary(summary));
   });
 
 // Per-command examples surfaced in `revturbine <command> --help`.

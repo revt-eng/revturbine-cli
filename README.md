@@ -84,9 +84,29 @@ Commands that read a config name the version explicitly — there is no default:
 | `generate types` | Generate a TypeScript module of typed Playbook handles from any config version — `Entitlements` (namespaced by type, with the `EntitlementHandle` union for type-safe `can()`/`gate()`/`checkEntitlement()` call sites), plus `Plans`, `Segments`, `SurfaceTemplates`, and `UiPathActionTypes`. Const objects + literal-union types (erasable — no enums). `--out <path>` writes the file; the generated header records the exact command to regenerate it. `--json` for the raw handle map. |
 | `analytics catalog\|templates\|views\|view\|create\|preview\|query` | Work with the hosted Semantic Catalog and canonical analytics-view documents. Create and preview pass the document through unchanged to the same server contract used by the web editor and MCP tools; preview remains subject to the server's query limits. |
 | `ingest-keys create` (alias `mint`) | Mint a tenant-bound public ingest token for browser SDK use. Requires one or more `--origin` values; optional `--ip` restrictions. The full token is returned once. `ingest-keys list` shows ids/previews and `ingest-keys revoke <id>` invalidates one. |
+| `events track` | Send analytics events to the ingest pipeline with your own login — no ingest key and no browser origin required. Takes `--file <path>` (JSON array, `{ "events": [...] }` envelope, or NDJSON) or `--event <json>`. Batches over 500 events are chunked automatically. Reports accepted, quarantined, rejected and dropped counts separately. |
 
 `--json` on read commands emits machine-readable output. Results go to stdout,
 diagnostics to stderr.
+
+### Send analytics events
+
+```bash
+revturbine login
+revturbine events track --file ./events.ndjson
+
+# or a single event inline
+revturbine events track --event '{"environment_id":"production","user_id":"u-1","account_id":"a-1","event_name":"product_used","event_ts":"2026-09-10T00:00:00.000Z"}'
+```
+
+Every event needs `environment_id`, `user_id`, `account_id`, `event_name` and
+`event_ts`; anything else you include is carried through. Local validation
+reports every malformed event at once and sends nothing until they are fixed.
+
+This authenticates with your device-auth token rather than an ingest key, so
+it works from a terminal or CI where there is no browser origin to allowlist.
+Quarantined and rejected counts are reported separately from accepted — a
+load is not clean merely because the server returned `202`.
 
 ### Mint a publishable ingest token
 
