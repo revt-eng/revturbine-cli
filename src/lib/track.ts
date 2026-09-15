@@ -1,3 +1,4 @@
+// @revturbine-graph gref:2244aa1472fa352c1de6
 /**
  * CLI control-plane event emit (plan 112 TASK-6).
  *
@@ -34,6 +35,7 @@ export function shouldTrackCommandExecution(name: string, hasUrl: boolean): bool
  * @param payload - Optional event properties (e.g. `{ command: 'deploy' }`).
  */
 export async function trackEvent(
+  // @revturbine-graph gref:b4f1c1c757d4f3d7947a
   rawUrl: string,
   explicitTenantId: string | undefined,
   eventType: string,

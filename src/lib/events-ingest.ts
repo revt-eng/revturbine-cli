@@ -1,3 +1,4 @@
+// @revturbine-graph gref:554c493d35a413c8cd06
 /**
  * Authenticated event ingest (plan 231 TASK-5 / REQ-6).
  *
@@ -186,6 +187,7 @@ export async function postBatch(
 export function summarize(results: BatchResult[], eventCount: number): IngestSummary {
   return {
     batches: results.length,
+    // @revturbine-graph gref:3f4d51af0a0af98edea0
     events: eventCount,
     accepted: results.reduce((n, r) => n + r.accepted, 0),
     quarantined: results.reduce((n, r) => n + r.quarantined, 0),

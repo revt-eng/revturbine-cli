@@ -75,3 +75,14 @@ There is deliberately **no cross-repo drift check here.** This repo is public an
 ## Memory
 
 <!-- Claude: update this section with learnings about how to build, test, and run this project. -->
+
+## Event graph source bindings
+
+Source annotations and `.revturbine/graph-bindings.json` link code to every
+citing graph node. Follow the [shared binding contract](https://github.com/revt-eng/revturbine-devkit/blob/main/docs/graphs/event-data/source-bindings.md)
+and devkit's event-graph query/audit/refresh skills (Codex and Claude).
+Before changing referenced code, locate its node IDs and trace its dependents.
+Move annotations with their targets; regenerate indexes after reference changes.
+From devkit run `pnpm graph bindings check --roots <absolute-checkout-map.json>`
+and `pnpm graph check`. JSON/generated/literal sidecars are intentional; keep
+historical refs pinned and use `bindings locate` for current local lines.
