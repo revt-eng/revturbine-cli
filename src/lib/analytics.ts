@@ -22,11 +22,10 @@ async function request<T>(
 // @revturbine-graph gref:3cc3cbe185515c5f15af
 export function getAnalyticsCatalog(baseUrl: string, headers: Record<string, string>, fetchImpl?: FetchLike) {
   return request(baseUrl, headers, '/api/analytics/catalog', {}, fetchImpl);
-// @revturbine-graph gref:1ae9a2a84f3e0de740c6
 }
 
+// @revturbine-graph gref:26ee3568d269c2d9a250
 export function listAnalyticsTemplates(baseUrl: string, headers: Record<string, string>, fetchImpl?: FetchLike) {
-  // @revturbine-graph gref:493ee160c50da74481f1
   return request<{ items: unknown[] }>(baseUrl, headers, '/api/analytics/templates', {}, fetchImpl);
 }
 
@@ -40,6 +39,7 @@ export function getAnalyticsView(baseUrl: string, headers: Record<string, string
   return request(baseUrl, headers, `/api/analytics/views/${encodeURIComponent(viewId)}`, {}, fetchImpl);
 }
 
+// @revturbine-graph gref:dd1cc2d251bf37df636b
 export function createAnalyticsView(
   baseUrl: string,
   headers: Record<string, string>,
@@ -50,16 +50,15 @@ export function createAnalyticsView(
     idempotency_key: string;
     base_template_id?: string;
     base_template_version?: number;
-  // @revturbine-graph gref:4433118d5cfc932fad70
   },
   fetchImpl?: FetchLike,
 ) {
   return request(baseUrl, headers, '/api/analytics/views', { method: 'POST', body: JSON.stringify(body) }, fetchImpl);
 }
 
+// @revturbine-graph gref:6cba19c8de8faa0daece
 export function previewAnalyticsView(
   baseUrl: string,
-  // @revturbine-graph gref:0124fbf244c76e9ef621
   headers: Record<string, string>,
   body: { document: unknown; block_ids?: string[]; filter_state?: unknown[] },
   fetchImpl?: FetchLike,
@@ -67,6 +66,7 @@ export function previewAnalyticsView(
   return request(baseUrl, headers, '/api/analytics/preview', { method: 'POST', body: JSON.stringify(body) }, fetchImpl);
 }
 
+// @revturbine-graph gref:91925e74c991fdaaeae8
 export function queryAnalyticsView(
   baseUrl: string,
   headers: Record<string, string>,

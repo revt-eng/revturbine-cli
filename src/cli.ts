@@ -68,7 +68,6 @@ import { checkPinDrift } from './lib/pin-drift';
 import { describeSelector, orderDiffSelectors, requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
 import { serverSchemaIsNewer } from './lib/version-trail';
-// @revturbine-graph gref:aa5a9c5add56bbf61fbf
 import {
   // @revturbine-graph gref:f961a105cdf77ba36d1a
   createAnalyticsView,
@@ -76,9 +75,13 @@ import {
   getAnalyticsCatalog,
   // @revturbine-graph gref:8e78db91aa419f54efa1
   getAnalyticsView,
+  // @revturbine-graph gref:7ed68ae4d8226ad79395
   listAnalyticsTemplates,
+  // @revturbine-graph gref:dedae22aa7980e16ed8e
   listAnalyticsViews,
+  // @revturbine-graph gref:34fccfa96e61b4261a74
   previewAnalyticsView,
+  // @revturbine-graph gref:c9a6b6dcdbe5f83eb7f1
   queryAnalyticsView,
 } from './lib/analytics';
 
@@ -510,7 +513,6 @@ Full reference: ${DOCS_URL}
 const program = new Command();
 
 // Dogfood each successful ONLINE command as a `cli_command_executed` control-
-// @revturbine-graph gref:6d3012372dfaea592671
 // plane event (plan 112 TASK-6). Fires only after the action resolves (so a
 // failed command that exits non-zero emits nothing); auth commands emit their
 // own events, and offline runs (no --url option, or `validate <file>` without
@@ -718,7 +720,6 @@ program
     }
   });
 
-// @revturbine-graph gref:2f9e3373b4f82ec03b72
 // ── Auth & meta ──────────────────────────────────────────────────────────────
 
 program
@@ -811,7 +812,6 @@ program
       const email = opts.email ?? (await promptLine('Email: '));
       const password = opts.password ?? (await promptHidden('Password: '));
       if (!name || !email || password.length < 8) {
-        // @revturbine-graph gref:8402562d5e903afe28ad
         fail(EXIT.USAGE, 'Name, email, and a password of at least 8 characters are required.');
       }
       const result = await signup({
@@ -1488,24 +1488,28 @@ const analytics = program
 analyticsConnectionOptions(analytics.command('catalog').description('Get the Semantic Catalog.'))
   .action(async (opts: AnalyticsOptions) => {
     const conn = connect(opts.url, opts.tenantId);
+    // @revturbine-graph gref:b7cbb61a3c67716aacdf
     emitAnalyticsResult(conn, 'analytics catalog', await runAnalyticsRequest(conn, () => getAnalyticsCatalog(conn.url, conn.headers)), opts.json);
   });
 
 analyticsConnectionOptions(analytics.command('templates').description('List shipped analytics view templates.'))
   .action(async (opts: AnalyticsOptions) => {
     const conn = connect(opts.url, opts.tenantId);
+    // @revturbine-graph gref:112e57ef166e98b507c0
     emitAnalyticsResult(conn, 'analytics templates', await runAnalyticsRequest(conn, () => listAnalyticsTemplates(conn.url, conn.headers)), opts.json);
   });
 
 analyticsConnectionOptions(analytics.command('views').description('List saved analytics views explicitly granted to this principal.'))
   .action(async (opts: AnalyticsOptions) => {
     const conn = connect(opts.url, opts.tenantId);
+    // @revturbine-graph gref:2bc6dc9e4e4511833ee7
     emitAnalyticsResult(conn, 'analytics views', await runAnalyticsRequest(conn, () => listAnalyticsViews(conn.url, conn.headers)), opts.json);
   });
 
 analyticsConnectionOptions(analytics.command('view').description('Get a system or accessible saved view.').argument('<id>', 'View id'))
   .action(async (id: string, opts: AnalyticsOptions) => {
     const conn = connect(opts.url, opts.tenantId);
+    // @revturbine-graph gref:bd40953bd8450c603c8f
     emitAnalyticsResult(conn, 'analytics view', await runAnalyticsRequest(conn, () => getAnalyticsView(conn.url, conn.headers, id)), opts.json);
   });
 
@@ -1525,6 +1529,7 @@ analyticsConnectionOptions(
   const document = loadConfig(file) as { id?: unknown };
   if (typeof document.id !== 'string' || !document.id) fail(EXIT.USAGE, 'The canonical view document must contain an id.');
   const conn = connect(opts.url, opts.tenantId);
+  // @revturbine-graph gref:07bb77f55aa9ec432680
   const result = await runAnalyticsRequest(conn, () => createAnalyticsView(conn.url, conn.headers, {
     document,
     name: opts.name,
@@ -1544,6 +1549,7 @@ analyticsConnectionOptions(
     .option('--filter-state <json>', 'Transient filter-state JSON array'),
 ).action(async (file: string, opts: AnalyticsOptions & { block?: string[]; filterState?: string }) => {
   const conn = connect(opts.url, opts.tenantId);
+  // @revturbine-graph gref:e9b5dddcb7593975de4e
   const result = await runAnalyticsRequest(conn, () => previewAnalyticsView(conn.url, conn.headers, {
     document: loadConfig(file),
     block_ids: opts.block,
@@ -1561,6 +1567,7 @@ analyticsConnectionOptions(
     .option('--filter-state <json>', 'Transient filter-state JSON array'),
 ).action(async (id: string, opts: AnalyticsOptions & { revision?: number; block?: string[]; filterState?: string }) => {
   const conn = connect(opts.url, opts.tenantId);
+  // @revturbine-graph gref:29539cffb61b24dc14d3
   const result = await runAnalyticsRequest(conn, () => queryAnalyticsView(conn.url, conn.headers, {
     view_id: id,
     revision: opts.revision,
