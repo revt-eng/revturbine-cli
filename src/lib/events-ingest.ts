@@ -186,8 +186,8 @@ export async function postBatch(
 /** Fold per-batch results into the totals the command reports. */
 export function summarize(results: BatchResult[], eventCount: number): IngestSummary {
   return {
+    // @revturbine-graph gref:82bdbeb790f7c80267d2
     batches: results.length,
-    // @revturbine-graph gref:3f4d51af0a0af98edea0
     events: eventCount,
     accepted: results.reduce((n, r) => n + r.accepted, 0),
     quarantined: results.reduce((n, r) => n + r.quarantined, 0),
