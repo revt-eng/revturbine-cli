@@ -69,6 +69,8 @@ jobs:
         run: npm test -- tests/whoami-process.test.ts
       - name: shared placement warnings remain advisory and validate offline
         run: npm test -- tests/placement-validation-process.test.ts
+      - name: latest SDK guidance preserves projects and bounds registry failures
+        run: npm test -- tests/sdk-version-process.test.ts
       - name: validate a valid config (expect exit 0)
         run: '"$CLI_BIN" validate tests/fixtures/valid.export-config.json'
       - name: validate an invalid config (expect exit 4)

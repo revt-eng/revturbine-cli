@@ -13,8 +13,8 @@
  *
  * The CLI is pinned EXACTLY into the target repo (REQ-6): the vendored schema
  * snapshot makes CLI↔playbook compatibility a per-repo property, so it belongs
- * in the lockfile. The SDK takes an ordinary caret range — it is not
- * snapshot-coupled.
+ * in the lockfile. Missing SDK installations request latest; the project's
+ * package manager controls saved range syntax (plan 254 TASK-12).
  */
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
@@ -176,6 +176,8 @@ export function planInstall(params: {
   devDependencies?: Readonly<Record<string, string>>;
   /** The running CLI's own version — what gets pinned into the repo. */
   cliVersion: string;
+  /** Successfully checked latest stable version; otherwise npm's latest tag. */
+  sdkVersion?: string;
 }): InstallPlan {
   const deps = params.dependencies ?? {};
   const devDeps = params.devDependencies ?? {};
@@ -186,7 +188,7 @@ export function planInstall(params: {
   if (existingSdk) {
     skipped.push(`${SDK_PACKAGE} already declared (${existingSdk})`);
   } else {
-    install.push({ spec: SDK_PACKAGE, dev: false, exact: false });
+    install.push({ spec: `${SDK_PACKAGE}@${params.sdkVersion ?? 'latest'}`, dev: false, exact: false });
   }
 
   const existingCli = devDeps[CLI_PACKAGE] ?? deps[CLI_PACKAGE];

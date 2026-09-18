@@ -96,6 +96,20 @@ reports `playbook: "present"`, `"skipped"`, or the filename to create, and
 `skills_agent` identifies the single installer target (or `null` when skipped).
 `--no-skills` takes precedence over a detected or explicitly selected valid agent.
 
+`revturbine --version` and `init` check the latest stable `@revturbine/sdk` on
+public npm and recommend a concrete version on stderr. The installed project SDK
+takes precedence over its declared range; if it cannot be resolved, the advice
+explicitly falls back to the declaration. Current or newer versions receive no
+downgrade advice. `init --dir` checks that target project. Existing dependencies
+are never upgraded automatically. A missing SDK installs the checked version, or
+`@latest` when the check is unavailable, using your package manager's save-prefix
+settings. The CLI remains an exactly pinned dev dependency.
+
+The registry check has a three-second total timeout, including the response body.
+Offline, invalid, or unavailable metadata produces an advisory without changing
+the command's stdout/JSON or exit status. `--version` makes no registry request
+without a declared SDK; validation and unrelated commands make no SDK version check.
+
 `--json` on read commands emits machine-readable output. Results go to stdout,
 diagnostics to stderr.
 

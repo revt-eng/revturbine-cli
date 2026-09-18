@@ -5,19 +5,23 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { prepareSourceCli, SOURCE_CLI_SETUP_TIMEOUT_MS } from './helpers/source-cli';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const root = mkdtempSync(path.join(tmpdir(), 'revturbine-init-'));
 const shimDir = path.join(root, 'bin');
+const preload = path.join(root, 'offline-registry.mjs');
 let cli = process.env.REVTURBINE_TEST_CLI;
 
 beforeAll(() => {
+  writeFileSync(preload, "globalThis.fetch = async () => { throw new Error('offline fixture'); };\n");
   if (!cli) {
     cli = path.join(root, 'package', 'dist', 'cli.js');
     mkdirSync(path.dirname(cli), { recursive: true });
     writeFileSync(path.join(root, 'package', 'package.json'), JSON.stringify({ type: 'module', version: '0.0.0-test' }));
     buildSync({ entryPoints: [path.join(repo, 'src/cli.ts')], outfile: cli, bundle: true, platform: 'node', format: 'esm', target: 'node22' });
+    prepareSourceCli(cli, root);
   }
   mkdirSync(shimDir);
   const shim = path.join(shimDir, 'capture.cjs');
@@ -30,7 +34,7 @@ beforeAll(() => {
       writeFileSync(file, `#!/bin/sh\nexec '${process.execPath}' '${shim}' ${name} "$@"\n`, { mode: 0o755 });
     }
   }
-});
+}, SOURCE_CLI_SETUP_TIMEOUT_MS);
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
@@ -54,7 +58,7 @@ function run(dir: string, args: string[] = [], agentEnv: Record<string, string> 
   const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
   env[pathKey] = `${shimDir}${path.delimiter}${env[pathKey] ?? ''}`;
   const capture = path.join(dir, 'commands.jsonl');
-  const result = spawnSync(process.execPath, [cli!, 'init', '--dir', dir, '--yes', ...args], {
+  const result = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, cli!, 'init', '--dir', dir, '--yes', ...args], {
     cwd: dir,
     env: { ...env, ...agentEnv, INIT_CAPTURE: capture, REVTURBINE_CONFIG_DIR: path.join(dir, '.credentials') },
     encoding: 'utf8', timeout: 20_000,
@@ -74,7 +78,7 @@ describe('init process contract (also run against the installed npm tarball)', (
     const playbook = path.join(dir, 'revturbine.playbook.json');
     expect(existsSync(playbook)).toBe(true);
     expect(() => execFileSync(process.execPath, [cli!, 'validate', playbook], { cwd: dir, stdio: 'pipe' })).not.toThrow();
-    expect(result.commands).toEqual([['npm', 'install', '@revturbine/sdk']]);
+    expect(result.commands).toEqual([['npm', 'install', '@revturbine/sdk@latest']]);
   });
 
   it('preserves an existing SDK/provider/non-root Playbook integration', () => {

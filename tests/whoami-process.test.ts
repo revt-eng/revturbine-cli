@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { clearTimeout, setTimeout } from 'node:timers';
 import { fileURLToPath } from 'node:url';
+import { prepareSourceCli, SOURCE_CLI_SETUP_TIMEOUT_MS } from './helpers/source-cli';
 
 const root = mkdtempSync(path.join(tmpdir(), 'revturbine-whoami-'));
 const secret = 'rt_test_whoami_must_never_print_this_fake_token';
@@ -19,7 +20,8 @@ beforeAll(() => {
   mkdirSync(path.dirname(cli), { recursive: true });
   writeFileSync(path.join(root, 'package', 'package.json'), JSON.stringify({ type: 'module', version: '0.0.0-test' }));
   buildSync({ entryPoints: [fileURLToPath(new URL('../src/cli.ts', import.meta.url))], outfile: cli, bundle: true, platform: 'node', format: 'esm', target: 'node22' });
-});
+  prepareSourceCli(cli, root);
+}, SOURCE_CLI_SETUP_TIMEOUT_MS);
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
