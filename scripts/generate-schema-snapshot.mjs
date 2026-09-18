@@ -48,6 +48,28 @@ const outFile = path.join(repoRoot, 'src', 'schema', 'exported-config.snapshot.m
 const versionFile = path.join(repoRoot, 'src', 'schema', 'SCHEMA_VERSION');
 const versionModule = path.join(repoRoot, 'src', 'schema', 'version.ts');
 
+/**
+ * Graph annotations belong to the repository that owns the construct.
+ *
+ * esbuild carries scaffold's `@revturbine-graph` comments into this vendored
+ * bundle verbatim, which made 141 of them show up here claiming this
+ * repository binds scaffold's nodes. They are meaningless in a copy: nothing
+ * here owns those constructs, and devkit's binding check counted them as
+ * handles with no index behind them (plan 253).
+ *
+ * Only a whole-line marker comment is removed, so a string or regex that
+ * merely mentions the marker survives untouched.
+ */
+const MARKER_LINE = /^[\t ]*(?:\/\/|#|--|%%|\*) @revturbine-graph [^\n]*\r?\n/gm;
+
+function stripVendoredAnnotations(file) {
+  const text = readFileSync(file, 'utf8');
+  const cleaned = text.replace(MARKER_LINE, '');
+  if (cleaned === text) return 0;
+  writeFileSync(file, cleaned, 'utf8');
+  return text.split('\n').length - cleaned.split('\n').length;
+}
+
 const banner = `// GENERATED — do not edit by hand.
 // Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@${version}
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
@@ -84,6 +106,12 @@ await build({
   logLevel: 'info',
 });
 console.log(`[generate-schema] wrote ${path.relative(repoRoot, validatorsOut)} (validators ${version})`);
+
+const strippedSchema = stripVendoredAnnotations(outFile);
+const strippedValidators = stripVendoredAnnotations(validatorsOut);
+if (strippedSchema || strippedValidators) {
+  console.log(`[generate-schema] stripped ${strippedSchema + strippedValidators} vendored graph annotation(s)`);
+}
 
 writeFileSync(versionFile, `${version}\n`, 'utf8');
 writeFileSync(

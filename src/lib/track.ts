@@ -1,4 +1,3 @@
-// @revturbine-graph gref:2244aa1472fa352c1de6
 /**
  * CLI control-plane event emit (plan 112 TASK-6).
  *
@@ -36,7 +35,7 @@ export function shouldTrackCommandExecution(name: string, hasUrl: boolean): bool
  * @param signal - Optional request deadline; whoami bounds its telemetry tail.
  */
 export async function trackEvent(
-  // @revturbine-graph gref:b4f1c1c757d4f3d7947a
+  // @revturbine-graph source:revturbine-cli:src/lib/track.ts#trackEvent
   rawUrl: string,
   explicitTenantId: string | undefined,
   eventType: string,
