@@ -2002,23 +2002,25 @@ if (process.argv.includes('-V') || process.argv.includes('--version')) {
   } catch {
     // Best-effort — an unreadable package.json never breaks --version.
   }
-  process.exit(EXIT.OK);
-}
-
-program.exitOverride();
-try {
-  await program.parseAsync(process.argv);
-} catch (err) {
-  if (err instanceof CommanderError) {
-    if (err.code === 'commander.helpDisplayed' || err.code === 'commander.version' || err.code === 'commander.help') {
-      process.exit(0);
+  // Let HTTPS response/socket cleanup drain. Forcing exit immediately after
+  // fetch can crash Node on Windows with UV_HANDLE_CLOSING (plan 254 TASK-12).
+  process.exitCode = EXIT.OK;
+} else {
+  program.exitOverride();
+  try {
+    await program.parseAsync(process.argv);
+  } catch (err) {
+    if (err instanceof CommanderError) {
+      if (err.code === 'commander.helpDisplayed' || err.code === 'commander.version' || err.code === 'commander.help') {
+        process.exit(0);
+      }
+      process.exit(EXIT.USAGE);
     }
-    process.exit(EXIT.USAGE);
+    if (err instanceof SelectorError) {
+      console.error(`[revturbine] ✗ ${err.message}`);
+      process.exit(EXIT.USAGE);
+    }
+    console.error(`[revturbine] ✗ ${(err as Error).message}`);
+    process.exit(EXIT.UNEXPECTED);
   }
-  if (err instanceof SelectorError) {
-    console.error(`[revturbine] ✗ ${err.message}`);
-    process.exit(EXIT.USAGE);
-  }
-  console.error(`[revturbine] ✗ ${(err as Error).message}`);
-  process.exit(EXIT.UNEXPECTED);
 }

@@ -3,7 +3,8 @@ import { buildSync } from 'esbuild';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
+import { createServer, type RequestListener } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -15,8 +16,9 @@ const preload = path.join(root, 'registry.mjs');
 const shimDir = path.join(root, 'bin');
 let cli = process.env.REVTURBINE_TEST_CLI;
 let endpoint: string;
+let httpsEndpoint: string;
 let sequence = 0;
-const server = createServer((req, res) => {
+const registryResponse: RequestListener = (req, res) => {
   const url = new URL(req.url!, 'http://localhost');
   if (url.pathname === '/network') { req.socket.destroy(); return; }
   if (url.pathname === '/headers') return;
@@ -30,7 +32,14 @@ const server = createServer((req, res) => {
   }
   res.writeHead(url.pathname === '/http' ? 503 : 200, { 'content-type': 'application/json' });
   res.end(url.searchParams.get('body'));
-});
+};
+const server = createServer(registryResponse);
+// Public fixture key/certificate, used only for a trusted loopback HTTPS server.
+const certificate = path.join(repo, 'tests/fixtures/sdk-version-localhost-cert.pem');
+const httpsServer = createHttpsServer({
+  key: readFileSync(path.join(repo, 'tests/fixtures/sdk-version-localhost-key.pem')),
+  cert: readFileSync(certificate),
+}, registryResponse);
 
 beforeAll(async () => {
   if (!cli) {
@@ -43,7 +52,8 @@ beforeAll(async () => {
   // Test-only interception: product code always addresses public npm. Use real
   // fetch against loopback so headers/body abort behavior is exercised too.
   writeFileSync(preload, `
-    import { appendFileSync } from 'node:fs';
+    import { appendFileSync, writeFileSync } from 'node:fs';
+    process.once('beforeExit', () => writeFileSync(process.env.SDK_DRAINED, 'drained'));
     const nativeFetch = globalThis.fetch;
     globalThis.fetch = (url, options = {}) => {
       appendFileSync(process.env.SDK_REQUESTS, JSON.stringify({ url: String(url), headers: Object.fromEntries(new Headers(options.headers)), credentials: options.credentials, redirect: options.redirect }) + '\\n');
@@ -64,11 +74,17 @@ beforeAll(async () => {
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('fixture server did not listen');
   endpoint = `http://127.0.0.1:${address.port}`;
+  await new Promise<void>((resolve) => httpsServer.listen(0, '127.0.0.1', resolve));
+  const httpsAddress = httpsServer.address();
+  if (!httpsAddress || typeof httpsAddress === 'string') throw new Error('HTTPS fixture server did not listen');
+  httpsEndpoint = `https://127.0.0.1:${httpsAddress.port}`;
 }, SOURCE_CLI_SETUP_TIMEOUT_MS);
 
 afterAll(async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  httpsServer.closeAllConnections();
+  await new Promise<void>((resolve, reject) => httpsServer.close((error) => error ? reject(error) : resolve()));
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -93,9 +109,10 @@ function project(spec?: string, version?: string, extra: Record<string, unknown>
 const hash = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex');
 const lines = (file: string) => existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').map((line) => JSON.parse(line)) : [];
 
-async function run(dir: string, options: { args?: string[]; latest?: unknown; body?: string; mode?: string } = {}) {
+async function run(dir: string, options: { args?: string[]; latest?: unknown; body?: string; mode?: string; https?: boolean } = {}) {
   const requests = path.join(root, `requests-${++sequence}.jsonl`);
   const commands = path.join(root, `commands-${sequence}.jsonl`);
+  const drained = path.join(root, `drained-${sequence}`);
   const body = options.body ?? JSON.stringify(options.latest ?? { name: '@revturbine/sdk', version: '0.9.3' });
   const env = { ...process.env };
   for (const name of ['NODE_OPTIONS', 'CLAUDECODE', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_ENTRYPOINT', 'CURSOR_TRACE_ID', 'CURSOR', 'CODEX_THREAD_ID', 'CODEX_CI', 'CODEX_SANDBOX', 'npm_config_user_agent', 'REVTURBINE_DELEGATED']) delete env[name];
@@ -104,7 +121,7 @@ async function run(dir: string, options: { args?: string[]; latest?: unknown; bo
   const start = performance.now();
   const result = await new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(process.execPath, ['--import', pathToFileURL(preload).href, cli!, ...(options.args ?? ['--version'])], {
-      cwd: dir, env: { ...env, SDK_REQUESTS: requests, SDK_COMMANDS: commands, SDK_ENDPOINT: `${endpoint}/${options.mode ?? 'ok'}?body=${encodeURIComponent(body)}`, REVTURBINE_CONFIG_DIR: path.join(dir, '.credentials'), NODE_AUTH_TOKEN: 'fixture-secret', NPM_TOKEN: 'fixture-secret' },
+      cwd: dir, env: { ...env, SDK_REQUESTS: requests, SDK_COMMANDS: commands, SDK_DRAINED: drained, SDK_ENDPOINT: `${options.https ? httpsEndpoint : endpoint}/${options.mode ?? 'ok'}?body=${encodeURIComponent(body)}`, NODE_EXTRA_CA_CERTS: certificate, REVTURBINE_CONFIG_DIR: path.join(dir, '.credentials'), NODE_AUTH_TOKEN: 'fixture-secret', NPM_TOKEN: 'fixture-secret' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = ''; let stderr = '';
@@ -114,7 +131,7 @@ async function run(dir: string, options: { args?: string[]; latest?: unknown; bo
     child.on('error', (error) => { clearTimeout(timeout); reject(error); });
     child.on('close', (code) => { clearTimeout(timeout); resolve({ code, stdout, stderr }); });
   });
-  return { ...result, elapsed: performance.now() - start, requests: lines(requests), commands: lines(commands) };
+  return { ...result, elapsed: performance.now() - start, requests: lines(requests), commands: lines(commands), drained: existsSync(drained) };
 }
 
 function versionContract(result: Awaited<ReturnType<typeof run>>) {
@@ -125,6 +142,31 @@ function versionContract(result: Awaited<ReturnType<typeof run>>) {
 }
 
 describe('latest SDK installed CLI contract', () => {
+  it('drains HTTPS cleanup before successful version exit', async () => {
+    const result = await run(project('^0.9.1', '0.9.1'), { https: true });
+    versionContract(result);
+    expect(result.stderr).toContain('npm install @revturbine/sdk@0.9.3');
+    expect(result.stderr).not.toContain('Assertion failed');
+    expect(result.drained).toBe(true);
+  });
+
+  it.each(['headers', 'body'])('drains a stalled HTTPS %s request without extending its deadline', async (mode) => {
+    const result = await run(project('^0.9.1', '0.9.1'), { https: true, mode });
+    versionContract(result);
+    expect(result.stderr).toContain('SDK version check unavailable');
+    expect(result.drained).toBe(true);
+    expect(result.elapsed).toBeGreaterThanOrEqual(2_900);
+    expect(result.elapsed).toBeLessThan(5_000);
+  }, 8_000);
+
+  it('keeps init JSON successful after HTTPS cleanup', async () => {
+    const result = await run(project('^0.9.1', '0.9.1'), { https: true, args: ['init', '--dry-run', '--json', '--no-skills'] });
+    expect(result.code, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).install).toEqual([]);
+    expect(result.stderr).toContain('npm install @revturbine/sdk@0.9.3');
+    expect(result.drained).toBe(true);
+  });
+
   it.each([
     ['^0.9.1', '0.9.1', '0.9.3'], ['0.9.1', '0.9.1', '0.9.3'],
     ['^0.9.1', '0.9.1', '0.10.0'], ['^0.0.4', '0.0.4', '0.0.5'],
