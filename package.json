@@ -1,6 +1,6 @@
 {
   "name": "@revturbine/cli",
-  "version": "0.18.2",
+  "version": "0.19.0",
   "description": "revturbine — validate RevTurbine Playbooks and ship them to a RevTurbine instance through the playbook-version lifecycle (draft → Release).",
   "license": "MIT",
   "repository": {
@@ -24,7 +24,7 @@
     "build": "tsup",
     "generate:schema": "node scripts/generate-schema-snapshot.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=1",
     "lint": "eslint .",
     "check:schema": "node scripts/check-schema-consistency.mjs",
     "verify": "npm run typecheck && npm run lint && npm run check:schema && npm run test"
@@ -32,11 +32,13 @@
   "dependencies": {
     "@revturbine/sdk": "^0.7.4",
     "commander": "^15.0.0",
+    "semver": "^7.8.5",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.1",
+    "@types/semver": "^7.8.0",
     "esbuild": "^0.28.1",
     "eslint": "^10.7.0",
     "tsup": "^8.5.1",

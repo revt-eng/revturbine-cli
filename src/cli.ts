@@ -66,6 +66,7 @@ import { detectHarness, finalOutputLines, isAgentId, skillsAddArgs, SKILLS_SOURC
 import { generateHandleTypes } from './lib/handles-codegen';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
 import { checkPinDrift } from './lib/pin-drift';
+import { latestStableSdk, sdkDeclaration, sdkPackageVersion, sdkVersionAdvice } from './lib/sdk-version';
 import { describeSelector, orderDiffSelectors, requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
 import { serverSchemaIsNewer } from './lib/version-trail';
@@ -95,6 +96,43 @@ const DOCS_URL = 'https://github.com/revt-eng/revturbine-cli#readme';
 // target the apex directly and never the `www` host.
 const DEFAULT_URL = 'https://revturbine.com/app';
 const WHOAMI_REQUEST_TIMEOUT_MS = 3_000;
+const SDK_VERSION_TIMEOUT_MS = 3_000;
+
+async function checkSdkVersion(dir: string, manifest: unknown): Promise<string | undefined> {
+  let latest: string | undefined;
+  try {
+    // One signal covers both headers and the entire response body. This check
+    // uses public npm directly, without npmrc, login credentials, or redirects.
+    const response = await fetch('https://registry.npmjs.org/@revturbine%2fsdk/latest', {
+      signal: globalThis.AbortSignal.timeout(SDK_VERSION_TIMEOUT_MS),
+      credentials: 'omit', redirect: 'error',
+    });
+    if (response.ok) latest = latestStableSdk(await response.json());
+    else await response.body?.cancel();
+  } catch { /* A failed advisory never changes the command result. */ }
+  const declaration = sdkDeclaration(manifest);
+  const manager = detectPackageManager({
+    files: existsSync(dir) ? readdirSync(dir) : [],
+    packageManagerField: typeof manifest === 'object' && manifest !== null && 'packageManager' in manifest && typeof manifest.packageManager === 'string' ? manifest.packageManager : undefined,
+    userAgent: process.env['npm_config_user_agent'],
+  });
+  diag(sdkVersionAdvice({ latest, declaration, installed: declaration ? findInstalledSdk(dir) : undefined, manager: manager.name }));
+  return latest;
+}
+
+/** Resolve only inside the target project/repository, never relative to this CLI. */
+function findInstalledSdk(from: string): string | undefined {
+  const start = path.resolve(from);
+  const stopAt = gitRootOf(start) ?? start;
+  for (let dir = start; ; dir = path.dirname(dir)) {
+    const manifest = path.join(dir, 'node_modules', '@revturbine', 'sdk', 'package.json');
+    if (existsSync(manifest)) {
+      try { return sdkPackageVersion(JSON.parse(readFileSync(manifest, 'utf8'))); }
+      catch { return undefined; }
+    }
+    if (dir === stopAt) return undefined;
+  }
+}
 
 // ── Config loading (by explicit path) ───────────────────────────────────────────
 
@@ -517,6 +555,12 @@ Auth:
   telemetry each time out after 3 seconds. Status reports exit 0; --json keeps
   token_present boolean and token_valid true/false/null (null = unverified).
 
+SDK updates:
+  \`--version\` and \`init\` check public npm's latest stable SDK and recommend
+  a concrete version on stderr. Existing dependencies are preserved; the app
+  controls saved range syntax. Registry checks time out after 3 seconds total.
+  Missing SDK installs request latest. The repo-pinned CLI stays exactly pinned.
+
 Full reference: ${DOCS_URL}
 `;
 
@@ -541,7 +585,7 @@ program.hook('postAction', async (_thisCommand, actionCommand) => {
 program
   .name('revturbine')
   .description('Validate RevTurbine Playbooks and ship them through the playbook-version lifecycle (draft → Release).')
-  .version(`${pkgVersion} (schema ${SCHEMA_VERSION})`, '-V, --version', 'Print the revturbine and bundled schema versions')
+  .version(`${pkgVersion} (schema ${SCHEMA_VERSION})`, '-V, --version', 'Print CLI/schema versions and check a declared SDK against latest stable')
   // Consumed before commander parses (see the delegation block at the bottom);
   // declared here so it appears in --help and isn't rejected as unknown.
   .option(NO_LOCAL_FLAG, "Ignore the repo-pinned CLI and run this installation")
@@ -584,7 +628,7 @@ program
   // reaches for the `npm create revturbine` verb gets the same scaffold from the
   // CLI directly. Same action, same flags.
   .alias('create')
-  .description('Set up RevTurbine while preserving existing integrations: install missing packages, create a starter for a fresh integration, and install skills for one selected agent. Offers to start a new project when no package.json exists.')
+  .description('Set up RevTurbine while preserving existing integrations: check the latest stable SDK, install missing packages, create a starter for a fresh integration, and install skills for one selected agent. Offers to start a new project when no package.json exists.')
   .option('-d, --dir <path>', 'Target directory (defaults to the current directory)')
   .option('-y, --yes', 'Skip prompts — create a new project non-interactively when the directory has none')
   .option('--dry-run', 'Report what would be installed without running the package manager')
@@ -634,10 +678,12 @@ program
       userAgent: process.env['npm_config_user_agent'],
     });
     const stack = detectStack(manifest);
+    const sdkVersion = await checkSdkVersion(dir, manifest);
     const plan = planInstall({
       dependencies: manifest.dependencies,
       devDependencies: manifest.devDependencies,
       cliVersion: pkgVersion,
+      sdkVersion,
     });
 
     diag(`✓ Detected ${manager.name} (${manager.reason})`);
@@ -1940,16 +1986,18 @@ function gitRootOf(from: string): string | null {
 }
 
 // -V/--version is answered pre-parse (same pattern as the delegation flag) so
-// the repo pin-drift warning (plan 174 TASK-12) can ride along on stderr —
+// CLI pin drift and latest SDK advice can ride along on stderr —
 // commander's built-in .version() would print and exit before any hook.
 if (process.argv.includes('-V') || process.argv.includes('--version')) {
   process.stdout.write(`${pkgVersion} (schema ${SCHEMA_VERSION})\n`);
   try {
     const pkgPath = path.resolve('package.json');
     if (existsSync(pkgPath)) {
-      for (const warning of checkPinDrift(JSON.parse(readFileSync(pkgPath, 'utf8')))) {
+      const manifest: unknown = JSON.parse(readFileSync(pkgPath, 'utf8'));
+      for (const warning of checkPinDrift(manifest)) {
         diag(`⚠ pin drift: ${warning}`);
       }
+      if (sdkDeclaration(manifest)) await checkSdkVersion(process.cwd(), manifest);
     }
   } catch {
     // Best-effort — an unreadable package.json never breaks --version.

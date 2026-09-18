@@ -1,13 +1,13 @@
 /**
  * Plan 174 TASK-12 / REQ-16 (spec-check F-69c) — the repo pin-drift check
  * behind `--version`: `@revturbine/cli` must be EXACT (repo-pinned CLI /
- * delegation), `@revturbine/sdk` must be CARET (additive releases flow in).
+ * delegation). SDK latest-version guidance is separate (plan 254 TASK-12).
  */
 import { describe, expect, it } from 'vitest';
 import { checkPinDrift } from '../src/lib/pin-drift';
 
 describe('checkPinDrift', () => {
-  it('is silent for a rule-following repo (cli exact, sdk caret)', () => {
+  it('is silent for an exact CLI pin regardless of the SDK range', () => {
     expect(
       checkPinDrift({
         devDependencies: { '@revturbine/cli': '0.14.0' },
@@ -23,9 +23,9 @@ describe('checkPinDrift', () => {
     expect(warnings[0]).toContain('EXACT');
   });
 
-  it('warns when the SDK pin is exact or tilde', () => {
-    expect(checkPinDrift({ dependencies: { '@revturbine/sdk': '0.2.67' } })[0]).toContain('caret');
-    expect(checkPinDrift({ dependencies: { '@revturbine/sdk': '~0.2.67' } })[0]).toContain('caret');
+  it('does not prescribe SDK range syntax', () => {
+    expect(checkPinDrift({ dependencies: { '@revturbine/sdk': '0.2.67' } })).toEqual([]);
+    expect(checkPinDrift({ dependencies: { '@revturbine/sdk': '~0.2.67' } })).toEqual([]);
   });
 
   it('accepts an exact CLI pin with a prerelease suffix', () => {

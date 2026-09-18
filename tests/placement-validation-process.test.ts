@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { SCHEMA_VERSION } from '../src/schema/version';
+import { prepareSourceCli, SOURCE_CLI_SETUP_TIMEOUT_MS } from './helpers/source-cli';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const root = mkdtempSync(path.join(tmpdir(), 'revturbine-placement-validation-'));
@@ -20,6 +21,7 @@ beforeAll(() => {
     mkdirSync(path.dirname(cli), { recursive: true });
     writeFileSync(path.join(root, 'package', 'package.json'), JSON.stringify({ type: 'module', version: '0.0.0-test' }));
     buildSync({ entryPoints: [path.join(repo, 'src/cli.ts')], outfile: cli, bundle: true, platform: 'node', format: 'esm', target: 'node22' });
+    prepareSourceCli(cli, root);
   }
   writeFileSync(networkGuard, `import { writeFileSync } from 'node:fs';
 import http from 'node:http';
@@ -34,7 +36,7 @@ globalThis.fetch = blocked;
 http.request = http.get = https.request = https.get = blocked;
 net.connect = net.createConnection = tls.connect = blocked;
 `);
-});
+}, SOURCE_CLI_SETUP_TIMEOUT_MS);
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 

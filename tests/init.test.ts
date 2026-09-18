@@ -104,7 +104,7 @@ describe('planInstall', () => {
   it('installs both packages in a bare repo, pinning the CLI exactly', () => {
     const plan = planInstall({ cliVersion: '0.7.1' });
     expect(plan.install).toEqual([
-      { spec: SDK_PACKAGE, dev: false, exact: false },
+      { spec: `${SDK_PACKAGE}@latest`, dev: false, exact: false },
       { spec: `${CLI_PACKAGE}@0.7.1`, dev: true, exact: true },
     ]);
     expect(plan.skipped).toEqual([]);
@@ -126,7 +126,7 @@ describe('planInstall', () => {
       devDependencies: { [CLI_PACKAGE]: '0.6.0' },
       cliVersion: '0.7.1',
     });
-    expect(plan.install.map((p) => p.spec)).toEqual([SDK_PACKAGE]);
+    expect(plan.install.map((p) => p.spec)).toEqual([`${SDK_PACKAGE}@latest`]);
     expect(plan.skipped.join(' ')).toContain('left as-is');
   });
 
@@ -182,6 +182,6 @@ describe('newProjectManifest', () => {
   it('is installable-ready: planInstall on it queues both packages', () => {
     // A brand-new manifest has no deps, so the scaffold installs SDK + pinned CLI.
     const plan = planInstall({ ...newProjectManifest('app'), cliVersion: '0.9.1' });
-    expect(plan.install.map((p) => p.spec)).toEqual([SDK_PACKAGE, `${CLI_PACKAGE}@0.9.1`]);
+    expect(plan.install.map((p) => p.spec)).toEqual([`${SDK_PACKAGE}@latest`, `${CLI_PACKAGE}@0.9.1`]);
   });
 });

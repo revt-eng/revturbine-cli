@@ -11,6 +11,7 @@ export default defineConfig({
   target: 'node22',
   platform: 'node',
   bundle: true,
+  noExternal: ['semver'],
   clean: true,
   banner: { js: '#!/usr/bin/env node' },
   outDir: 'dist',
