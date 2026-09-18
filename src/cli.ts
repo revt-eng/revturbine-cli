@@ -59,9 +59,9 @@ import {
 import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib/delegate';
 import { schemaForConfig } from './lib/offline-schema';
 import { checkOfflineConfig, offlineAdvisories } from './lib/offline-config-check';
-import { detectPackageManager, detectStack, installArgs, newProjectManifest, planInstall } from './lib/init';
+import { declaredSdk, detectPackageManager, detectStack, installArgs, integrationFileReason, newProjectManifest, planInstall, planStarter } from './lib/init';
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
-import { detectHarness, finalOutputLines, skillsAddArgs, SKILLS_SOURCE, type SkillsOutcome } from './lib/init-skills';
+import { detectHarness, finalOutputLines, isAgentId, skillsAddArgs, SKILLS_SOURCE, SUPPORTED_AGENTS, type SkillsOutcome } from './lib/init-skills';
 import { generateHandleTypes } from './lib/handles-codegen';
 import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
 import { checkPinDrift } from './lib/pin-drift';
@@ -471,6 +471,10 @@ Version selectors (no defaults — a command that reads a config requires one):
 Common workflows:
   # Add RevTurbine to an app (same routine as \`npm create revturbine@latest\`)
   revturbine init
+  # Preserve an existing integration; select one skills target explicitly
+  revturbine init --agent codex
+  # Opt into a missing root starter; existing Playbooks are never overwritten
+  revturbine init --scaffold --no-skills
 
   # Author, validate, and ship against the default instance (revturbine.com/app)
   revturbine login
@@ -552,19 +556,41 @@ function runInstall(manager: string, args: string[], cwd: string): Promise<numbe
   });
 }
 
+function findIntegration(dir: string, root: string = dir): string | undefined {
+  if (!existsSync(dir)) return undefined;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.') || ['node_modules', 'dist', 'build', 'coverage', 'target'].includes(entry.name)) continue;
+    const file = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const reason = findIntegration(file, root);
+      if (reason) return reason;
+    } else if (entry.isFile() && /\.(?:[cm]?[jt]sx?|json)$/.test(entry.name) && !entry.name.endsWith('lock.json')) {
+      const reason = integrationFileReason(path.relative(root, file), readFileSync(file, 'utf8'));
+      if (reason) return reason;
+    }
+  }
+  return undefined;
+}
+
 program
   .command('init')
   // `revturbine create` is a synonym for `revturbine init`, so someone who
   // reaches for the `npm create revturbine` verb gets the same scaffold from the
   // CLI directly. Same action, same flags.
   .alias('create')
-  .description('Scaffold RevTurbine into this app: detect the stack, install the SDK, pin the CLI, drop a starter Playbook, and install the Agent Skills. Offers to start a new project when the directory has no package.json.')
+  .description('Set up RevTurbine while preserving existing integrations: install missing packages, create a starter for a fresh integration, and install skills for one selected agent. Offers to start a new project when no package.json exists.')
   .option('-d, --dir <path>', 'Target directory (defaults to the current directory)')
   .option('-y, --yes', 'Skip prompts — create a new project non-interactively when the directory has none')
   .option('--dry-run', 'Report what would be installed without running the package manager')
   .option('--no-skills', 'Do not install the RevTurbine Agent Skills')
+  .option('--scaffold', 'Create a missing root starter Playbook even when an integration exists; never overwrite a file')
+  .option('--agent <id>', `Install skills for one agent (${SUPPORTED_AGENTS.join(', ')}); overrides environment detection`)
   .option('--json', 'Emit the scaffold plan as JSON')
-  .action(async (opts: { dir?: string; yes?: boolean; dryRun?: boolean; skills?: boolean; json?: boolean }) => {
+  .action(async (opts: { dir?: string; yes?: boolean; dryRun?: boolean; skills?: boolean; scaffold?: boolean; agent?: string; json?: boolean }) => {
+    if (opts.agent !== undefined && !isAgentId(opts.agent)) {
+      fail(EXIT.USAGE, `unknown skills agent '${opts.agent}' — choose ${SUPPORTED_AGENTS.join(', ')}.`);
+    }
+    const harness = detectHarness(process.env, opts.agent !== undefined && isAgentId(opts.agent) ? opts.agent : undefined);
     const dir = path.resolve(opts.dir ?? process.cwd());
     const manifestPath = path.join(dir, 'package.json');
 
@@ -612,16 +638,20 @@ program
     if (stack !== 'unknown') diag(`✓ Detected ${stack}`);
     for (const note of plan.skipped) diag(`• ${note}`);
 
-    // The starter Playbook is a separate axis from the installs: a repo can have
-    // the deps but a deleted playbook, so this is never gated on install work
-    // remaining.
     const playbookPath = path.join(dir, STARTER_PLAYBOOK_FILENAME);
     const playbookExists = existsSync(playbookPath);
-    if (playbookExists) diag(`• ${STARTER_PLAYBOOK_FILENAME} already present — left as-is`);
+    const integrationReason = playbookExists || opts.scaffold ? undefined
+      : declaredSdk(manifest) ? '@revturbine/sdk already declared' : findIntegration(dir);
+    const starter = planStarter({ rootExists: playbookExists, integrationReason, scaffold: opts.scaffold === true });
+    if (starter === 'present') diag(`• ${STARTER_PLAYBOOK_FILENAME} already present — left as-is`);
+    if (starter === 'skipped') diag(`• Skipping starter Playbook: ${integrationReason}. Use --scaffold to create a missing ${STARTER_PLAYBOOK_FILENAME}.`);
 
     // Skills are installed by default; --no-skills opts out. commander stores
     // `--no-skills` as `opts.skills === false`.
-    const installSkills = opts.skills !== false;
+    const skillsArgs = opts.skills !== false && harness.agentId ? skillsAddArgs(harness.agentId) : null;
+    if (opts.skills !== false && !harness.agentId) {
+      diag(`• Skipping Agent Skills: no supported agent detected. Choose a target, for example: revturbine init --agent codex (${SUPPORTED_AGENTS.join(', ')}).`);
+    }
 
     if (opts.json) {
       emit(
@@ -632,8 +662,9 @@ program
           stack,
           install: plan.install,
           skipped: plan.skipped,
-          playbook: playbookExists ? 'present' : STARTER_PLAYBOOK_FILENAME,
-          skills: installSkills ? SKILLS_SOURCE : 'skipped',
+          playbook: starter === 'create' ? STARTER_PLAYBOOK_FILENAME : starter,
+          skills: skillsArgs ? SKILLS_SOURCE : 'skipped',
+          skills_agent: skillsArgs ? harness.agentId : null,
         },
         true,
       );
@@ -644,9 +675,9 @@ program
       for (const step of plan.install) {
         diag(`would run: ${manager.name} ${installArgs(manager.name, step).join(' ')}`);
       }
-      if (!playbookExists) diag(`would write: ${STARTER_PLAYBOOK_FILENAME}`);
-      if (installSkills) diag(`would run: npx ${skillsAddArgs().join(' ')}`);
-      if (plan.install.length === 0 && playbookExists) diag('✓ Already set up — nothing to do.');
+      if (starter === 'create') diag(`would write: ${STARTER_PLAYBOOK_FILENAME}`);
+      if (skillsArgs) diag(`would run: npx ${skillsArgs.join(' ')}`);
+      if (plan.install.length === 0 && starter !== 'create' && !skillsArgs) diag('✓ No setup changes planned.');
       return;
     }
 
@@ -665,7 +696,7 @@ program
       diag(`✓ Installed the RevTurbine SDK and CLI (CLI pinned to ${pkgVersion})`);
     }
 
-    const playbookAdded = !playbookExists;
+    const playbookAdded = starter === 'create';
     if (playbookAdded) {
       // REQ-7: validate in-process, before writing — never leave a config on
       // disk that `revturbine validate` would immediately reject.
@@ -676,17 +707,17 @@ program
           `the bundled starter Playbook failed validation against schema ${SCHEMA_VERSION} — this is a CLI bug, please report it.`,
         );
       }
-      writeFileSync(playbookPath, `${JSON.stringify(STARTER_PLAYBOOK, null, 2)}\n`, 'utf8');
+      writeFileSync(playbookPath, `${JSON.stringify(STARTER_PLAYBOOK, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
       diag(`✓ Added a starter playbook (${STARTER_PLAYBOOK_FILENAME} — local mode, no account needed)`);
     }
 
     // Agent Skills — delegated to `npx skills` (plan 142 REQ-8). A skills
     // failure MUST NOT fail generation (REQ-9): the SDK/CLI/playbook are already
     // in place, so a missing skills install degrades to a printed manual command.
-    let skillsOutcome: SkillsOutcome = installSkills ? 'installed' : 'skipped';
-    if (installSkills) {
+    let skillsOutcome: SkillsOutcome = skillsArgs ? 'installed' : opts.skills === false ? 'skipped' : 'unknown';
+    if (skillsArgs) {
       diag('Installing the RevTurbine Agent Skills (npx skills)…');
-      const args = skillsAddArgs();
+      const args = skillsArgs;
       let code: number;
       try {
         code = await runInstall('npx', args, dir);
@@ -700,7 +731,7 @@ program
         diag('⚠ Could not install the Agent Skills automatically. Add them by hand:');
         diag(`    npx ${args.join(' ')}`);
       }
-    } else {
+    } else if (opts.skills === false) {
       diag('• Skipping the Agent Skills (--no-skills)');
     }
 
@@ -714,7 +745,7 @@ program
         cliVersion: pkgVersion,
         playbookAdded,
         skills: skillsOutcome,
-        harness: detectHarness(process.env),
+        harness,
       });
       process.stdout.write(`${lines.join('\n')}\n`);
     }

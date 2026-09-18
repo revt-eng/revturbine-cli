@@ -91,6 +91,41 @@ export function detectStack(signals: {
 export const SDK_PACKAGE = '@revturbine/sdk';
 export const CLI_PACKAGE = '@revturbine/cli';
 
+export function declaredSdk(manifest: {
+  dependencies?: Readonly<Record<string, string>>;
+  devDependencies?: Readonly<Record<string, string>>;
+}): boolean {
+  return Boolean(manifest.dependencies?.[SDK_PACKAGE] || manifest.devDependencies?.[SDK_PACKAGE]);
+}
+
+/** Conservative signals: preserving a possible integration is safer than adding a competing starter. */
+export function integrationFileReason(file: string, content: string): string | undefined {
+  if (file.endsWith('revturbine.playbook.json')) return `existing Playbook (${file})`;
+  if (/\.[cm]?[jt]sx?$/.test(file) && /['"]@revturbine\/sdk(?:\/[^'"]*)?['"]/.test(content)) {
+    return `SDK integration (${file})`;
+  }
+  if (file.endsWith('.json')) {
+    try {
+      const value: unknown = JSON.parse(content);
+      if (value && typeof value === 'object' && 'artifact_type' in value && value.artifact_type === 'playbook') {
+        return `existing Playbook (${file})`;
+      }
+    } catch {
+      // An unrelated or unfinished JSON file is not a Playbook signal.
+    }
+  }
+  return undefined;
+}
+
+export function planStarter(params: {
+  rootExists: boolean;
+  integrationReason?: string;
+  scaffold: boolean;
+}): 'present' | 'skipped' | 'create' {
+  if (params.rootExists) return 'present';
+  return params.integrationReason && !params.scaffold ? 'skipped' : 'create';
+}
+
 /**
  * Slugify a directory name into a valid npm package name: lowercased, only
  * url-safe characters, never leading/trailing separators, never empty. So `init`

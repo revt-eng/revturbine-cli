@@ -3,13 +3,39 @@ import { describe, expect, it } from 'vitest';
 import {
   CLI_PACKAGE,
   SDK_PACKAGE,
+  declaredSdk,
   detectPackageManager,
   detectStack,
   installArgs,
+  integrationFileReason,
   newProjectManifest,
   planInstall,
+  planStarter,
   projectNameFromDir,
 } from '../src/lib/init';
+
+describe('existing integration preservation', () => {
+  it('recognizes SDK declarations in either dependency block without altering the pin', () => {
+    expect(declaredSdk({ dependencies: { [SDK_PACKAGE]: '0.7.1' } })).toBe(true);
+    expect(declaredSdk({ devDependencies: { [SDK_PACKAGE]: '^0.7.1' } })).toBe(true);
+    expect(declaredSdk({ dependencies: { react: '^19' } })).toBe(false);
+  });
+
+  it('recognizes canonical Playbooks and SDK subpath integrations', () => {
+    expect(integrationFileReason('server/config.json', '{"artifact_type":"playbook"}')).toContain('Playbook');
+    expect(integrationFileReason('src/sdk.mts', "import { initRevTurbine } from '@revturbine/sdk/headless';")).toContain('SDK integration');
+    expect(integrationFileReason('config/revturbine.playbook.json', '{unfinished')).toContain('Playbook');
+    expect(integrationFileReason('unrelated.json', '{unfinished')).toBeUndefined();
+    expect(integrationFileReason('package.json', '{"name":"app"}')).toBeUndefined();
+  });
+
+  it('preserves existing roots even with override, and otherwise makes creation explicit', () => {
+    expect(planStarter({ rootExists: true, integrationReason: 'SDK', scaffold: true })).toBe('present');
+    expect(planStarter({ rootExists: false, integrationReason: 'SDK', scaffold: false })).toBe('skipped');
+    expect(planStarter({ rootExists: false, integrationReason: 'SDK', scaffold: true })).toBe('create');
+    expect(planStarter({ rootExists: false, scaffold: false })).toBe('create');
+  });
+});
 
 describe('detectPackageManager', () => {
   it('prefers the packageManager field over everything else', () => {
