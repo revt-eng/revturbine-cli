@@ -1,19 +1,19 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.315
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.317
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
 
-// ../../revt-eng/revturbine-scaffold/src/core/common.ts
+// ../scaffold/src/core/common.ts
 import { z as z2 } from "zod";
 
-// ../../revt-eng/revturbine-scaffold/src/core/classification.ts
+// ../scaffold/src/core/classification.ts
 import { z } from "zod";
 
-// ../../revt-eng/revturbine-scaffold/src/core/handle-pattern.ts
+// ../scaffold/src/core/handle-pattern.ts
 var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
 
-// ../../revt-eng/revturbine-scaffold/src/core/classification.ts
+// ../scaffold/src/core/classification.ts
 var SchemaPersistence = {
   Persisted: "persisted",
   Transient: "transient"
@@ -191,7 +191,7 @@ function getObjectFieldVisibilities(schema) {
   return result;
 }
 
-// ../../revt-eng/revturbine-scaffold/src/core/common.ts
+// ../scaffold/src/core/common.ts
 var { Unrestricted } = DataClassification;
 var { Transient, Persisted } = SchemaPersistence;
 var { Internal, External } = SchemaExposure;
@@ -431,7 +431,7 @@ var CtaActionTypeSchema = z2.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 
-// ../../revt-eng/revturbine-scaffold/src/core/facets.ts
+// ../scaffold/src/core/facets.ts
 var SchemaContext = {
   Playbook: "playbook",
   Branding: "branding",
@@ -575,7 +575,7 @@ var PERSISTED_SCHEMA_FACET_EXEMPTIONS = {
   WebhookEventLogSchema: "Webhook delivery history is runtime data, not authored strategy."
 };
 
-// ../../revt-eng/revturbine-scaffold/src/core/identity.ts
+// ../scaffold/src/core/identity.ts
 import { z as z3 } from "zod";
 var IdentityKind = {
   /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
@@ -619,10 +619,10 @@ function collectVersionedConfigEntities(allExports) {
   return out;
 }
 
-// ../../revt-eng/revturbine-scaffold/src/plans/models/schema.ts
+// ../scaffold/src/plans/models/schema.ts
 import { z as z5 } from "zod";
 
-// ../../revt-eng/revturbine-scaffold/src/core/openapi/helpers.ts
+// ../scaffold/src/core/openapi/helpers.ts
 import { z as z4 } from "zod";
 var ListEnvelope = (itemSchema) => z4.object({
   items: z4.array(itemSchema)
@@ -641,7 +641,7 @@ var ListQueryParamsSchema = z4.object({
   include_deleted: z4.boolean().default(false).optional()
 });
 
-// ../../revt-eng/revturbine-scaffold/src/plans/models/schema.ts
+// ../scaffold/src/plans/models/schema.ts
 var { Unrestricted: Unrestricted2, Financial } = DataClassification;
 var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
 var { External: External2 } = SchemaExposure;
@@ -1101,7 +1101,7 @@ var planPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/entitlements/models/schema.ts
+// ../scaffold/src/entitlements/models/schema.ts
 import { z as z6 } from "zod";
 var { Unrestricted: Unrestricted3 } = DataClassification;
 var { Persisted: Persisted3, Transient: Transient3 } = SchemaPersistence;
@@ -1494,7 +1494,7 @@ var entitlementPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/placements/models/schema.ts
+// ../scaffold/src/placements/models/schema.ts
 import { z as z7 } from "zod";
 var { Unrestricted: Unrestricted4 } = DataClassification;
 var { Persisted: Persisted4, Transient: Transient4 } = SchemaPersistence;
@@ -1847,10 +1847,10 @@ var placementPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/user/models/schema.ts
+// ../scaffold/src/user/models/schema.ts
 import { z as z9 } from "zod";
 
-// ../../revt-eng/revturbine-scaffold/src/customers/models/schema.ts
+// ../scaffold/src/customers/models/schema.ts
 import { z as z8 } from "zod";
 var { Unrestricted: Unrestricted5, Pii } = DataClassification;
 var { Persisted: Persisted5, Transient: Transient5 } = SchemaPersistence;
@@ -2018,7 +2018,7 @@ var customerPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/user/models/schema.ts
+// ../scaffold/src/user/models/schema.ts
 var { Unrestricted: Unrestricted6, Pii: Pii2, Financial: Financial2 } = DataClassification;
 var { Persisted: Persisted6, Transient: Transient6 } = SchemaPersistence;
 var { External: External5, Internal: Internal5 } = SchemaExposure;
@@ -2301,7 +2301,7 @@ var userContextPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/segments/models/schema.ts
+// ../scaffold/src/segments/models/schema.ts
 import { z as z10 } from "zod";
 var { Unrestricted: Unrestricted7 } = DataClassification;
 var { Persisted: Persisted7, Transient: Transient7 } = SchemaPersistence;
@@ -2485,7 +2485,7 @@ var segmentPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/content/models/schema.ts
+// ../scaffold/src/content/models/schema.ts
 import { z as z11 } from "zod";
 var { Unrestricted: Unrestricted8 } = DataClassification;
 var { Persisted: Persisted8, Transient: Transient8 } = SchemaPersistence;
@@ -2708,7 +2708,7 @@ var contentPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/ui/models/schema.ts
+// ../scaffold/src/ui/models/schema.ts
 import { z as z12 } from "zod";
 var { Unrestricted: Unrestricted9, Pii: Pii3 } = DataClassification;
 var { Persisted: Persisted9, Transient: Transient9 } = SchemaPersistence;
@@ -2780,7 +2780,7 @@ var uiPreferencePaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/models/schema.ts
+// ../scaffold/src/analytics/models/schema.ts
 import { z as z13 } from "zod";
 var { Unrestricted: Unrestricted10, Financial: Financial3 } = DataClassification;
 var { Persisted: Persisted10, Transient: Transient10 } = SchemaPersistence;
@@ -2959,7 +2959,7 @@ var analyticsPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/models/view-schema.ts
+// ../scaffold/src/analytics/models/view-schema.ts
 import { z as z14 } from "zod";
 var { Unrestricted: Unrestricted11 } = DataClassification;
 var { Transient: Transient11 } = SchemaPersistence;
@@ -3106,7 +3106,6 @@ var AnalyticsIngestedInputOriginSchema = z14.enum(["platform", "customer_authore
 var IngestedEventName = z14.string().regex(/^[a-z][a-z0-9_]*$/).max(120);
 var IngestedDatasourceName = z14.string().regex(/^[a-z][a-z0-9_]*$/).max(120);
 var AnalyticsMetricDerivationSchema = z14.object({
-  kind: AnalyticsMetricDerivationKindSchema.meta(Unrestricted11),
   input_origin: AnalyticsIngestedInputOriginSchema.meta(Unrestricted11),
   /**
    * Ingested EVENT names this metric is computed from. Cross-checked
@@ -3135,11 +3134,58 @@ var AnalyticsMetricDerivationSchema = z14.object({
    */
   note: z14.string().max(600).optional().meta(Unrestricted11)
 }).meta(meta("AnalyticsMetricDerivation"));
+var AnalyticsMetricLayerSchema = z14.enum(["primitive", "derived"]).meta(meta("AnalyticsMetricLayer"));
+var AnalyticsCatalogStatusSchema = z14.enum(["declared", "bound", "validated", "tested", "unavailable"]).meta(meta("AnalyticsCatalogStatus"));
+var AnalyticsFactKindSchema = z14.enum(["transaction", "periodic_snapshot", "accumulating_snapshot"]).meta(meta("AnalyticsFactKind"));
+var AnalyticsConceptProducerSchema = z14.enum(["platform", "customer_authored", "simulation"]).meta(meta("AnalyticsConceptProducer"));
+var AnalyticsGroundingAnchorSchema = z14.enum([
+  "fact_time",
+  "period_opening",
+  "touch_time",
+  "cohort_entry",
+  "exposure_time",
+  "assignment_time",
+  "carried_version",
+  "fixed",
+  "current"
+]).meta(meta("AnalyticsGroundingAnchor"));
 var AnalyticsDimensionGroundingKindSchema = z14.enum(["stamped", "membership_join", "config_join", "derived"]).meta(meta("AnalyticsDimensionGroundingKind"));
 var AnalyticsDimensionGroundingSchema = z14.object({
   kind: AnalyticsDimensionGroundingKindSchema.meta(Unrestricted11),
   source: z14.string().min(1).max(200).meta(Unrestricted11),
-  note: z14.string().max(400).optional().meta(Unrestricted11)
+  note: z14.string().max(400).optional().meta(Unrestricted11),
+  /**
+   * The instant this grounding resolves its attribute at (D-9). Optional
+   * while the concepts are being migrated; required once a concept
+   * declares `fact_kind`, because a grounding without an anchor cannot be
+   * executed correctly.
+   */
+  anchor: AnalyticsGroundingAnchorSchema.optional().meta(Unrestricted11),
+  /**
+   * Narrows a join from a coarser fact to a finer snapshot. Billing facts
+   * are tenant-global, so a lifecycle slice over a billing metric must name
+   * the product and environment it reads, or the join fans out.
+   */
+  selection: z14.object({
+    product: z14.string().max(120).optional().meta(Unrestricted11),
+    environment: z14.string().max(120).optional().meta(Unrestricted11)
+  }).optional().meta(Unrestricted11),
+  /**
+   * Whether grouping by this attribute PARTITIONS the fact rows. Multivalued
+   * attributes (an account's segments) group without partitioning. Whether
+   * the grouped values SUM to the total is a property of the metric's
+   * `aggregation_semantics`, not of the grouping.
+   */
+  partitions: z14.boolean().optional().meta(Unrestricted11),
+  /**
+   * A grounding carries its OWN status and blocker, so "MRR available, plan
+   * slice unavailable" is expressible instead of being hidden in a
+   * hand-maintained denial list.
+   */
+  catalog_status: AnalyticsCatalogStatusSchema.optional().meta(Unrestricted11),
+  blocker: z14.string().max(400).optional().meta(Unrestricted11),
+  /** Part of the V1 slice set tested on every P0 metric whose fact carries the key. */
+  v1: z14.boolean().optional().meta(Unrestricted11)
 }).meta(meta("AnalyticsDimensionGrounding"));
 var AnalyticsCatalogMetricSchema = z14.object({
   id: SemanticIdField.meta(Unrestricted11),
@@ -3169,6 +3215,17 @@ var AnalyticsCatalogMetricSchema = z14.object({
    * field exists to prevent.
    */
   derivation: AnalyticsMetricDerivationSchema.optional().meta(Unrestricted11),
+  /**
+   * Which layer this metric occupies (D-9). Optional only so a partial
+   * fixture stays parseable; required wherever a catalog is authored or
+   * served, like `derivation`.
+   */
+  layer: AnalyticsMetricLayerSchema.optional().meta(Unrestricted11),
+  /**
+   * Definition readiness (D-9). `unavailable` carries its blocker in
+   * `derivation.note`, which is why that field survives the migration.
+   */
+  catalog_status: AnalyticsCatalogStatusSchema.optional().meta(Unrestricted11),
   deprecation: CatalogDeprecation.optional().meta(Unrestricted11)
 }).meta(meta("AnalyticsCatalogMetric"));
 var AnalyticsCatalogMetricValidatedSchema = AnalyticsCatalogMetricSchema.superRefine(
@@ -3207,13 +3264,13 @@ var AnalyticsCatalogMetricValidatedSchema = AnalyticsCatalogMetricSchema.superRe
     return;
   }
   const hasInputs = derivation.ingested_events.length > 0 || (derivation.ingested_datasources?.length ?? 0) > 0;
-  if (derivation.kind === "unavailable") {
+  if (metric.catalog_status === "unavailable") {
     if (hasInputs) {
       ctx.addIssue({
         code: "custom",
         path: ["derivation", "ingested_events"],
         params: { code: "unavailable_metric_names_inputs" },
-        message: "kind='unavailable' must name no inputs \u2014 if inputs exist the metric is derived or observed, and any routing blocker belongs in `note`"
+        message: "catalog_status='unavailable' must name no inputs \u2014 if inputs exist the metric is produced, and any routing blocker belongs in `note`"
       });
     }
     if (derivation.input_origin !== "none") {
@@ -3221,7 +3278,7 @@ var AnalyticsCatalogMetricValidatedSchema = AnalyticsCatalogMetricSchema.superRe
         code: "custom",
         path: ["derivation", "input_origin"],
         params: { code: "unavailable_metric_claims_input_origin" },
-        message: "kind='unavailable' requires input_origin='none'"
+        message: "catalog_status='unavailable' requires input_origin='none'"
       });
     }
     if (!derivation.note || derivation.note.trim().length === 0) {
@@ -3229,7 +3286,7 @@ var AnalyticsCatalogMetricValidatedSchema = AnalyticsCatalogMetricSchema.superRe
         code: "custom",
         path: ["derivation", "note"],
         params: { code: "unavailable_metric_missing_blocker" },
-        message: "kind='unavailable' requires `note` naming the real blocker"
+        message: "catalog_status='unavailable' requires `note` naming the real blocker"
       });
     }
     return;
@@ -3239,7 +3296,7 @@ var AnalyticsCatalogMetricValidatedSchema = AnalyticsCatalogMetricSchema.superRe
       code: "custom",
       path: ["derivation", "ingested_events"],
       params: { code: "produced_metric_without_inputs" },
-      message: `kind='${derivation.kind}' must name at least one ingested event or datasource \u2014 a metric with no inputs is kind='unavailable'`
+      message: `catalog_status='${metric.catalog_status ?? "unset"}' must name at least one ingested event or datasource \u2014 a metric with no inputs is catalog_status='unavailable'`
     });
   }
   if (derivation.input_origin === "none") {
@@ -3247,7 +3304,7 @@ var AnalyticsCatalogMetricValidatedSchema = AnalyticsCatalogMetricSchema.superRe
       code: "custom",
       path: ["derivation", "input_origin"],
       params: { code: "produced_metric_without_input_origin" },
-      message: "input_origin='none' is only valid with kind='unavailable'"
+      message: "input_origin='none' is only valid with catalog_status='unavailable'"
     });
   }
 }).meta(meta("AnalyticsCatalogMetricValidated"));
@@ -3274,6 +3331,33 @@ var AnalyticsCatalogConceptSchema = z14.object({
    * declared non-time dimension, no extras.
    */
   dimension_groundings: z14.record(SemanticIdField, AnalyticsDimensionGroundingSchema).optional().meta(Unrestricted11),
+  /**
+   * CONCEPT = FACT TABLE (plan 252 TASK-58, workspace decision D-9). There
+   * is no separate fact-table object: a concept IS its fact table seen from
+   * the query side, so `grain` above is the STORED grain (one row per
+   * exposure, not per placement-day — a daily rollup is a pipe's physical
+   * choice, not a second grain).
+   *
+   * These fields are optional while the concepts migrate onto them. They
+   * are NOT decorative: a concept that declares `fact_kind` is asserting it
+   * has been mapped, and the structural rules tighten around it from there.
+   * Populating them for the existing concepts, and splitting `revenue.movement`
+   * into `revenue.stock` / `.movement` / `.ledger`, rides with the fact-table
+   * builds that produce the rows (later plan 252 tasks and plan 230) rather
+   * than being invented here.
+   */
+  fact_kind: AnalyticsFactKindSchema.optional().meta(Unrestricted11),
+  family: z14.enum(["billing", "behavioral"]).optional().meta(Unrestricted11),
+  primary_key: z14.array(z14.string().min(1).max(120)).max(12).optional().meta(Unrestricted11),
+  /** Who writes the rows — replaces the retired `derivation.kind: 'observed'`. */
+  producer: AnalyticsConceptProducerSchema.optional().meta(Unrestricted11),
+  /** Physical serving choice; several tables or a pre-aggregating pipe may serve one concept. */
+  materialization: z14.object({
+    mode: z14.enum(["raw", "rollup", "logical"]).meta(Unrestricted11),
+    rollup_grain: AnalyticsTimeGrainSchema.optional().meta(Unrestricted11)
+  }).optional().meta(Unrestricted11),
+  /** Billing facts carry Stripe live/test mode; without it live and test revenue are indistinguishable. */
+  livemode_qualified: z14.boolean().optional().meta(Unrestricted11),
   deprecation: CatalogDeprecation.optional().meta(Unrestricted11)
 }).meta(meta("AnalyticsCatalogConcept"));
 var OrderBy = z14.strictObject({
@@ -3521,7 +3605,7 @@ var AnalyticsResultSchema = z14.object({
   meta: AnalyticsResultMetaSchema.meta(Unrestricted11)
 }).meta(meta("AnalyticsResult"));
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/models/saved-view-schema.ts
+// ../scaffold/src/analytics/models/saved-view-schema.ts
 import { z as z15 } from "zod";
 var { Unrestricted: Unrestricted12 } = DataClassification;
 var { Persisted: Persisted11, Transient: Transient12 } = SchemaPersistence;
@@ -3574,10 +3658,10 @@ var AnalyticsViewAccessSchema = IdField.merge(TenantIdField).merge(EnvironmentSc
   role: AnalyticsViewAccessRoleSchema.meta(Unrestricted12)
 }).meta(persistedMeta("AnalyticsViewAccess"));
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/models/catalog-schema.ts
+// ../scaffold/src/analytics/models/catalog-schema.ts
 import { z as z17 } from "zod";
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/models/annotation-schema.ts
+// ../scaffold/src/analytics/models/annotation-schema.ts
 import { z as z16 } from "zod";
 var { Unrestricted: Unrestricted13 } = DataClassification;
 var { Transient: Transient13 } = SchemaPersistence;
@@ -3683,7 +3767,7 @@ var AnalyticsAnnotationResponseSchema = z16.object({
   as_of: z16.string().datetime().meta(Unrestricted13)
 }).meta(meta2("AnalyticsAnnotationResponse"));
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/models/catalog-schema.ts
+// ../scaffold/src/analytics/models/catalog-schema.ts
 var { Unrestricted: Unrestricted14 } = DataClassification;
 var { Transient: Transient14 } = SchemaPersistence;
 var { Internal: Internal12 } = SchemaExposure;
@@ -3737,10 +3821,10 @@ var AnalyticsCatalogSearchResultSchema = z17.object({
   entries: z17.array(AnalyticsAgentCatalogEntrySchema).max(50).meta(Unrestricted14)
 }).meta(meta3("AnalyticsCatalogSearchResult"));
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/catalog/in-memory.ts
+// ../scaffold/src/analytics/catalog/in-memory.ts
 import { z as z20 } from "zod";
 
-// ../../revt-eng/revturbine-scaffold/src/events/models/event-payloads.ts
+// ../scaffold/src/events/models/event-payloads.ts
 import { z as z18 } from "zod";
 var { Unrestricted: Unrestricted15 } = DataClassification;
 var { Transient: Transient15 } = SchemaPersistence;
@@ -4086,7 +4170,7 @@ function validateEventPayload(eventName, payload) {
   return { ok: true, payload: parsed.data };
 }
 
-// ../../revt-eng/revturbine-scaffold/src/events/models/taxonomy.ts
+// ../scaffold/src/events/models/taxonomy.ts
 import { z as z19 } from "zod";
 var { Unrestricted: Unrestricted16 } = DataClassification;
 var { Transient: Transient16 } = SchemaPersistence;
@@ -4332,7 +4416,7 @@ function namespacePlatformCollision(normalizedName) {
 }
 var DEPRECATED_EVENT_NAMES = PLATFORM_EVENT_TAXONOMY.events.filter((e) => e.stability === "deprecated").map((e) => e.name);
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/catalog/in-memory.ts
+// ../scaffold/src/analytics/catalog/in-memory.ts
 var byId = (items) => [...items].sort((a, b) => a.id.localeCompare(b.id, "en"));
 var PLATFORM_EVENT_NAMES = new Set(PLATFORM_EMITTED_EVENT_NAMES);
 var PLATFORM_PAYLOAD_FIELDS = new Set(
@@ -4410,23 +4494,26 @@ function createInMemoryAnalyticsCatalog(data) {
       continue;
     }
     const inputCount = derivation.ingested_events.length + (derivation.ingested_datasources?.length ?? 0);
-    if (derivation.kind === "unavailable") {
+    if (metric.catalog_status === "unavailable") {
       if (inputCount > 0) {
-        problems.push(`metric ${metric.id} is derivation.kind='unavailable' but names ${inputCount} input(s)`);
+        problems.push(`metric ${metric.id} is catalog_status='unavailable' but names ${inputCount} input(s)`);
       }
       if (derivation.input_origin !== "none") {
-        problems.push(`metric ${metric.id} is derivation.kind='unavailable' but claims input_origin='${derivation.input_origin}'`);
+        problems.push(`metric ${metric.id} is catalog_status='unavailable' but claims input_origin='${derivation.input_origin}'`);
       }
       if (!derivation.note?.trim()) {
-        problems.push(`metric ${metric.id} is derivation.kind='unavailable' without a note naming the blocker`);
+        problems.push(`metric ${metric.id} is catalog_status='unavailable' without a note naming the blocker`);
       }
       continue;
     }
+    if (!metric.layer) {
+      problems.push(`metric ${metric.id} does not declare layer (primitive | derived)`);
+    }
     if (inputCount === 0) {
-      problems.push(`metric ${metric.id} is derivation.kind='${derivation.kind}' but names no ingested event or datasource`);
+      problems.push(`metric ${metric.id} is catalog_status='${metric.catalog_status ?? "unset"}' but names no ingested event or datasource`);
     }
     if (derivation.input_origin === "none") {
-      problems.push(`metric ${metric.id} claims input_origin='none' without derivation.kind='unavailable'`);
+      problems.push(`metric ${metric.id} claims input_origin='none' without catalog_status='unavailable'`);
     }
     if (derivation.input_origin === "platform") {
       for (const eventName of derivation.ingested_events) {
@@ -4585,7 +4672,7 @@ function searchAgentCatalog(catalog, query, limit = 20) {
   return { catalog_version: catalog.version, query, entries };
 }
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/catalog/fixture.ts
+// ../scaffold/src/analytics/catalog/fixture.ts
 var FIXTURE_ANALYTICS_CATALOG = {
   // Versioned additively (§15) as the ported surfaces need semantics:
   //   fixture-2 — placement.payload + content.message_block dimensions, the
@@ -5026,47 +5113,47 @@ var FIXTURE_ANALYTICS_CATALOG = {
     // `ratio`) — or sits on the explicit
     // `ANALYTICS_CATALOG_METRIC_METADATA_EXEMPT` list in generated.ts.
     // Never silent absence.
-    { id: "acquisition.signup_count", label: "Signups", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "observed", input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
-    { id: "activation.rate", label: "Activation rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "observed", input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
-    { id: "activation.time_to_value_seconds", label: "Time to value", value_type: "number", format: { type: "duration" }, source_scope: "total", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "observed", input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
-    { id: "retention.d7_rate", label: "D7 retention rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "In the growth_funnel_signals allowlist but no producer emits it \u2014 not even the simulation loader, whose growth-signal producer covers six lifecycle metrics and not this one. Retention requires a returning-user derivation over customer-authored activity." } },
-    { id: "funnel.entry_count", label: "Funnel step entries", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "observed", input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
-    { id: "funnel.completion_rate", label: "Funnel step completion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "observed", input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
-    { id: "funnel.elapsed_seconds", label: "Funnel step elapsed time", value_type: "number", format: { type: "duration" }, source_scope: "total", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "observed", input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
-    { id: "funnel.error_rate", label: "Funnel step error rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "decrease", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'No producer emits a growth_signal_observed row for this metric, and funnel error semantics are customer-defined. Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "trial.start_count", label: "Trial starts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "In the growth_funnel_signals allowlist but no producer emits it. Trial state is customer-authored; events_billing carries no trial event type yet (daily_revenue_rollup hard-codes trial_conversions to 0)." } },
-    { id: "trial.conversion_rate", label: "Trial-to-paid conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Same as trial.start_count \u2014 allowlisted, unproduced. Needs a trial event type in events_billing or a customer trial mapping." } },
-    { id: "trial.activation_rate", label: "Trial activation rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Same as trial.start_count \u2014 allowlisted, unproduced." } },
-    { id: "reactivation.previously_healthy_account_count", label: "Previously healthy accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Allowlisted by the pipe but no producer emits it. Requires an account activity-history derivation that does not exist." } },
-    { id: "reactivation.inactive_previously_healthy_rate", label: "Inactive previously healthy rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "decrease", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Same as reactivation.previously_healthy_account_count \u2014 allowlisted, unproduced." } },
-    { id: "reactivation.reactivated_rate", label: "Reactivated account rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Same as reactivation.previously_healthy_account_count \u2014 allowlisted, unproduced." } },
-    { id: "entitlement.granted_account_count", label: "Granted accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "derived", input_origin: "platform", ingested_events: ["gate_evaluated"], note: "uniq accounts whose gate_evaluated outcome was `allowed`." } },
-    { id: "entitlement.adoption_rate", label: "Entitlement adoption rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "derived", input_origin: "platform", ingested_events: ["gate_evaluated"], note: "allowed accounts over all evaluated accounts. gate_evaluated is the passive denominator the SDK emits on every gate render." } },
-    { id: "entitlement.adopter_retention_lift", label: "Adopter retention lift", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Needs a retention cohort comparison between adopters and non-adopters. No retention derivation exists." } },
-    { id: "entitlement.denied_account_count", label: "Denied accounts", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "derived", input_origin: "platform", ingested_events: ["gate_evaluated"], note: "uniq accounts whose gate_evaluated outcome was `denied` or `limited`." } },
-    { id: "entitlement.denied_attempts_per_account", label: "Denied attempts per account", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "derived", input_origin: "platform", ingested_events: ["gate_denied"], note: 'gate_denied is the ACTIVE denial \u2014 a user invoked a gated action and was refused, which is what "attempt" means here.' } },
-    { id: "entitlement.denied_upgrade_conversion_rate", label: "Denied-account upgrade conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Needs to join denials to a subsequent upgrade. Upgrade is a customer-authored event, so the join has no platform anchor." } },
-    { id: "usage.metered_per_account", label: "Metered usage per account", value_type: "number", source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "derived", input_origin: "platform", ingested_events: ["gate_evaluated"], note: "avg of gate_evaluated `used`, over evaluations where `limit` > 0. Gated on limit rather than on the presence of `used` because an unmetered entitlement reports both as JSON null." } },
-    { id: "usage.expansion_mrr_per_unit", label: "Expansion MRR per usage unit", value_type: "currency", source_scope: "total", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Needs metered units joined to expansion revenue. Expansion is not separated in events_billing (daily_revenue_rollup hard-codes expansion_revenue_cents to 0)." } },
-    { id: "revenue.expansion_mrr", label: "Expansion MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "events_billing does not discriminate expansion from new revenue \u2014 daily_revenue_rollup hard-codes expansion_revenue_cents to 0. Needs Stripe event-type discrimination beyond invoice.paid." } },
-    { id: "usage.projected_bill_to_historical_ratio", label: "Projected bill to historical ratio", value_type: "number", source_scope: "total", statistical_type: "continuous", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Needs a billing projection model. None exists." } },
-    { id: "usage.acceleration_rate", label: "Usage acceleration rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Needs a usage time series per account over a trailing window. The gate-event stream is too sparse to ground a rate of change." } },
-    { id: "usage.alert_coverage_rate", label: "Usage alert coverage rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Needs usage-alert configuration state, which is control-plane config rather than an ingested event." } },
-    { id: "usage.utilization_rate", label: "Usage utilization rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Grounded \u2014 gate_evaluated carries `limit` and `used` \u2014 but not routable: this metric belongs to growth.commercial_health, whose dimensions are plan/promotion/segment, while gate events can only ground entitlement.entitlement. Emitting it under that dimension would store rows no concept matches (the PR #328 failure). Unlocking it needs a plan-grained source or a ruling moving the metric onto growth.entitlement_usage. See plan 227 R-9." } },
-    { id: "usage.growth_rate", label: "Usage growth rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: "Same as usage.acceleration_rate \u2014 no per-account usage series to difference." } },
-    { id: "pricing.entry_tier_account_share", label: "Entry-tier account share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "pricing.self_serve_upgrade_rate", label: "Self-serve upgrade rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "pricing.plan_churn_rate", label: "Plan churn rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "decrease", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "promotion.discount_use_rate", label: "Promotion discount use rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_tracked", statistical_type: "binary", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "promotion.full_price_conversion_rate", label: "Full-price conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "promotion.net_revenue_lift_rate", label: "Promotion net revenue lift", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "retention.active_users_per_account", label: "Active users per account", value_type: "number", source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "retention.core_action_frequency", label: "Core action frequency", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "retention.active_days_rate", label: "Active days rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "user", derivation: { carried_by: ["growth_funnel_signals"], kind: "unavailable", input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "decision.eligible_accounts", label: "Eligible accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { kind: "unavailable", input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
-    { id: "decision.reached_accounts", label: "Reached accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", derivation: { kind: "unavailable", input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
-    { id: "placement.presented_accounts", label: "Presented accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
-    { id: "conversion.paid_accounts", label: "Converted accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
+    { id: "acquisition.signup_count", label: "Signups", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "user", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
+    { id: "activation.rate", label: "Activation rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "user", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
+    { id: "activation.time_to_value_seconds", label: "Time to value", value_type: "number", format: { type: "duration" }, source_scope: "total", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "user", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
+    { id: "retention.d7_rate", label: "D7 retention rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "user", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "In the growth_funnel_signals allowlist but no producer emits it \u2014 not even the simulation loader, whose growth-signal producer covers six lifecycle metrics and not this one. Retention requires a returning-user derivation over customer-authored activity." } },
+    { id: "funnel.entry_count", label: "Funnel step entries", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "user", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
+    { id: "funnel.completion_rate", label: "Funnel step completion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "user", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
+    { id: "funnel.elapsed_seconds", label: "Funnel step elapsed time", value_type: "number", format: { type: "duration" }, source_scope: "total", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "user", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "customer_authored", ingested_events: ["growth_signal_observed"], note: "Read from pre-computed growth_signal_observed rows. The lifecycle milestones behind it are customer-authored track() names, so no read-time derivation can produce it; today the only producer is the simulation loader." } },
+    { id: "funnel.error_rate", label: "Funnel step error rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "decrease", preferred_analysis_unit: "user", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'No producer emits a growth_signal_observed row for this metric, and funnel error semantics are customer-defined. Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "trial.start_count", label: "Trial starts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "In the growth_funnel_signals allowlist but no producer emits it. Trial state is customer-authored; events_billing carries no trial event type yet (daily_revenue_rollup hard-codes trial_conversions to 0)." } },
+    { id: "trial.conversion_rate", label: "Trial-to-paid conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Same as trial.start_count \u2014 allowlisted, unproduced. Needs a trial event type in events_billing or a customer trial mapping." } },
+    { id: "trial.activation_rate", label: "Trial activation rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Same as trial.start_count \u2014 allowlisted, unproduced." } },
+    { id: "reactivation.previously_healthy_account_count", label: "Previously healthy accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Allowlisted by the pipe but no producer emits it. Requires an account activity-history derivation that does not exist." } },
+    { id: "reactivation.inactive_previously_healthy_rate", label: "Inactive previously healthy rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "decrease", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Same as reactivation.previously_healthy_account_count \u2014 allowlisted, unproduced." } },
+    { id: "reactivation.reactivated_rate", label: "Reactivated account rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Same as reactivation.previously_healthy_account_count \u2014 allowlisted, unproduced." } },
+    { id: "entitlement.granted_account_count", label: "Granted accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "platform", ingested_events: ["gate_evaluated"], note: "uniq accounts whose gate_evaluated outcome was `allowed`." } },
+    { id: "entitlement.adoption_rate", label: "Entitlement adoption rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "platform", ingested_events: ["gate_evaluated"], note: "allowed accounts over all evaluated accounts. gate_evaluated is the passive denominator the SDK emits on every gate render." } },
+    { id: "entitlement.adopter_retention_lift", label: "Adopter retention lift", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Needs a retention cohort comparison between adopters and non-adopters. No retention derivation exists." } },
+    { id: "entitlement.denied_account_count", label: "Denied accounts", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "platform", ingested_events: ["gate_evaluated"], note: "uniq accounts whose gate_evaluated outcome was `denied` or `limited`." } },
+    { id: "entitlement.denied_attempts_per_account", label: "Denied attempts per account", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "platform", ingested_events: ["gate_denied"], note: 'gate_denied is the ACTIVE denial \u2014 a user invoked a gated action and was refused, which is what "attempt" means here.' } },
+    { id: "entitlement.denied_upgrade_conversion_rate", label: "Denied-account upgrade conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Needs to join denials to a subsequent upgrade. Upgrade is a customer-authored event, so the join has no platform anchor." } },
+    { id: "usage.metered_per_account", label: "Metered usage per account", value_type: "number", source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "platform", ingested_events: ["gate_evaluated"], note: "avg of gate_evaluated `used`, over evaluations where `limit` > 0. Gated on limit rather than on the presence of `used` because an unmetered entitlement reports both as JSON null." } },
+    { id: "usage.expansion_mrr_per_unit", label: "Expansion MRR per usage unit", value_type: "currency", source_scope: "total", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Needs metered units joined to expansion revenue. Expansion is not separated in events_billing (daily_revenue_rollup hard-codes expansion_revenue_cents to 0)." } },
+    { id: "revenue.expansion_mrr", label: "Expansion MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "events_billing does not discriminate expansion from new revenue \u2014 daily_revenue_rollup hard-codes expansion_revenue_cents to 0. Needs Stripe event-type discrimination beyond invoice.paid." } },
+    { id: "usage.projected_bill_to_historical_ratio", label: "Projected bill to historical ratio", value_type: "number", source_scope: "total", statistical_type: "continuous", direction: "neutral", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Needs a billing projection model. None exists." } },
+    { id: "usage.acceleration_rate", label: "Usage acceleration rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Needs a usage time series per account over a trailing window. The gate-event stream is too sparse to ground a rate of change." } },
+    { id: "usage.alert_coverage_rate", label: "Usage alert coverage rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Needs usage-alert configuration state, which is control-plane config rather than an ingested event." } },
+    { id: "usage.utilization_rate", label: "Usage utilization rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Grounded \u2014 gate_evaluated carries `limit` and `used` \u2014 but not routable: this metric belongs to growth.commercial_health, whose dimensions are plan/promotion/segment, while gate events can only ground entitlement.entitlement. Emitting it under that dimension would store rows no concept matches (the PR #328 failure). Unlocking it needs a plan-grained source or a ruling moving the metric onto growth.entitlement_usage. See plan 227 R-9." } },
+    { id: "usage.growth_rate", label: "Usage growth rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Same as usage.acceleration_rate \u2014 no per-account usage series to difference." } },
+    { id: "pricing.entry_tier_account_share", label: "Entry-tier account share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "neutral", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "pricing.self_serve_upgrade_rate", label: "Self-serve upgrade rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "pricing.plan_churn_rate", label: "Plan churn rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "decrease", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "promotion.discount_use_rate", label: "Promotion discount use rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_tracked", statistical_type: "binary", direction: "neutral", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "promotion.full_price_conversion_rate", label: "Full-price conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "promotion.net_revenue_lift_rate", label: "Promotion net revenue lift", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "retention.active_users_per_account", label: "Active users per account", value_type: "number", source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "retention.core_action_frequency", label: "Core action frequency", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "user", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "retention.active_days_rate", label: "Active days rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "user", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
+    { id: "decision.eligible_accounts", label: "Eligible accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
+    { id: "decision.reached_accounts", label: "Reached accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
+    { id: "placement.presented_accounts", label: "Presented accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
+    { id: "conversion.paid_accounts", label: "Converted accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
     {
       id: "conversion.rate",
       label: "Conversion rate",
@@ -5077,15 +5164,17 @@ var FIXTURE_ANALYTICS_CATALOG = {
       statistical_type: "binary",
       direction: "increase",
       preferred_analysis_unit: "account",
-      derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_exposure_attribution", "placement_presentations"] }
+      layer: "derived",
+      catalog_status: "tested",
+      derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_exposure_attribution", "placement_presentations"] }
     },
     // Plan 229 TASK-5 (Q-1 default ruling): the label stops claiming MRR —
     // this is last-touch gross conversion credit, neither monthly nor
     // recurring. carried_by shrinks to the one pipe that can serve it
     // honestly at conversion grain (rule 17): the presentation-family
     // templates read a column no writer populates and are a named refusal.
-    { id: "revenue.attributed_mrr", label: "Attributed revenue (last-touch)", value_type: "currency", source_scope: "revturbine_influenced", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["exposure_breakdown"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing"], note: "Declared success conversions credited once each to their read-time last-touch exposure (optimization-contracts rules 15-17)." } },
-    { id: "retention.retained_mrr_30d", label: "Retained MRR (30d)", value_type: "currency", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", derivation: { kind: "unavailable", input_origin: "none", ingested_events: [], note: "Needs a join against billing data that no presentation-backed executor has access to. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
+    { id: "revenue.attributed_mrr", label: "Attributed revenue (last-touch)", value_type: "currency", source_scope: "revturbine_influenced", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing"], note: "Declared success conversions credited once each to their read-time last-touch exposure (optimization-contracts rules 15-17)." } },
+    { id: "retention.retained_mrr_30d", label: "Retained MRR (30d)", value_type: "currency", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Needs a join against billing data that no presentation-backed executor has access to. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
     {
       id: "revenue.mrr",
       label: "MRR",
@@ -5095,35 +5184,39 @@ var FIXTURE_ANALYTICS_CATALOG = {
       statistical_type: "revenue",
       direction: "increase",
       preferred_analysis_unit: "account",
-      derivation: { carried_by: ["analytics_revenue_timeseries"], kind: "derived", input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "aggregates_daily_revenue"], note: "Projected from Stripe webhook rows by the daily_revenue_rollup materialised view. Platform-sourced: no customer instrumentation involved." }
+      layer: "primitive",
+      catalog_status: "tested",
+      derivation: { carried_by: ["analytics_revenue_timeseries"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "aggregates_daily_revenue"], note: "Projected from Stripe webhook rows by the daily_revenue_rollup materialised view. Platform-sourced: no customer instrumentation involved." }
     },
-    { id: "revenue.net_new_mrr", label: "Net new MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["analytics_revenue_timeseries"], kind: "derived", input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "aggregates_daily_revenue"], note: "Projected from Stripe webhook rows by the daily_revenue_rollup materialised view. Platform-sourced: no customer instrumentation involved." } },
-    { id: "placement.impressions", label: "Impressions", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
-    { id: "placement.clicks", label: "Clicks", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
-    { id: "placement.conversions", label: "Conversions", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
-    { id: "conversion.paid_count", label: "Paid conversions", value_type: "number", when_to_use: "Billing-fact conversion events (subscription created), not distinct accounts.", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["analytics_revenue_timeseries"], kind: "derived", input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "aggregates_daily_revenue"], note: "Counts customer.subscription.created rows, not distinct customers." } },
-    { id: "placement.ctr", label: "Click-through rate", value_type: "percent", format: { type: "percent", decimals: 1 }, statistical_type: "ratio", direction: "increase", preferred_analysis_unit: "account", numerator_metric: "placement.clicks", denominator_metric: "placement.impressions", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
-    { id: "placement.presentations_per_account", label: "Presentations per account", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
-    { id: "event.count", label: "Event count", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["analytics_customer_event_timeseries", "analytics_customer_timeline"], kind: "derived", input_origin: "mixed", ingested_events: [], ingested_datasources: ["events_clickstream"], note: "Counts whatever is on the stream \u2014 platform events and customer track() names alike \u2014 so it is the one metric that never goes dark." } },
+    { id: "revenue.net_new_mrr", label: "Net new MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_revenue_timeseries"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "aggregates_daily_revenue"], note: "Projected from Stripe webhook rows by the daily_revenue_rollup materialised view. Platform-sourced: no customer instrumentation involved." } },
+    { id: "placement.impressions", label: "Impressions", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
+    { id: "placement.clicks", label: "Clicks", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
+    { id: "placement.conversions", label: "Conversions", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
+    { id: "conversion.paid_count", label: "Paid conversions", value_type: "number", when_to_use: "Billing-fact conversion events (subscription created), not distinct accounts.", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_revenue_timeseries"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "aggregates_daily_revenue"], note: "Counts customer.subscription.created rows, not distinct customers." } },
+    { id: "placement.ctr", label: "Click-through rate", value_type: "percent", format: { type: "percent", decimals: 1 }, statistical_type: "ratio", direction: "increase", preferred_analysis_unit: "account", numerator_metric: "placement.clicks", denominator_metric: "placement.impressions", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
+    { id: "placement.presentations_per_account", label: "Presentations per account", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
+    { id: "event.count", label: "Event count", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_customer_event_timeseries", "analytics_customer_timeline"], input_origin: "mixed", ingested_events: [], ingested_datasources: ["events_clickstream"], note: "Counts whatever is on the stream \u2014 platform events and customer track() names alike \u2014 so it is the one metric that never goes dark." } },
     // ── Cohort metrics (plan 230 TASK-1) ────────────────────────────────
     // All DERIVED at read from raw platform facts (plan 230 R-2): cohort
     // membership is the account's first observed fact; every measure below
     // is computed by the cohort_rollup pipe over events_billing +
     // events_clickstream. Nothing here is ever seeded pre-aggregated.
-    { id: "cohort.account_count", label: "Cohort accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["cohort_rollup"], kind: "derived", input_origin: "platform", ingested_events: [], ingested_datasources: ["events_clickstream", "events_billing"], note: 'Distinct accounts whose first observed fact falls in the cohort period. "Registered" approximates to first-observed \u2014 the platform sees an account when it first emits.' } },
-    { id: "cohort.paid_conversion_rate", label: "Cohort paid conversion", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["cohort_rollup"], kind: "derived", input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "trial_converted"], ingested_datasources: ["events_billing", "events_clickstream"], note: "Share of cohort accounts with \u22651 attributable-vocabulary conversion by the given cohort age (rules 15-17 name allowlist, minus expansion)." } },
-    { id: "cohort.expansion_rate", label: "Cohort expansion", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["cohort_rollup"], kind: "derived", input_origin: "platform", ingested_events: ["subscription_expanded"], ingested_datasources: ["events_billing"], note: "Share of cohort accounts with \u22651 subscription_expanded by the given cohort age." } },
-    { id: "cohort.retention_rate", label: "Cohort retention", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["cohort_rollup"], kind: "derived", input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_renewed"], ingested_datasources: ["events_billing"], note: "Logo retention by billing recurrence: share of the cohort's ever-recurring accounts with a recurrence fact (payment_succeeded | subscription_renewed) in the given age period \u2014 production cycles arrive as the former, the simulation engine's renewal cadence as the latter. Revenue retention is a deliberate non-goal here (see revenue.movement)." } },
-    { id: "cohort.ltv_cents", label: "Cohort LTV", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["cohort_rollup"], kind: "derived", input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "subscription_expanded", "subscription_renewed", "trial_converted"], ingested_datasources: ["events_billing"], note: "Cumulative gross billing revenue per cohort account through the given age. UNLIKE attribution (rules 15-17), LTV deliberately INCLUDES renewal cycles \u2014 it measures customer value, not placement credit. Grouped by currency; unlike currencies are never summed (rule 17 discipline)." } },
+    { id: "cohort.account_count", label: "Cohort accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["cohort_rollup"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_clickstream", "events_billing"], note: 'Distinct accounts whose first observed fact falls in the cohort period. "Registered" approximates to first-observed \u2014 the platform sees an account when it first emits.' } },
+    { id: "cohort.paid_conversion_rate", label: "Cohort paid conversion", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["cohort_rollup"], input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "trial_converted"], ingested_datasources: ["events_billing", "events_clickstream"], note: "Share of cohort accounts with \u22651 attributable-vocabulary conversion by the given cohort age (rules 15-17 name allowlist, minus expansion)." } },
+    { id: "cohort.expansion_rate", label: "Cohort expansion", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["cohort_rollup"], input_origin: "platform", ingested_events: ["subscription_expanded"], ingested_datasources: ["events_billing"], note: "Share of cohort accounts with \u22651 subscription_expanded by the given cohort age." } },
+    { id: "cohort.retention_rate", label: "Cohort retention", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["cohort_rollup"], input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_renewed"], ingested_datasources: ["events_billing"], note: "Logo retention by billing recurrence: share of the cohort's ever-recurring accounts with a recurrence fact (payment_succeeded | subscription_renewed) in the given age period \u2014 production cycles arrive as the former, the simulation engine's renewal cadence as the latter. Revenue retention is a deliberate non-goal here (see revenue.movement)." } },
+    { id: "cohort.ltv_cents", label: "Cohort LTV", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["cohort_rollup"], input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "subscription_expanded", "subscription_renewed", "trial_converted"], ingested_datasources: ["events_billing"], note: "Cumulative gross billing revenue per cohort account through the given age. UNLIKE attribution (rules 15-17), LTV deliberately INCLUDES renewal cycles \u2014 it measures customer value, not placement credit. Grouped by currency; unlike currencies are never summed (rule 17 discipline)." } },
     // ── Monetization-funnel metrics (plan 230 TASK-1) ───────────────────
-    { id: "monetization.funnel_accounts", label: "Funnel stage accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", derivation: { carried_by: ["monetization_funnel"], kind: "derived", input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "subscription_expanded", "trial_converted"], ingested_datasources: ["events_clickstream", "placement_presentations", "events_billing"], note: "Distinct accounts that reached the stage in the window, per the catalog-owned six-stage definition on monetization.funnel_stage." } },
-    { id: "monetization.funnel_stage_conversion", label: "Stage conversion", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["monetization_funnel"], kind: "derived", input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "subscription_expanded", "trial_converted"], ingested_datasources: ["events_clickstream", "placement_presentations", "events_billing"], note: "Stage accounts over the PRECEDING stage's accounts \u2014 the \xA71.1.5 stage-to-stage rate, computed from the same rows as funnel_accounts." } },
+    { id: "monetization.funnel_accounts", label: "Funnel stage accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["monetization_funnel"], input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "subscription_expanded", "trial_converted"], ingested_datasources: ["events_clickstream", "placement_presentations", "events_billing"], note: "Distinct accounts that reached the stage in the window, per the catalog-owned six-stage definition on monetization.funnel_stage." } },
+    { id: "monetization.funnel_stage_conversion", label: "Stage conversion", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["monetization_funnel"], input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "subscription_expanded", "trial_converted"], ingested_datasources: ["events_clickstream", "placement_presentations", "events_billing"], note: "Stage accounts over the PRECEDING stage's accounts \u2014 the \xA71.1.5 stage-to-stage rate, computed from the same rows as funnel_accounts." } },
     {
       id: "placement.last_presented_at",
       label: "Last presented",
       when_to_use: "Recency over ALL retained history \u2014 drives the payload Runtime Status derivation.",
       value_type: "datetime",
-      derivation: { carried_by: ["analytics_presentation_breakdown"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "Computed only by analytics_presentation_breakdown; the funnel pipe has no such column, so it sits on bindings.ts KNOWN_UNSERVABLE_METRICS for that executor. A binding-coverage gap, not a data-availability one." }
+      layer: "primitive",
+      catalog_status: "tested",
+      derivation: { carried_by: ["analytics_presentation_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "Computed only by analytics_presentation_breakdown; the funnel pipe has no such column, so it sits on bindings.ts KNOWN_UNSERVABLE_METRICS for that executor. A binding-coverage gap, not a data-availability one." }
     },
     {
       id: "revenue.attributed_amount",
@@ -5134,7 +5227,9 @@ var FIXTURE_ANALYTICS_CATALOG = {
       statistical_type: "revenue",
       direction: "increase",
       preferred_analysis_unit: "account",
-      derivation: { carried_by: ["growth_funnel_signals", "attributed_conversions"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing", "placement_presentations"], note: "Stripe conversions joined ASOF against the presentations that preceded them." }
+      layer: "primitive",
+      catalog_status: "tested",
+      derivation: { carried_by: ["growth_funnel_signals", "attributed_conversions"], input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing", "placement_presentations"], note: "Stripe conversions joined ASOF against the presentations that preceded them." }
     },
     {
       id: "experiment.absolute_effect",
@@ -5144,9 +5239,11 @@ var FIXTURE_ANALYTICS_CATALOG = {
       do_not_use_for: "Descriptive attribution, recomputed estimates, or missing/invalid experiment evidence.",
       value_type: "number",
       source_scope: "revturbine_influenced",
-      derivation: { kind: "derived", input_origin: "platform", ingested_events: ["experiment_assigned"], ingested_datasources: ["experiment_analysis_results"], note: "Read from immutable causal results in Postgres, never recomputed at query time." }
+      layer: "primitive",
+      catalog_status: "tested",
+      derivation: { input_origin: "platform", ingested_events: ["experiment_assigned"], ingested_datasources: ["experiment_analysis_results"], note: "Read from immutable causal results in Postgres, never recomputed at query time." }
     },
-    { id: "coverage.matched_paid_accounts", label: "Matched paid accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", derivation: { carried_by: ["attributed_conversions"], kind: "derived", input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing", "placement_presentations"], note: "Coverage denominator: paid accounts that could be matched to a presentation." } },
+    { id: "coverage.matched_paid_accounts", label: "Matched paid accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["attributed_conversions"], input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing", "placement_presentations"], note: "Coverage denominator: paid accounts that could be matched to a presentation." } },
     {
       id: "opportunity.candidate_count",
       label: "Opportunity candidates",
@@ -5156,7 +5253,9 @@ var FIXTURE_ANALYTICS_CATALOG = {
       statistical_type: "count",
       direction: "neutral",
       preferred_analysis_unit: "account",
-      derivation: { kind: "derived", input_origin: "platform", ingested_events: [], ingested_datasources: ["optimization_opportunities"], note: "Control-plane detector output in Postgres, not an ingested event stream." }
+      layer: "primitive",
+      catalog_status: "tested",
+      derivation: { input_origin: "platform", ingested_events: [], ingested_datasources: ["optimization_opportunities"], note: "Control-plane detector output in Postgres, not an ingested event stream." }
     }
   ],
   concepts: [
@@ -5584,7 +5683,7 @@ function createFixtureAnalyticsCatalog() {
   return createInMemoryAnalyticsCatalog(FIXTURE_ANALYTICS_CATALOG);
 }
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/compile/defaults.ts
+// ../scaffold/src/analytics/compile/defaults.ts
 var FAMILY_RENDER_COMPATIBILITY = {
   scalar: ["metric"],
   timeseries: ["cartesian"],
@@ -5646,7 +5745,7 @@ function defaultRenderForQuery(query, catalog) {
   }
 }
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/validation/semantic.ts
+// ../scaffold/src/analytics/validation/semantic.ts
 var ANALYTICS_VALIDATION_CODES = [
   "UNKNOWN_CONCEPT",
   "UNKNOWN_DIMENSION",
@@ -6203,7 +6302,7 @@ function validateAnalyticsView(view, catalog, options = {}) {
   };
 }
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/compile/compile.ts
+// ../scaffold/src/analytics/compile/compile.ts
 var RECOMMENDED_FILTER_DIMENSIONS = [
   "commercial.plan",
   "commercial.billing_period",
@@ -6438,7 +6537,7 @@ function compileAnalyticsDraft(draft, catalog, options = {}) {
   return validation.valid ? { view, visibility, resolutions, validation } : { visibility, resolutions, validation };
 }
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/models/api-schema.ts
+// ../scaffold/src/analytics/models/api-schema.ts
 import { z as z21 } from "zod";
 var { Unrestricted: Unrestricted17 } = DataClassification;
 var { Transient: Transient17 } = SchemaPersistence;
@@ -6617,10 +6716,10 @@ var analyticsViewPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/models/optimization-schema.ts
+// ../scaffold/src/analytics/models/optimization-schema.ts
 import { z as z23 } from "zod";
 
-// ../../revt-eng/revturbine-scaffold/src/core/providers/schema.ts
+// ../scaffold/src/core/providers/schema.ts
 import { z as z22 } from "zod";
 var { Unrestricted: Unrestricted18 } = DataClassification;
 var { Transient: Transient18 } = SchemaPersistence;
@@ -6663,7 +6762,7 @@ var ProviderBindingRefSchema = z22.object({
   capability: ProviderCapabilitySchema.meta(Unrestricted18)
 }).meta(meta6("ProviderBindingRef"));
 
-// ../../revt-eng/revturbine-scaffold/src/analytics/models/optimization-schema.ts
+// ../scaffold/src/analytics/models/optimization-schema.ts
 var { Unrestricted: Unrestricted19 } = DataClassification;
 var { Transient: Transient19 } = SchemaPersistence;
 var { Internal: Internal15 } = SchemaExposure;
@@ -6759,7 +6858,7 @@ var OpportunityCandidateSchema = z23.object({
   suggested_experiment: OpaqueStructuredPayloadSchema.optional().meta(Unrestricted19)
 }).meta(meta7("OpportunityCandidate"));
 
-// ../../revt-eng/revturbine-scaffold/src/events/models/schema.ts
+// ../scaffold/src/events/models/schema.ts
 import { z as z24 } from "zod";
 var { Unrestricted: Unrestricted20, Pii: Pii4 } = DataClassification;
 var { Persisted: Persisted12, Transient: Transient20 } = SchemaPersistence;
@@ -7275,7 +7374,7 @@ var eventPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/events/models/webhook-delivery.ts
+// ../scaffold/src/events/models/webhook-delivery.ts
 import { z as z25 } from "zod";
 var privateField = { ...DataClassification.Operational, ...ServerOnly, readOnly: true };
 var privatePayload = { ...DataClassification.Financial, ...ServerOnly, readOnly: true };
@@ -7414,7 +7513,7 @@ var WebhookDeliverySchema = IdField.merge(TenantIdField).merge(TimestampFields).
   }
 });
 
-// ../../revt-eng/revturbine-scaffold/src/trials/models/schema.ts
+// ../scaffold/src/trials/models/schema.ts
 import { z as z26 } from "zod";
 var { Unrestricted: Unrestricted21 } = DataClassification;
 var { Persisted: Persisted13, Transient: Transient21 } = SchemaPersistence;
@@ -7796,10 +7895,10 @@ var trialPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/experiments/models/schema.ts
+// ../scaffold/src/experiments/models/schema.ts
 import { z as z27 } from "zod";
 
-// ../../revt-eng/revturbine-scaffold/src/core/bundle/canonical-json.ts
+// ../scaffold/src/core/bundle/canonical-json.ts
 function canonicalizeJson(value) {
   if (value === null) return "null";
   if (typeof value === "number") {
@@ -7832,7 +7931,7 @@ function canonicalizeJson(value) {
   throw new Error(`canonicalizeJson: unsupported value type ${typeof value}`);
 }
 
-// ../../revt-eng/revturbine-scaffold/src/experiments/models/schema.ts
+// ../scaffold/src/experiments/models/schema.ts
 var { Unrestricted: Unrestricted22, Financial: Financial4 } = DataClassification;
 var { Persisted: Persisted14, Transient: Transient22 } = SchemaPersistence;
 var { Internal: Internal18 } = SchemaExposure;
@@ -8659,7 +8758,7 @@ var experimentPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/promotions/models/schema.ts
+// ../scaffold/src/promotions/models/schema.ts
 import { z as z28 } from "zod";
 var { Unrestricted: Unrestricted23, Financial: Financial5 } = DataClassification;
 var { Persisted: Persisted15, Transient: Transient23 } = SchemaPersistence;
@@ -8778,7 +8877,7 @@ var promotionPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/config/models/schema.ts
+// ../scaffold/src/config/models/schema.ts
 import { z as z29 } from "zod";
 var { Unrestricted: Unrestricted24 } = DataClassification;
 var { Persisted: Persisted16, Transient: Transient24 } = SchemaPersistence;
@@ -9864,7 +9963,7 @@ var configPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/changemgmt/models/changelog-schema.ts
+// ../scaffold/src/changemgmt/models/changelog-schema.ts
 import { z as z30 } from "zod";
 var { Unrestricted: Unrestricted25 } = DataClassification;
 var { Persisted: Persisted17 } = SchemaPersistence;
@@ -9911,7 +10010,7 @@ var changelogPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/core/tenant/schema.ts
+// ../scaffold/src/core/tenant/schema.ts
 import { z as z31 } from "zod";
 var { Unrestricted: Unrestricted26 } = DataClassification;
 var { Persisted: Persisted18, Transient: Transient25 } = SchemaPersistence;
@@ -9990,7 +10089,7 @@ var tenantPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/core/environment/schema.ts
+// ../scaffold/src/core/environment/schema.ts
 import { z as z32 } from "zod";
 var { Unrestricted: Unrestricted27 } = DataClassification;
 var { Persisted: Persisted19, Transient: Transient26 } = SchemaPersistence;
@@ -10109,7 +10208,7 @@ var environmentPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/decisions/models/schema.ts
+// ../scaffold/src/decisions/models/schema.ts
 import { z as z33 } from "zod";
 var { Unrestricted: Unrestricted28, Pii: Pii5 } = DataClassification;
 var { Transient: Transient27, Persisted: Persisted20 } = SchemaPersistence;
@@ -10237,7 +10336,7 @@ var ServerEvaluationPayloadSchema = z33.object({
   user_context: ServerEvaluationPayloadUserContextSchema.optional().meta(Pii5)
 }).meta({ id: "ServerEvaluationPayload", "x-revturbine-schema-persistence": Transient27, "x-revturbine-schema-exposure": External13 });
 
-// ../../revt-eng/revturbine-scaffold/src/changemgmt/models/changesets-schema.ts
+// ../scaffold/src/changemgmt/models/changesets-schema.ts
 import { z as z34 } from "zod";
 var { Unrestricted: Unrestricted29 } = DataClassification;
 var { Persisted: Persisted21, Transient: Transient28 } = SchemaPersistence;
@@ -10443,7 +10542,7 @@ var playbookVersionPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/settings/models/schema.ts
+// ../scaffold/src/settings/models/schema.ts
 import { z as z35 } from "zod";
 var { Unrestricted: Unrestricted30 } = DataClassification;
 var { Persisted: Persisted22 } = SchemaPersistence;
@@ -10735,7 +10834,7 @@ var settingsPaths = {
   }
 };
 
-// ../../revt-eng/revturbine-scaffold/src/core/auth/schema.ts
+// ../scaffold/src/core/auth/schema.ts
 import { z as z36 } from "zod";
 var { Unrestricted: Unrestricted31, Pii: Pii6 } = DataClassification;
 var { Persisted: Persisted23, Transient: Transient29 } = SchemaPersistence;
