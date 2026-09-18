@@ -114,3 +114,58 @@ describe('shared placement warnings in the offline CLI (also installed npm tarba
     expect(existsSync(networkAttempt)).toBe(false);
   });
 });
+
+describe('malformed offline input stays a validation error in the installed CLI', () => {
+  it('rejects the existing invalid-config CI fixture with exit 4', () => {
+    const result = run(['validate', path.join(repo, 'tests/fixtures/invalid.export-config.json')]);
+    expect(result.status, result.stdout + result.stderr).toBe(4);
+    expect(result.stdout).toContain('[error_draft] invalid_type: plans');
+    expect(result.stderr).not.toMatch(/is not a function|TypeError/);
+    expect(existsSync(networkAttempt)).toBe(false);
+  });
+
+  it.each(['plans', 'entitlement_rules', 'placements', 'placement_payloads', 'segments', 'experiments', 'plan_variations', 'free_trial_rules'])(
+    'reports a malformed %s collection instead of running semantic rules on it', (field) => {
+      const file = path.join(root, `malformed-${field}.json`);
+      writeFileSync(file, JSON.stringify({ ...playbook('fixed', ['missing'], activeSettings), [field]: 'not-an-array' }));
+      const result = run(['validate', file]);
+      expect(result.status, result.stdout + result.stderr).toBe(4);
+      expect(result.stdout).toContain(`[error_draft] invalid_type: ${field}`);
+      expect(result.stdout).not.toMatch(/VAL-PLC-0[67]/);
+      expect(result.stderr).not.toMatch(/is not a function|TypeError/);
+      expect(existsSync(networkAttempt)).toBe(false);
+    },
+  );
+
+  it.each(['plans', 'entitlement_rules', 'placements', 'placement_payloads'])(
+    'rejects null rows in %s with the shared structural finding', (field) => {
+      const file = path.join(root, `null-row-${field}.json`);
+      writeFileSync(file, JSON.stringify({ ...base, [field]: [null] }));
+      const result = run(['validate', file]);
+      expect(result.status, result.stdout + result.stderr).toBe(4);
+      expect(result.stdout).toContain('[error_draft] invalid_type:');
+      expect(result.stderr).not.toMatch(/Cannot read|TypeError/);
+      expect(existsSync(networkAttempt)).toBe(false);
+    },
+  );
+
+  it('preserves all structural findings for malformed nested collections', () => {
+    const file = path.join(root, 'malformed-nested.json');
+    const config = playbook('fixed', []);
+    writeFileSync(file, JSON.stringify({ ...config, placements: [{ ...config.placements[0], payloads: false }], segments: {} }));
+    const result = run(['validate', file]);
+    expect(result.status, result.stdout + result.stderr).toBe(4);
+    expect(result.stdout).toContain('[error_draft] invalid_type: payloads');
+    expect(result.stdout).toContain('[error_draft] invalid_type: segments');
+    expect(existsSync(networkAttempt)).toBe(false);
+  });
+
+  it('continues a multi-file validation after malformed input', () => {
+    const result = run(['validate', path.join(repo, 'tests/fixtures/invalid.export-config.json'), path.join(repo, 'tests/fixtures/valid.export-config.json')]);
+    expect(result.status, result.stdout + result.stderr).toBe(4);
+    expect(result.stdout).toContain('[error_draft] invalid_type: plans');
+    expect(result.stdout).toContain('No validation findings.');
+    expect(result.stderr).toContain('1/2 passed.');
+    expect(existsSync(networkAttempt)).toBe(false);
+  });
+});

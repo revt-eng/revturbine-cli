@@ -1023,7 +1023,10 @@ program
         // schema, so validating one against it reported "version is required".
         const { schema: fileSchema, shape } = schemaForConfig(raw);
         const parsed = fileSchema.safeParse(raw);
-        const findings = evaluateOffline((parsed.success ? parsed.data : raw) as Record<string, unknown>, {
+        // Semantic rules require a structurally parsed graph. On parse failure,
+        // pass only the original errors through the shared structural adapter;
+        // malformed collections or rows must never reach semantic rules.
+        const findings = evaluateOffline((parsed.success ? parsed.data : {}) as Record<string, unknown>, {
           structuralErrors: parsed.success ? undefined : parsed.error,
         });
         // plan 147 TASK-10 (OQ-1): also warn — never block — on unknown

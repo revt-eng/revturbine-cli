@@ -12,7 +12,7 @@ import { hasBlockingFindings } from '../src/lib/config-validate';
 
 function validateOffline(config: unknown) {
   const parsed = (RevTurbineConfigSchema as { safeParse(v: unknown): { success: boolean; data?: unknown; error?: unknown } }).safeParse(config);
-  return evaluate((parsed.success ? parsed.data : config) as Record<string, unknown>, {
+  return evaluate((parsed.success ? parsed.data : {}) as Record<string, unknown>, {
     structuralErrors: parsed.success ? undefined : parsed.error,
   });
 }
