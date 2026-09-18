@@ -46,6 +46,7 @@ import {
   UnsupportedFormatError,
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
+import { classifyToken, formatAuthentication } from './lib/whoami';
 import { evaluateLocal, resolvePlacementComponentType } from './lib/evaluate-local';
 import { createIngestKey, listIngestKeys, revokeIngestKey, formatIngestKeyLine } from './lib/ingest-keys';
 import {
@@ -93,6 +94,7 @@ const DOCS_URL = 'https://github.com/revt-eng/revturbine-cli#readme';
 // `Authorization` header, which would 401 every authenticated command — so
 // target the apex directly and never the `www` host.
 const DEFAULT_URL = 'https://revturbine.com/app';
+const WHOAMI_REQUEST_TIMEOUT_MS = 3_000;
 
 // ── Config loading (by explicit path) ───────────────────────────────────────────
 
@@ -167,7 +169,7 @@ interface Connection {
 }
 
 /** Build the authenticated request context for an instance URL. */
-function connect(rawUrl: string, explicitTenantId?: string): Connection {
+function connect(rawUrl: string, explicitTenantId?: string, diagnostic: (message: string) => void = diag): Connection {
   const url = normalizeBaseUrl(rawUrl);
   const { dir, source } = resolveConfigDir();
   const cred = getCredential(url);
@@ -175,9 +177,9 @@ function connect(rawUrl: string, explicitTenantId?: string): Connection {
   const tenantId = explicitTenantId ?? cred?.tenant_id ?? 'dev-tenant-001';
   const tenantSource = explicitTenantId ? '--tenant-id' : cred?.tenant_id ? 'stored token' : 'default';
   // Legibility (plan 86): always show which tenant + which credentials dir we resolved.
-  diag(`Tenant ${tenantId} (${tenantSource}); credentials: ${dir} [${source}].`);
+  diagnostic(`Tenant ${tenantId} (${tenantSource}); credentials: ${dir} [${source}].`);
   if (source === 'global') {
-    diag(
+    diagnostic(
       `WARNING: using the global ${dir} - NOT worktree-scoped. ` +
         `If this session is for a specific customer, run from that customer's worktree ` +
         `(with its own .revturbine/) so a stale login can't target the wrong tenant.`,
@@ -510,6 +512,10 @@ Auth:
   ~/.revturbine/credentials.json (0600); the token's tenant is used by default,
   override with -t/--tenant-id. Mutating commands (discard, restore) prompt
   for confirmation unless --yes.
+  \`whoami\` leads with absent, accepted, rejected, or unverifiable credentials;
+  a configured tenant alone does not prove login. Verification and subsequent
+  telemetry each time out after 3 seconds. Status reports exit 0; --json keeps
+  token_present boolean and token_valid true/false/null (null = unverified).
 
 Full reference: ${DOCS_URL}
 `;
@@ -529,7 +535,7 @@ program.hook('postAction', async (_thisCommand, actionCommand) => {
   // @revturbine-graph gref:6bb6e3ef10de84afe14a
   await trackEvent(opts.url as string, opts.tenantId, 'cli_command_executed', {
     command: actionCommand.name(),
-  });
+  }, actionCommand.name() === 'whoami' ? globalThis.AbortSignal.timeout(WHOAMI_REQUEST_TIMEOUT_MS) : undefined);
 });
 
 program
@@ -873,17 +879,28 @@ program
 
 program
   .command('whoami')
-  .description('Show the resolved instance, tenant, credentials source, and whether the stored token works.')
+  .description('Show authentication state first (absent, accepted, rejected, or unverifiable), then instance, tenant, and credentials source.')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option('--json', 'Machine-readable output')
   .action(async (opts: { url: string; tenantId?: string; json?: boolean }) => {
-    const conn = connect(opts.url, opts.tenantId);
-    let tokenValid: boolean | null = null;
+    // Keep configuration diagnostics after the authentication result, even when
+    // stdout and stderr are displayed together in a terminal.
+    const diagnostics: string[] = [];
+    const conn = connect(opts.url, opts.tenantId, (message) => diagnostics.push(message));
+    let probeStatus: number | null = null;
     if (conn.hasToken) {
-      const probe = await resolveActiveDraft(conn.url, conn.headers).catch(() => ({ ok: false, status: 0, draft: null }));
-      tokenValid = probe.ok || (probe.status !== 401 && probe.status !== 403 && probe.status !== 0);
+      probeStatus = await fetch(`${conn.url}/api/optimization/drafts`, {
+        headers: conn.headers,
+        signal: globalThis.AbortSignal.timeout(WHOAMI_REQUEST_TIMEOUT_MS),
+        // A redirected login page returning 200 is not proof of authentication.
+        redirect: 'manual',
+      }).then(async (response) => {
+        await response.body?.cancel();
+        return response.status;
+      }).catch(() => null);
     }
+    const tokenValid = classifyToken(conn.hasToken, probeStatus);
     const data = {
       instance: conn.url,
       tenant: conn.tenantId,
@@ -897,12 +914,13 @@ program
       data,
       Boolean(opts.json),
       [
+        formatAuthentication(conn.hasToken, tokenValid),
         `instance:    ${data.instance}`,
         `tenant:      ${data.tenant} (${data.tenant_source})`,
         `credentials: ${data.credentials_dir} [${data.credentials_source}]`,
-        `token:       ${data.token_present ? (tokenValid ? 'present, valid' : 'present, NOT accepted') : 'absent — run `revturbine login`'}`,
       ].join('\n'),
     );
+    for (const message of diagnostics) diag(message);
   });
 
 program
