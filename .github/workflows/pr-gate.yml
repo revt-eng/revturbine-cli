@@ -65,6 +65,8 @@ jobs:
           echo "REVTURBINE_TEST_CLI=$SMOKE_DIR/node_modules/@revturbine/cli/dist/cli.js" >> "$GITHUB_ENV"
       - name: init preserves existing integrations and targets one skills agent
         run: npm test -- tests/init-process.test.ts
+      - name: whoami reports authentication evidence and bounds unavailable services
+        run: npm test -- tests/whoami-process.test.ts
       - name: validate a valid config (expect exit 0)
         run: '"$CLI_BIN" validate tests/fixtures/valid.export-config.json'
       - name: validate an invalid config (expect exit 4)

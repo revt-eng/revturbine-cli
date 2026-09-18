@@ -5,8 +5,8 @@
  * Dogfoods the CLI's own activity as control-plane semantic events. POSTs to the
  * authed `/api/events` endpoint, which stamps `tenant_id` server-side (always
  * RevTurbine's own tenant) and attributes the operator + their tenant from the
- * device token — a caller never controls tenant attribution. Fire-and-forget:
- * these calls never throw and never block a command.
+ * device token — a caller never controls tenant attribution. Best effort:
+ * failures never fail the command; callers may bound the request with a signal.
  */
 import { getCredential, normalizeBaseUrl } from './credentials';
 
@@ -33,6 +33,7 @@ export function shouldTrackCommandExecution(name: string, hasUrl: boolean): bool
  * @param explicitTenantId - `--tenant-id` override, if any (else the token's tenant).
  * @param eventType - A canonical control-plane event type.
  * @param payload - Optional event properties (e.g. `{ command: 'deploy' }`).
+ * @param signal - Optional request deadline; whoami bounds its telemetry tail.
  */
 export async function trackEvent(
   // @revturbine-graph gref:b4f1c1c757d4f3d7947a
@@ -40,6 +41,7 @@ export async function trackEvent(
   explicitTenantId: string | undefined,
   eventType: string,
   payload?: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<void> {
   try {
     const url = normalizeBaseUrl(rawUrl);
@@ -53,6 +55,7 @@ export async function trackEvent(
         Authorization: `Bearer ${cred.token}`,
       },
       body: JSON.stringify({ event_type: eventType, payload }),
+      ...(signal ? { signal } : {}),
     });
   } catch {
     // Fire-and-forget: telemetry must never break the CLI.
