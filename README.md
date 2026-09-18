@@ -63,7 +63,7 @@ Commands that read a config name the version explicitly — there is no default:
 
 | Command | What it does |
 |---|---|
-| `init` (alias `create`) | Scaffold RevTurbine into this app: detect the package manager and stack, install the SDK, pin the CLI exactly, drop a starter Playbook, and install the Agent Skills. In a directory with no `package.json` it offers to start a new project (`--yes` to skip the prompt); `--dir`, `--dry-run`, `--no-skills`, `--json`. Runs the invoked CLI even inside a repo that pins a different one — setup establishes the pin, so it never delegates. |
+| `init` (alias `create`) | Set up RevTurbine while preserving existing integrations: install missing packages, pin the CLI exactly, create a starter for a fresh integration, and install skills for one agent. Use `--scaffold` to create a missing root starter explicitly; existing files are never overwritten. `--agent claude-code\|cursor\|codex` overrides environment detection; an unknown agent skips skills and prints the selection command. Also supports `--dir`, `--dry-run`, `--no-skills`, `--json`. With no `package.json`, offers a new project (`--yes` for noninteractive creation). Runs the invoked CLI even inside a repo that pins a different one. |
 | `signup` | Create an account headlessly: email + password, then an emailed one-time code to verify, then a token is stored. |
 | `login` / `logout` | Device-flow auth; tokens stored at `~/.revturbine/credentials.json` (mode 0600). |
 | `whoami` | The resolved instance, tenant, credentials source, and whether the stored token works. |
@@ -85,6 +85,16 @@ Commands that read a config name the version explicitly — there is no default:
 | `analytics catalog\|templates\|views\|view\|create\|preview\|query` | Work with the hosted Semantic Catalog and canonical analytics-view documents. Create and preview pass the document through unchanged to the same server contract used by the web editor and MCP tools; preview remains subject to the server's query limits. |
 | `ingest-keys create` (alias `mint`) | Mint a tenant-bound public ingest token for browser SDK use. Requires one or more `--origin` values; optional `--ip` restrictions. The full token is returned once. `ingest-keys list` shows ids/previews and `ingest-keys revoke <id>` invalidates one. |
 | `events track` | Send analytics events to the ingest pipeline with your own login — no ingest key and no browser origin required. Takes `--file <path>` (JSON array, `{ "events": [...] }` envelope, or NDJSON) or `--event <json>`. Batches over 500 events are chunked automatically. Reports accepted, quarantined, rejected and dropped counts separately. |
+
+`init` preserves declared SDK/CLI versions and application code. It skips a new root
+Playbook when the SDK is already declared in `dependencies` or `devDependencies`,
+or project source imports the SDK, or a non-root canonical Playbook is found.
+Detection ignores hidden directories, symlinks, dependencies and build outputs.
+If the integration is intentionally incomplete, `--scaffold` creates only the missing
+`revturbine.playbook.json`; it never replaces an existing one. `--dry-run --json`
+reports `playbook: "present"`, `"skipped"`, or the filename to create, and
+`skills_agent` identifies the single installer target (or `null` when skipped).
+`--no-skills` takes precedence over a detected or explicitly selected valid agent.
 
 `--json` on read commands emits machine-readable output. Results go to stdout,
 diagnostics to stderr.

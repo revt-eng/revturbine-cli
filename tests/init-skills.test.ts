@@ -5,6 +5,7 @@ import {
   START_HERE_SKILL,
   detectHarness,
   finalOutputLines,
+  isAgentId,
   skillsAddArgs,
 } from '../src/lib/init-skills';
 
@@ -12,12 +13,14 @@ describe('detectHarness', () => {
   it('recognizes Claude Code and gives a slash-command invocation', () => {
     const h = detectHarness({ CLAUDECODE: '1' });
     expect(h.label).toBe('Claude Code');
+    expect(h.agentId).toBe('claude-code');
     expect(h.invocation).toContain(`/${START_HERE_SKILL}`);
   });
 
   it('recognizes Cursor and gives an @-mention invocation', () => {
     const h = detectHarness({ CURSOR_TRACE_ID: 'abc' });
     expect(h.label).toBe('Cursor');
+    expect(h.agentId).toBe('cursor');
     expect(h.invocation).toContain(`@${START_HERE_SKILL}`);
   });
 
@@ -26,19 +29,36 @@ describe('detectHarness', () => {
     // silently does not resolve breaks the whole hand-off.
     const h = detectHarness({});
     expect(h.label).toBeNull();
+    expect(h.agentId).toBeNull();
     expect(h.invocation).toContain(START_HERE_SKILL);
     expect(h.invocation).not.toContain('/');
     expect(h.invocation).not.toContain('@');
+  });
+
+  it('recognizes Codex and honors an explicit target over inherited environment signals', () => {
+    const h = detectHarness({ CODEX_THREAD_ID: 'thread' });
+    expect(h.agentId).toBe('codex');
+    expect(h.invocation).toContain(`$${START_HERE_SKILL}`);
+    expect(detectHarness({ CLAUDECODE: '1' }, 'codex')).toEqual(h);
+  });
+
+  it('does not infer a running agent merely from an installed tools directory', () => {
+    expect(detectHarness({ CODEX_HOME: '/tools/codex' }).agentId).toBeNull();
   });
 });
 
 describe('skillsAddArgs', () => {
   it('delegates to npx skills add for the public source, non-interactively, copying', () => {
-    expect(skillsAddArgs()).toEqual(['--yes', 'skills', 'add', SKILLS_SOURCE, '-y', '--copy']);
+    expect(skillsAddArgs('claude-code')).toEqual(['--yes', 'skills', 'add', SKILLS_SOURCE, '-y', '--copy', '-a', 'claude-code']);
   });
 
-  it('does not pass an -a agent flag — npx skills auto-detects across harnesses', () => {
-    expect(skillsAddArgs()).not.toContain('-a');
+  it.each(['claude-code', 'cursor', 'codex'] as const)('always passes one valid target: %s', (agent) => {
+    expect(skillsAddArgs(agent).slice(-2)).toEqual(['-a', agent]);
+    expect(isAgentId(agent)).toBe(true);
+  });
+
+  it.each(['*', 'Claude Code', 'codex cursor', 'codex&echo-bad', '', '--all'])('rejects unsafe or unsupported selection %j', (value) => {
+    expect(isAgentId(value)).toBe(false);
   });
 });
 
@@ -49,7 +69,7 @@ describe('finalOutputLines', () => {
     cliVersion: '0.8.0',
     playbookAdded: true,
     skills: 'installed' as const,
-    harness: { label: 'Claude Code', invocation: `Run the skill:  /${START_HERE_SKILL}` },
+    harness: { agentId: 'claude-code' as const, label: 'Claude Code', invocation: `Run the skill:  /${START_HERE_SKILL}` },
   };
 
   it('names the harness-native entry point as the closing step', () => {
@@ -80,9 +100,16 @@ describe('finalOutputLines', () => {
   it('shows no "(detected …)" line when the harness is unknown', () => {
     const out = finalOutputLines({
       ...base,
-      harness: { label: null, invocation: `Ask your coding agent to run the "${START_HERE_SKILL}" skill.` },
+      harness: { agentId: null, label: null, invocation: `Ask your coding agent to run the "${START_HERE_SKILL}" skill.` },
     }).join('\n');
     expect(out).not.toContain('(detected');
     expect(out).toContain(START_HERE_SKILL);
+  });
+
+  it('explains an unknown-target skip without attributing it to --no-skills', () => {
+    const out = finalOutputLines({ ...base, skills: 'unknown' }).join('\n');
+    expect(out).toContain('--agent');
+    expect(out).not.toContain('--no-skills');
+    expect(out).not.toContain('✓ Installed the Agent Skills');
   });
 });
