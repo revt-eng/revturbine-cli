@@ -2894,7 +2894,6 @@ var analyticsPaths = {
       summary: "List revenue metrics over time",
       tags: ["analytics"],
       responses: { "200": { description: "Revenue metrics", content: { "application/json": { schema: ListEnvelope(RevenueMetricSchema) } } } },
-      // @revturbine-graph gref:2de710c40d5276356b2e
       "x-revturbine-operation": { exposure: "internal", resource: "analytics", persistence: { table: "revenueMetrics", mode: "list" } }
     })
   },
@@ -3988,151 +3987,86 @@ var PaymentFailedPayload = z18.looseObject({
 var envelopeIdentity = ["event_id"];
 var EVENT_PAYLOAD_CONTRACTS = {
   // Control plane — identity/auth + CLI
-  // @revturbine-graph gref:399c17c7688bc0b919f5
   web_signed_up: { schema: ControlPlaneBarePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:d0352ac06a89780d5bf6
   web_signed_in: { schema: ControlPlaneBarePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:5d037ed250ffbddd6804
   cli_signed_up: { schema: ControlPlaneBarePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:ae478cdac0ff10b17243
   cli_signed_in: { schema: ControlPlaneBarePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:b8e86c36564bb10006bb
   cli_command_executed: { schema: CliCommandPayload, identity: envelopeIdentity },
   // Control plane — playbook version lifecycle
-  // @revturbine-graph gref:db99d1c521b3374c99cf
   playbook_version_submitted: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:943e5311c864f3712e80
   playbook_version_approved: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:01ecae9d8442073264de
   playbook_version_rejected: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:f938940653c4b59c4aef
   playbook_version_deployed: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:c7e033912662ac10525c
   playbook_version_launched: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:c10d519555f1ffd89686
   playbook_version_parked: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:9539e9907d95ce469eae
   playbook_version_resumed: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:a7e487cfb904a028fb7f
   playbook_version_discarded: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:c0f693f270653d95872c
   playbook_version_archived: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
   // Control plane — playbook transfer + CRUD + error telemetry
-  // @revturbine-graph gref:09e68246b7e5e1c0b7c4
   playbook_imported: { schema: PlaybookVersionActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:f93b3c8fe08684f06c57
   playbook_exported: { schema: ControlPlaneBarePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:f6eaa3980db11548296b
   entity_created: { schema: EntityActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:40435ec2a4e5ec390fbc
   entity_updated: { schema: EntityActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:c1a63d573a291e5e242c
   entity_deleted: { schema: EntityActionPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:23ecd6258c5969ad0009
   web_api_error: { schema: WebApiErrorPayload, identity: envelopeIdentity },
   // Control plane — dogfood product signals
-  // @revturbine-graph gref:c6cbbcdddf19b2adfc64
   area_viewed: { schema: AreaViewedPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:cf03a3eef055ed0b2815
   feature_gated: { schema: FeatureGatedPayload, identity: envelopeIdentity },
   // SDK client — placement lifecycle
-  // @revturbine-graph gref:778ce82a09d1ad930dc4
   placement_resolved: { schema: PlacementLifecyclePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:96bd8a3b54ebfdbb806c
   placement_rendered: { schema: PlacementLifecyclePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:393b76ab77c968e6ff19
   placement_exposed: { schema: PlacementExposedPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:a2f40802e5f82d678783
   placement_outcome: { schema: PlacementOutcomePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:6113bd60c89e92355744
   placement_interaction: { schema: PlacementInteractionPayload, identity: envelopeIdentity },
   // SDK client — entitlement gates
-  // @revturbine-graph gref:80738f8ecfa0d4067719
   gate_evaluated: { schema: GateEvaluatedPayloadSchema, identity: envelopeIdentity },
-  // @revturbine-graph gref:1bde481aa31bf8149663
   gate_attempted: { schema: GateAttemptedPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:aa3cdc6c1be0e21e1abe
   gate_allowed: { schema: GateAllowedPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:cd0b06d0df7c4801ac20
   gate_denied: { schema: GateDeniedPayload, identity: envelopeIdentity },
   // SDK client — slot diagnostics
-  // @revturbine-graph gref:7194f9354f0384afc1dc
   slot_evaluated: { schema: SlotLifecyclePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:9572163fcdee3a9956c6
   slot_filled: { schema: SlotLifecyclePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:5a3e130d501df3317835
   slot_empty: { schema: SlotLifecyclePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:51ae2fc6429a62ccd9ae
   slot_suppressed: { schema: SlotLifecyclePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:341781e17ac8e9dc2d9a
   slot_error: { schema: SlotErrorPayload, identity: envelopeIdentity },
   // SDK client — segments, experiments, context, navigation
-  // @revturbine-graph gref:52ce6108293cfaee9e77
   segment_enrolled: { schema: SegmentMembershipPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:8da129064b84f7263af4
   segment_unenrolled: { schema: SegmentMembershipPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:247a7e4ee0a2ea55223f
   experiment_assigned: {
     // The WIRE shape, not the allocation plane's fact row — see the schema's
     // own doc for why the plan-224 "reused, not restated" binding was wrong.
     schema: ExperimentAssignedPayload,
     identity: ["assignment_id"]
   },
-  // @revturbine-graph gref:f64c9e0d08e7db9480d0
   user_context_observed: { schema: UserContextObservedPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:3baa90d2d76fccbdad9a
   clickstream_page_view: { schema: PageViewPayload, identity: envelopeIdentity },
   // SDK client — customer-product lifecycle milestones (promoted, R-1)
-  // @revturbine-graph gref:c6dc0aebdcf7317812ca
   account_created: { schema: AcquisitionMilestonePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:1d2024644b860374c0be
   user_signed_up: { schema: AcquisitionMilestonePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:fbb6705beb88608b2c61
   onboarding_completed: { schema: MilestonePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:8ad5da5f0ee0c23c2b98
   account_activated: { schema: MilestonePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:8ab3fb420a914052e1ca
   product_used: { schema: MilestonePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:ab99da7cf7677c045822
   value_realized: { schema: MilestonePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:611f602a1bcf625bc62f
   usage_recorded: { schema: UsageRecordedPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:60c3d9579b33927d6a27
   plan_viewed: { schema: PlanViewedPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:a604fb1bde69cacff4b9
   promotion_applied: { schema: PromotionAppliedPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:a4a5eac264340aab49d4
   promotion_converted: { schema: PromotionConvertedPayload, identity: envelopeIdentity },
   // SDK server — derived observations
-  // @revturbine-graph gref:e68afde68b27a1939ce0
   growth_signal_observed: { schema: GrowthSignalObservedPayload, identity: envelopeIdentity },
   // SDK meta lane
-  // @revturbine-graph gref:a7967a6415bf15fe8f2f
   sdk_init: { schema: SdkInitPayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:2106be4e43a873543b53
   sdk_error: { schema: SdkMessagePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:ef385491854da834ae82
   sdk_validation_warning: { schema: SdkMessagePayload, identity: envelopeIdentity },
-  // @revturbine-graph gref:13397cf2aa9732618c17
   resolution_failure: { schema: ResolutionFailurePayload, identity: envelopeIdentity },
   // Billing lifecycle (R-2) — identity is the producer-minted idempotency key
-  // @revturbine-graph gref:b4632b8739d059d1f654
   subscription_started: { schema: SubscriptionStartedPayload, identity: ["billing_ref"] },
-  // @revturbine-graph gref:511ed7ccb857840b2069
   subscription_renewed: { schema: SubscriptionRenewedPayload, identity: ["billing_ref"] },
-  // @revturbine-graph gref:105d3bba16f059d03322
   subscription_expanded: { schema: SubscriptionExpandedPayload, identity: ["billing_ref"] },
-  // @revturbine-graph gref:9f96ef8adddd9fd25801
   subscription_canceled: { schema: SubscriptionCanceledPayload, identity: ["billing_ref"] },
-  // @revturbine-graph gref:c1d9f5d41640ad658a5a
   trial_started: { schema: TrialStartedPayload, identity: ["billing_ref"] },
-  // @revturbine-graph gref:d5c2578b50947e67b13f
   trial_converted: { schema: TrialConvertedPayload, identity: ["billing_ref"] },
-  // @revturbine-graph gref:a1654ce1cb48a1fe7795
   trial_expired: { schema: TrialExpiredPayload, identity: ["billing_ref"] },
-  // @revturbine-graph gref:4b32695c9c40cdf6feaa
   payment_succeeded: { schema: PaymentSucceededPayload, identity: ["billing_ref"] },
-  // @revturbine-graph gref:7e5cbc4a5f093255fed0
   payment_failed: { schema: PaymentFailedPayload, identity: ["billing_ref"] }
 };
 var EVENT_PAYLOAD_EVENT_NAMES = Object.keys(
@@ -4196,146 +4130,83 @@ var EventTaxonomySchema = z19.object({
   "x-revturbine-schema-exposure": External10
 });
 var CONTROL_PLANE_EVENT_NAMES = [
-  // @revturbine-graph gref:23bbfc20349edd344d87
   "web_signed_up",
-  // @revturbine-graph gref:d426811e760dcbb3d79c
   "web_signed_in",
-  // @revturbine-graph gref:6c8c0b9022d3e2fa83d9
   "cli_signed_up",
-  // @revturbine-graph gref:8b5e763b6a5dd68d0b44
   "cli_signed_in",
-  // @revturbine-graph gref:457fa42bda8da242e08b
   "cli_command_executed",
-  // @revturbine-graph gref:df8cd618a96144396522
   "playbook_version_submitted",
-  // @revturbine-graph gref:5c8834401717bfa6d32c
   "playbook_version_approved",
-  // @revturbine-graph gref:d4ded5a415eea0e0c4a9
   "playbook_version_rejected",
-  // @revturbine-graph gref:1025e6941d4a9b1ddca8
   "playbook_version_deployed",
-  // @revturbine-graph gref:e06384bc72e57f8896fc
   "playbook_version_launched",
-  // @revturbine-graph gref:36e10ddac633b1f3dc1d
   "playbook_version_parked",
-  // @revturbine-graph gref:533df3fab8e83aeb8247
   "playbook_version_resumed",
-  // @revturbine-graph gref:6ef8265f8199c275e6ed
   "playbook_version_discarded",
-  // @revturbine-graph gref:96c80923007652d2b53d
   "playbook_version_archived",
-  // @revturbine-graph gref:bf7c93f63567c35dcb0e
   "playbook_imported",
-  // @revturbine-graph gref:765bff0ba4be940aedfb
   "playbook_exported",
-  // @revturbine-graph gref:dafb7d36d21b9e9193fa
   "entity_created",
-  // @revturbine-graph gref:8a84e9f52024f3fbc24a
   "entity_updated",
-  // @revturbine-graph gref:8068fc7e9ed400bac33b
   "entity_deleted",
-  // @revturbine-graph gref:a638c7360c32485c2856
   "web_api_error"
 ];
 var SDK_CLIENT_EVENT_NAMES = [
-  // @revturbine-graph gref:c113a2562f20c345db12
   "placement_resolved",
-  // @revturbine-graph gref:fd8523ae5fa5e3c4dc04
   "placement_rendered",
-  // @revturbine-graph gref:01dbc912cd07615aca13
   "placement_exposed",
-  // @revturbine-graph gref:f26cfcdb7067db6552bc
   "placement_outcome",
-  // @revturbine-graph gref:a3e964831c9d50562621
   "placement_interaction",
-  // @revturbine-graph gref:a6a5395c44605b81380f
   "gate_evaluated",
-  // @revturbine-graph gref:294e006cb3163fa9ec80
   "gate_attempted",
-  // @revturbine-graph gref:5e4bec162541d222e9b1
   "gate_allowed",
-  // @revturbine-graph gref:209c11682071e1ddba6d
   "gate_denied",
-  // @revturbine-graph gref:5f12351e2023d352d000
   "slot_evaluated",
-  // @revturbine-graph gref:0fe89f82c3de6d52583f
   "slot_filled",
-  // @revturbine-graph gref:39f4359ed7c116c302ac
   "slot_empty",
-  // @revturbine-graph gref:dc8d95686698e990db75
   "slot_suppressed",
-  // @revturbine-graph gref:726eab2b99c3d1d84703
   "slot_error",
-  // @revturbine-graph gref:9caa94dbf8d19c9a55fe
   "segment_enrolled",
-  // @revturbine-graph gref:313e9992168e9b6c63f4
   "segment_unenrolled",
-  // @revturbine-graph gref:af81563d3d6668d764dc
   "experiment_assigned",
-  // @revturbine-graph gref:6e79931b476193b76212
   "user_context_observed",
   // The wire truth (plan 228 TASK-2 audit): `normalizeEventType` namespaces
   // the generic name to `clickstream_page_view` BY DESIGN, so the taxonomy
   // declares the name that actually lands, not the one that never can.
-  // @revturbine-graph gref:257654f39aa6e608a3e9
   "clickstream_page_view",
   // Customer-product lifecycle milestones, promoted from the Growth Lab walk
   // under R-1 (the walk owns no vocabulary): real events a customer's product
   // emits, schema-bound and SDK-emittable like every other sdk_client name.
-  // @revturbine-graph gref:cbd9257bf5e89b2ac939
   "account_created",
-  // @revturbine-graph gref:b72b45c945b51b90ce88
   "user_signed_up",
-  // @revturbine-graph gref:7ada02d260e61b110286
   "onboarding_completed",
-  // @revturbine-graph gref:5447689748fa0c24eb2d
   "account_activated",
-  // @revturbine-graph gref:504cd94c82a727fb40e9
   "product_used",
-  // @revturbine-graph gref:f36fff4e1fc865a7fddd
   "value_realized",
-  // @revturbine-graph gref:0abf01d6f8efa78f9673
   "usage_recorded",
-  // @revturbine-graph gref:62cdb9b5e5e13c879861
   "plan_viewed",
-  // @revturbine-graph gref:a9276b8c3d847e90e17f
   "promotion_applied",
-  // @revturbine-graph gref:00c0350f74ab163a4086
   "promotion_converted"
 ];
 var SDK_SERVER_EVENT_NAMES = [
-  // @revturbine-graph gref:9114f835bedee0779d11
   "growth_signal_observed"
 ];
 var SDK_META_EVENT_NAMES = [
-  // @revturbine-graph gref:e86a905fa44613768158
   "sdk_init",
-  // @revturbine-graph gref:d22182a91bba9c4775fa
   "sdk_error",
-  // @revturbine-graph gref:e3230651f5d31712ef19
   "sdk_validation_warning",
-  // @revturbine-graph gref:1e7f95ef5cea70945f73
   "resolution_failure"
 ];
 var DOGFOOD_CLIENT_EVENT_NAMES = ["area_viewed", "feature_gated"];
 var WEBHOOK_DERIVED_EVENT_NAMES = [
-  // @revturbine-graph gref:06a9c3cfc26cdc0d0c6a
   "subscription_started",
-  // @revturbine-graph gref:013fefe3a170225f7d37
   "subscription_renewed",
-  // @revturbine-graph gref:1e05194e02d47664dd28
   "subscription_expanded",
-  // @revturbine-graph gref:e51f6073c99c01f4e242
   "subscription_canceled",
-  // @revturbine-graph gref:b34f10f541c0f570a913
   "trial_started",
-  // @revturbine-graph gref:1932ea9768e2e912a323
   "trial_converted",
-  // @revturbine-graph gref:d28c0470bf859a3525d5
   "trial_expired",
-  // @revturbine-graph gref:344885922c6494da1e76
   "payment_succeeded",
-  // @revturbine-graph gref:092120bab5d6c698aaf1
   "payment_failed"
 ];
 var EVENT_METADATA = {
@@ -4430,7 +4301,6 @@ function entriesFor(names, surface) {
 var SDK_AUTOMATIC_NON_EMITTED_NAMES = ["impression"];
 var EVENT_PREFIX_FAMILIES = [
   {
-    // @revturbine-graph gref:6622b3cc70a4ef7f404c
     prefix: "engagement_",
     surface: "sdk_client",
     purpose: "Organic product-signal events under customer-declared engagement scopes."
@@ -7040,25 +6910,15 @@ var TriggerEventTypeSchema = z24.enum([
   "trial_expired",
   "usage_limit_approaching",
   "usage_limit_reached",
-  // @revturbine-graph gref:bc45019aadfa27e3bbdf
   "credit_balance_low",
-  // @revturbine-graph gref:4ec57e8d951315cf9d10
   "seat_limit_reached",
-  // @revturbine-graph gref:77f27f4a2c6106b9c97d
   "feature_gated",
-  // @revturbine-graph gref:9196df2c0479e1ee6f99
   "cancel_intent",
-  // @revturbine-graph gref:f7655e41be670778b729
   "payment_failed",
-  // @revturbine-graph gref:06e7aca3f27c0f96e3b4
   "auto_renewal_reminder",
-  // @revturbine-graph gref:9b7e39d117beb625f8f3
   "onboarding_complete",
-  // @revturbine-graph gref:2e9ca2fa7b495b638b11
   "invite_teammate_prompt",
-  // @revturbine-graph gref:0202d5c755b01093b842
   "referral_offer",
-  // @revturbine-graph gref:0e26e80b313c5dc67170
   "plan_upgrade_nudge"
 ]).meta(
   {
@@ -7402,7 +7262,6 @@ var eventPaths = {
       summary: "List webhook event log entries",
       tags: ["events"],
       responses: { "200": { description: "Webhook event list", content: { "application/json": { schema: ListEnvelope(WebhookEventLogSchema) } } } },
-      // @revturbine-graph gref:ed682583fcf0c4c25989
       "x-revturbine-operation": { exposure: "internal", resource: "webhook-events", persistence: { table: "webhookEventLog", mode: "list", uniqueBy: ["tenant_id", "event_id"] } }
     }),
     post: operation({
