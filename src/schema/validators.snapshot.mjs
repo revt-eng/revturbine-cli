@@ -1,10 +1,10 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.261
+// Vendored validation engine bundled from @revt-eng/schema@0.1.315
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
 
-// ../scaffold/src/core/validation/types.ts
+// ../../revt-eng/revturbine-scaffold/src/core/validation/types.ts
 import { z } from "zod";
 var SeveritySchema = z.enum([
   "error_draft",
@@ -52,21 +52,8 @@ var ValidationFindingSchema = z.object({
   spotlight: z.boolean().optional()
 });
 
-// ../scaffold/src/core/validation/catalog.ts
+// ../../revt-eng/revturbine-scaffold/src/core/validation/catalog.ts
 var CATALOG = {
-  // no-Stripe-price. Interim `warning` (does not block): a plan price that has
-  // all its billing info but is entered statically rather than synced from
-  // Stripe is valid to launch — it should warn, not block. The stricter
-  // three-way model (block if billing info is INCOMPLETE; warn if complete-but-
-  // static; pass if complete-and-Stripe-connected) is a tracked follow-up
-  // (static-pricing plan). Spec §5.3's blanket error_launch is superseded by
-  // that follow-up; see the plan.
-  "VAL-PLN-01": {
-    id: "VAL-PLN-01",
-    severity: "warning",
-    message: "Plan '{plan}' has no Stripe price linked.",
-    specRef: "optimization-studio-ui.md \xA73.1; plans-entitlements-studio-ui.md \xA72.2"
-  },
   // entitlement-rule overlap. Origin: the `rule.overlap` check (plan 40);
   // scoped to same-entitlement pairs per §5.8 (plan 179 / devkit #597).
   "VAL-PLN-05": {
@@ -119,6 +106,18 @@ var CATALOG = {
     message: "Payload '{payload}' authors {count} CTAs, but the decision output carries one primary path and one secondary label \u2014 the third and later CTAs are dropped at resolution.",
     specRef: "config-validation.md \xA75.8 (promoted \u2014 plan 174 TASK-7)"
   },
+  "VAL-PLC-06": {
+    id: "VAL-PLC-06",
+    severity: "warning",
+    message: "This payload sets a cap or interaction window ignored by its placement category. Remove the setting.",
+    specRef: "config-validation.md \xA75.2; placement-prioritization.md \xA75 (plan 254)"
+  },
+  "VAL-PLC-07": {
+    id: "VAL-PLC-07",
+    severity: "warning",
+    message: "This payload targets no configured plan. Use an existing plan's unique_handle or clear the plan filter to target all plans.",
+    specRef: "config-validation.md \xA75.2 (plan 254)"
+  },
   // widest-possible-audience trial rule. Promoted from §5.8 (plan 174 TASK-7 /
   // devkit #584): plan and segment on a free trial rule NARROW, so null on
   // both means every user on every plan — legal and occasionally intended,
@@ -138,35 +137,113 @@ function listCatalogIds() {
   return Object.keys(CATALOG);
 }
 
-// ../scaffold/src/core/validation/disposition.ts
+// ../../revt-eng/revturbine-scaffold/src/core/validation/disposition.ts
 function disposition(finding2, callSite) {
   if (finding2.severity === "error_draft") return "block";
   if (finding2.severity === "error_launch" && callSite === "publish") return "block";
   return "advise";
 }
 
-// ../scaffold/src/core/validation/rules.ts
+// ../../revt-eng/revturbine-scaffold/src/core/helpers.ts
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function categoryBucket(category) {
+  const normalized = String(category || "").trim().toLowerCase();
+  if (!normalized) return 99;
+  if (normalized.includes("gated") || normalized.includes("entitlement")) return 0;
+  if (normalized.includes("fixed")) return 1;
+  if (normalized.includes("usage") || normalized.includes("credit") || normalized.includes("seat") || normalized.includes("quota")) return 2;
+  if (normalized.includes("trial")) return 2;
+  if (normalized.includes("conversion") || normalized.includes("expansion") || normalized.includes("upsell")) return 4;
+  if (normalized.includes("retention") || normalized.includes("winback") || normalized.includes("churn")) return 4;
+  return 99;
+}
+
+// ../../revt-eng/revturbine-scaffold/src/core/validation/rules.ts
 var SEMANTIC_RULE_CODES = [
-  "VAL-PLN-01",
   "VAL-PLN-05",
   "VAL-PLN-06",
   "VAL-PLN-07",
   "VAL-PLC-05",
+  "VAL-PLC-06",
+  "VAL-PLC-07",
   "VAL-TRL-04",
   "VAL-SEG-01",
   "VAL-EXP-01"
 ];
 function runSemanticRules(graph, opts = {}) {
   return [
-    ...checkPlansHaveStripePrice(graph),
     ...checkRuleOverlaps(graph),
     ...checkLimitRuleEnforcement(graph),
     ...checkPublicVariationCollisions(graph),
     ...checkPayloadCtaOverflow(graph),
+    ...checkPlacementAuthoring(graph),
     ...checkTrialRuleWidestAudience(graph),
     ...checkSegmentExperimentRefs(graph),
     ...checkExperimentMetricRefs(graph, opts.knownMetricIds)
   ];
+}
+function* placementPayloads(graph) {
+  const placements = graph.placements ?? [];
+  for (const [index, placement] of placements.entries()) {
+    if (!Array.isArray(placement.payloads)) continue;
+    for (const [payloadIndex, payload] of placement.payloads.entries()) {
+      if (isRecord(payload)) yield { payload, category: placement.category, path: ["placements", index, "payloads", payloadIndex] };
+    }
+  }
+  for (const [index, payload] of (graph.placement_payloads ?? []).entries()) {
+    const placement = placements.find((row) => typeof row.id === "string" && row.id === payload.placement_id);
+    yield { payload, category: placement?.category, path: ["placement_payloads", index] };
+  }
+}
+function checkPlacementAuthoring(graph) {
+  const findings = [];
+  const plansKnown = Array.isArray(graph.plans) && graph.plans.every((plan) => typeof plan.unique_handle === "string" && plan.unique_handle.length > 0);
+  const planHandles = new Set((graph.plans ?? []).map((plan) => plan.unique_handle));
+  for (const { payload, category, path } of placementPayloads(graph)) {
+    const id = String(payload.payload_id ?? payload.id ?? "");
+    const bucket = typeof category === "string" ? categoryBucket(category) : 99;
+    if (bucket === 0 || bucket === 1) {
+      const caps = isRecord(payload.caps) ? payload.caps : {};
+      const capCount = isRecord(caps.max_per_period) ? caps.max_per_period.count : void 0;
+      const settings = [
+        { fields: ["caps", "max_per_period"], value: capCount },
+        { fields: ["caps", "cooldown_days"], value: caps.cooldown_days },
+        { fields: ["max_per_period"], value: payload.max_per_period },
+        { fields: ["cooldown_after_dismiss_days"], value: payload.cooldown_after_dismiss_days },
+        { fields: ["remind_later_minutes"], value: payload.remind_later_minutes }
+      ];
+      for (const { fields, value } of settings) {
+        if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
+        const field = fields.join(".");
+        findings.push(finding("VAL-PLC-06", {
+          object_type: "placement_payload",
+          object_id: id,
+          field,
+          path: [...path, ...fields],
+          studio: "placements"
+        }, {
+          message: `Payload '${id}' sets ${field}, which is ignored for ${bucket === 0 ? "Access Gate" : "Fixed"} placements. Remove the setting; these placements remain eligible on the next trigger.`
+        }));
+      }
+    }
+    const target = isRecord(payload.target) ? payload.target : {};
+    const targetFields = Array.isArray(target.plan_ids) ? ["target", "plan_ids"] : ["target_plan_ids"];
+    const planIds = Array.isArray(target.plan_ids) ? target.plan_ids : payload.target_plan_ids;
+    if (!plansKnown || !Array.isArray(planIds) || planIds.length === 0 || !planIds.every((value) => typeof value === "string") || planIds.some((value) => planHandles.has(value))) continue;
+    findings.push(finding("VAL-PLC-07", {
+      object_type: "placement_payload",
+      object_id: id,
+      field: targetFields.join("."),
+      path: [...path, ...targetFields],
+      studio: "placements"
+    }, {
+      message: `Payload '${id}' targets no configured plan. Use an existing plan's unique_handle or clear the plan filter to target all plans.`,
+      detail: `None of these references matches a configured plan: ${planIds.join(", ")}. This checks the authored catalog, not arbitrary or missing user context.`
+    }));
+  }
+  return findings;
 }
 function checkLimitRuleEnforcement(graph) {
   const findings = [];
@@ -282,7 +359,7 @@ function checkSegmentExperimentRefs(graph) {
   }
   const findings = [];
   for (const segment of segments) {
-    const ref = segment.experiment_handle ?? segment.experiment_id;
+    const ref = segment.experiment_handle;
     if (typeof ref !== "string" || ref.length === 0) continue;
     if (knownHandles.has(ref)) continue;
     const segmentId = String(segment.handle ?? segment.id ?? "");
@@ -336,45 +413,6 @@ function finding(catalogId, target, opts = {}) {
     ...entry?.specRef ? { specRef: entry.specRef } : {},
     ...opts.detail ? { detail: opts.detail } : {}
   };
-}
-function checkPlansHaveStripePrice(graph) {
-  const plans = graph.plans;
-  if (!plans?.length) return [];
-  const plansWithVariations = /* @__PURE__ */ new Set();
-  const pricedPlanIds = /* @__PURE__ */ new Set();
-  for (const v of graph.plan_variations ?? []) {
-    const planId = String(v.plan_id ?? "");
-    if (!planId) continue;
-    plansWithVariations.add(planId);
-    const priceId = v.stripe_price_id;
-    if (typeof priceId === "string" && priceId.length > 0) pricedPlanIds.add(planId);
-  }
-  const findings = [];
-  for (const row of plans) {
-    const planKeys = [String(row.handle ?? ""), String(row.id ?? "")].filter(Boolean);
-    const hasVariations = planKeys.some((k) => plansWithVariations.has(k));
-    if (!hasVariations) continue;
-    const hasStripePrice = planKeys.some((k) => pricedPlanIds.has(k));
-    if (hasStripePrice) continue;
-    const id = String(row.handle ?? row.id ?? "");
-    const name = String(row.name ?? id);
-    findings.push(
-      finding(
-        "VAL-PLN-01",
-        {
-          object_type: "plan",
-          object_id: id,
-          field: "plan_variations",
-          studio: "plans-entitlements"
-        },
-        {
-          message: `Plan '${name}' has no Stripe price linked.`,
-          detail: "Link a Plan Variation to a Stripe Price before activating the plan for paid customers."
-        }
-      )
-    );
-  }
-  return findings;
 }
 function checkRuleOverlaps(graph) {
   const rules = graph.entitlement_rules;
@@ -523,7 +561,7 @@ function collectPublicCollisions(rows, objectType, parentField) {
   return findings;
 }
 
-// ../scaffold/src/core/validation/zod-adapter.ts
+// ../../revt-eng/revturbine-scaffold/src/core/validation/zod-adapter.ts
 function fieldLabel(path) {
   if (!path || path.length === 0) return "This value";
   return String(path[path.length - 1]);
@@ -568,7 +606,7 @@ function zodErrorToFindings(error, opts = {}) {
   }));
 }
 
-// ../scaffold/src/core/validation/evaluate.ts
+// ../../revt-eng/revturbine-scaffold/src/core/validation/evaluate.ts
 function spotlights(finding2, focus) {
   if (!focus) return false;
   const { object_type, object_id } = finding2.targetRef;
@@ -587,19 +625,19 @@ function evaluate(graph, opts = {}) {
   return findings.map((f) => spotlights(f, opts.focus) ? { ...f, spotlight: true } : f);
 }
 
-// ../scaffold/src/config/models/schema.ts
+// ../../revt-eng/revturbine-scaffold/src/config/models/schema.ts
 import { z as z9 } from "zod";
 
-// ../scaffold/src/core/common.ts
+// ../../revt-eng/revturbine-scaffold/src/core/common.ts
 import { z as z3 } from "zod";
 
-// ../scaffold/src/core/classification.ts
+// ../../revt-eng/revturbine-scaffold/src/core/classification.ts
 import { z as z2 } from "zod";
 
-// ../scaffold/src/core/handle-pattern.ts
+// ../../revt-eng/revturbine-scaffold/src/core/handle-pattern.ts
 var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
 
-// ../scaffold/src/core/classification.ts
+// ../../revt-eng/revturbine-scaffold/src/core/classification.ts
 var SchemaPersistence = {
   Persisted: "persisted",
   Transient: "transient"
@@ -650,7 +688,7 @@ function toCreateSchema(schema) {
   return writable;
 }
 
-// ../scaffold/src/core/common.ts
+// ../../revt-eng/revturbine-scaffold/src/core/common.ts
 var { Unrestricted } = DataClassification;
 var { Transient, Persisted } = SchemaPersistence;
 var { Internal, External } = SchemaExposure;
@@ -792,7 +830,7 @@ var EntitlementTypeSchema = z3.enum([
     "x-revturbine-schema-exposure": External
   }
 );
-var CurrencySchema = z3.enum(["usd", "eur", "gbp"]).default("usd").meta(
+var CurrencySchema = z3.string().regex(/^[a-z]{3}$/, "Currency must be a lowercase ISO 4217 code").default("usd").meta(
   {
     id: "Currency",
     "x-revturbine-schema-persistence": Transient,
@@ -864,7 +902,7 @@ var CtaActionTypeSchema = z3.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 
-// ../scaffold/src/core/identity.ts
+// ../../revt-eng/revturbine-scaffold/src/core/identity.ts
 import { z as z4 } from "zod";
 var IdentityKind = {
   /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
@@ -880,7 +918,7 @@ function mintedIdentity(handleField = "handle") {
   return { [SCHEMA_IDENTITY_META_KEY]: { kind: IdentityKind.Minted, handleField } };
 }
 
-// ../scaffold/src/core/facets.ts
+// ../../revt-eng/revturbine-scaffold/src/core/facets.ts
 var SchemaContext = {
   Playbook: "playbook",
   Branding: "branding",
@@ -944,10 +982,10 @@ function getSchemaDeprecation(schema) {
   };
 }
 
-// ../scaffold/src/entitlements/models/schema.ts
+// ../../revt-eng/revturbine-scaffold/src/entitlements/models/schema.ts
 import { z as z6 } from "zod";
 
-// ../scaffold/src/core/openapi/helpers.ts
+// ../../revt-eng/revturbine-scaffold/src/core/openapi/helpers.ts
 import { z as z5 } from "zod";
 var ListEnvelope = (itemSchema) => z5.object({
   items: z5.array(itemSchema)
@@ -966,7 +1004,7 @@ var ListQueryParamsSchema = z5.object({
   include_deleted: z5.boolean().default(false).optional()
 });
 
-// ../scaffold/src/entitlements/models/schema.ts
+// ../../revt-eng/revturbine-scaffold/src/entitlements/models/schema.ts
 var { Unrestricted: Unrestricted2 } = DataClassification;
 var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
 var { Internal: Internal2, External: External2 } = SchemaExposure;
@@ -1358,7 +1396,7 @@ var entitlementPaths = {
   }
 };
 
-// ../scaffold/src/trials/models/schema.ts
+// ../../revt-eng/revturbine-scaffold/src/trials/models/schema.ts
 import { z as z7 } from "zod";
 var { Unrestricted: Unrestricted3 } = DataClassification;
 var { Persisted: Persisted3, Transient: Transient3 } = SchemaPersistence;
@@ -1740,7 +1778,7 @@ var trialPaths = {
   }
 };
 
-// ../scaffold/src/plans/models/schema.ts
+// ../../revt-eng/revturbine-scaffold/src/plans/models/schema.ts
 import { z as z8 } from "zod";
 var { Unrestricted: Unrestricted4, Financial } = DataClassification;
 var { Persisted: Persisted4, Transient: Transient4 } = SchemaPersistence;
@@ -1798,6 +1836,7 @@ var PlanVariationSchema = IdField.merge(TimestampFields).merge(TenantIdField).me
   billing_period: z8.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted4),
   segment_id: z8.string().nullable().default(null).meta(Unrestricted4),
   price_amount: z8.number().min(0).meta(Financial),
+  currency: CurrencySchema.meta(Financial),
   pricing_model: PricingModelSchema.meta(Unrestricted4),
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted4),
   // Soft reference → StripePrice.stripe_price_id (the backend Stripe-price mirror).
@@ -1843,6 +1882,7 @@ var AddOnVariationSchema = IdField.merge(TimestampFields).merge(TenantIdField).m
   billing_period: z8.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted4),
   segment_id: z8.string().nullable().default(null).meta(Unrestricted4),
   price_amount: z8.number().min(0).meta(Financial),
+  currency: CurrencySchema.meta(Financial),
   pricing_model: PricingModelSchema.meta(Unrestricted4),
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted4),
   // Soft reference → StripePrice.stripe_price_id (the backend Stripe-price mirror).
@@ -2197,7 +2237,7 @@ var planPaths = {
   }
 };
 
-// ../scaffold/src/config/models/schema.ts
+// ../../revt-eng/revturbine-scaffold/src/config/models/schema.ts
 var { Unrestricted: Unrestricted5 } = DataClassification;
 var { Persisted: Persisted5, Transient: Transient5 } = SchemaPersistence;
 var { Internal: Internal4, External: External4 } = SchemaExposure;
@@ -2403,10 +2443,7 @@ var RevTurbineConfigSegmentsItemSchema = z9.object({
   // back to flat-OR (legacy single-segment behaviour).
   dimension_id: z9.string().optional().meta(Unrestricted5),
   // Experiment enrollment carries the canonical, version-stable handle.
-  // The old name stays readable through plan 199's alias window.
-  experiment_handle: z9.string().min(1).optional().meta(Unrestricted5),
-  /** @deprecated Read-only compatibility alias for `experiment_handle`. */
-  experiment_id: z9.string().min(1).optional().meta(Unrestricted5)
+  experiment_handle: z9.string().min(1).optional().meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigSegmentsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
@@ -2435,7 +2472,7 @@ var RevTurbineConfigAddonsItemSchema = z9.object({
   // not price, so it lives in the config independent of addon_variations.
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted5)
 }).meta(
-  { id: "RevTurbineConfigAddonsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_AUTHORING_FACETS2 }
+  { id: "RevTurbineConfigAddonsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
 var RevTurbineConfigPlanVariationsItemSchema = z9.object({
   handle: z9.string().min(1).meta(Unrestricted5),
@@ -2443,12 +2480,13 @@ var RevTurbineConfigPlanVariationsItemSchema = z9.object({
   billing_period: z9.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted5),
   segment_handle: z9.string().nullable().default(null).meta(Unrestricted5),
   price_amount: z9.number().min(0).meta(Unrestricted5),
+  currency: CurrencySchema.meta(Unrestricted5),
   pricing_model: PricingModelSchema.meta(Unrestricted5),
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted5),
   stripe_price_id: z9.string().nullable().default(null).meta(Unrestricted5),
   price_source: PriceSourceSchema.meta(Unrestricted5)
 }).meta(
-  { id: "RevTurbineConfigPlanVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PENDING_PLAYBOOK_FACETS2 }
+  { id: "RevTurbineConfigPlanVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
 var RevTurbineConfigAddonVariationsItemSchema = z9.object({
   handle: z9.string().min(1).meta(Unrestricted5),
@@ -2456,12 +2494,13 @@ var RevTurbineConfigAddonVariationsItemSchema = z9.object({
   billing_period: z9.enum(["monthly", "annual", "one_time", "custom"]).meta(Unrestricted5),
   segment_handle: z9.string().nullable().default(null).meta(Unrestricted5),
   price_amount: z9.number().min(0).meta(Unrestricted5),
+  currency: CurrencySchema.meta(Unrestricted5),
   pricing_model: PricingModelSchema.meta(Unrestricted5),
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted5),
   stripe_price_id: z9.string().nullable().default(null).meta(Unrestricted5),
   price_source: PriceSourceSchema.meta(Unrestricted5)
 }).meta(
-  { id: "RevTurbineConfigAddonVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PENDING_PLAYBOOK_FACETS2 }
+  { id: "RevTurbineConfigAddonVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
 var RevTurbineConfigSeatTypesItemSchema = z9.object({
   handle: z9.string().min(1).meta(Unrestricted5),
@@ -2822,7 +2861,7 @@ var PlaybookBodySchema = z9.object({
   // Optional for back-compat: pre-plan-88 configs (and the live export until web
   // adopts the new @revt-eng/schema) omit it. Add-on definitions only; pricing
   // (addon_variations) stays in the Stripe layer, like plan_variations.
-  addons: z9.array(RevTurbineConfigAddonsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  addons: z9.array(RevTurbineConfigAddonsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
   entitlements: z9.array(RevTurbineConfigEntitlementsItemSchema).meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
   entitlement_rules: z9.array(RevTurbineConfigEntitlementRulesItemSchema).meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
   segments: z9.array(RevTurbineConfigSegmentsItemSchema).meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
@@ -2878,8 +2917,8 @@ var PlaybookBodySchema = z9.object({
   // pre-sales/CLI upload flow still use — can carry variation prices through
   // normalization instead of having them stripped. Pending until web
   // import/export activates them (TASK-21).
-  plan_variations: z9.array(RevTurbineConfigPlanVariationsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_AUTHORING_FACETS2 }),
-  addon_variations: z9.array(RevTurbineConfigAddonVariationsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  plan_variations: z9.array(RevTurbineConfigPlanVariationsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
+  addon_variations: z9.array(RevTurbineConfigAddonVariationsItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_SDK_FACETS4 }),
   /**
    * Tagged-opaque rule entries (Phase 3 / strategy 2). Each entry is
    * dispatched to the corresponding `RuleAuthoringModule.kind` at
@@ -3005,11 +3044,11 @@ var PlaybookObjectSchema = PlaybookHeaderSchema.extend(PlaybookBodySchema.shape)
     ...PLAYBOOK_SDK_FACETS4
   }
 );
-function isRecord(value) {
+function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function normalizeConfigHeaderInput(input) {
-  if (!isRecord(input)) return input;
+  if (!isRecord2(input)) return input;
   const next = { ...input };
   if (!("artifact_type" in next)) {
     next.artifact_type = "playbook";
@@ -3273,9 +3312,9 @@ var configPaths = {
   }
 };
 
-// ../scaffold/src/core/validation/deprecation-repair.ts
+// ../../revt-eng/revturbine-scaffold/src/core/validation/deprecation-repair.ts
 var DEPRECATED_FIELD_REPAIR_CODE = "VAL-DEP-01";
-function isRecord2(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function readShape(schema) {
@@ -3296,7 +3335,7 @@ function repairFinding(field, deprecation) {
   };
 }
 function repairDeprecatedFields(config, schema = PlaybookObjectSchema) {
-  if (!isRecord2(config)) return { config, findings: [] };
+  if (!isRecord3(config)) return { config, findings: [] };
   const shape = readShape(schema);
   if (!shape) return { config, findings: [] };
   const findings = [];
@@ -3312,7 +3351,7 @@ function repairDeprecatedFields(config, schema = PlaybookObjectSchema) {
   return { config: repaired ?? config, findings };
 }
 
-// ../scaffold/src/core/validation/catalog-drift.ts
+// ../../revt-eng/revturbine-scaffold/src/core/validation/catalog-drift.ts
 var REFINE_RULE_CODES = [];
 var RENAMED_SEVERITIES = ["error_publish"];
 function checkCatalogDrift(ownedCodes = [...SEMANTIC_RULE_CODES, ...REFINE_RULE_CODES], catalogIds = listCatalogIds(), severityOptions = SeveritySchema.options, catalogSeverities = listCatalogIds().map(
@@ -3369,7 +3408,7 @@ ${issues.map((i) => `  - ${i.message}`).join("\n")}`
   );
 }
 
-// ../scaffold/src/core/validation/error-map.ts
+// ../../revt-eng/revturbine-scaffold/src/core/validation/error-map.ts
 import { z as z10 } from "zod";
 function installValidationErrorMap() {
   z10.config({
