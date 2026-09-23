@@ -4,16 +4,16 @@
 //   node scripts/generate-schema-snapshot.mjs
 
 
-// ../scaffold/src/core/common.ts
+// scaffold/src/core/common.ts
 import { z as z2 } from "zod";
 
-// ../scaffold/src/core/classification.ts
+// scaffold/src/core/classification.ts
 import { z } from "zod";
 
-// ../scaffold/src/core/handle-pattern.ts
+// scaffold/src/core/handle-pattern.ts
 var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
 
-// ../scaffold/src/core/classification.ts
+// scaffold/src/core/classification.ts
 var SchemaPersistence = {
   Persisted: "persisted",
   Transient: "transient"
@@ -191,7 +191,7 @@ function getObjectFieldVisibilities(schema) {
   return result;
 }
 
-// ../scaffold/src/core/common.ts
+// scaffold/src/core/common.ts
 var { Unrestricted } = DataClassification;
 var { Transient, Persisted } = SchemaPersistence;
 var { Internal, External } = SchemaExposure;
@@ -431,7 +431,7 @@ var CtaActionTypeSchema = z2.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 
-// ../scaffold/src/core/facets.ts
+// scaffold/src/core/facets.ts
 var SchemaContext = {
   Playbook: "playbook",
   Branding: "branding",
@@ -575,7 +575,7 @@ var PERSISTED_SCHEMA_FACET_EXEMPTIONS = {
   WebhookEventLogSchema: "Webhook delivery history is runtime data, not authored strategy."
 };
 
-// ../scaffold/src/core/identity.ts
+// scaffold/src/core/identity.ts
 import { z as z3 } from "zod";
 var IdentityKind = {
   /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
@@ -619,10 +619,10 @@ function collectVersionedConfigEntities(allExports) {
   return out;
 }
 
-// ../scaffold/src/plans/models/schema.ts
+// scaffold/src/plans/models/schema.ts
 import { z as z5 } from "zod";
 
-// ../scaffold/src/core/openapi/helpers.ts
+// scaffold/src/core/openapi/helpers.ts
 import { z as z4 } from "zod";
 var ListEnvelope = (itemSchema) => z4.object({
   items: z4.array(itemSchema)
@@ -641,7 +641,7 @@ var ListQueryParamsSchema = z4.object({
   include_deleted: z4.boolean().default(false).optional()
 });
 
-// ../scaffold/src/plans/models/schema.ts
+// scaffold/src/plans/models/schema.ts
 var { Unrestricted: Unrestricted2, Financial } = DataClassification;
 var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
 var { External: External2 } = SchemaExposure;
@@ -1101,7 +1101,7 @@ var planPaths = {
   }
 };
 
-// ../scaffold/src/entitlements/models/schema.ts
+// scaffold/src/entitlements/models/schema.ts
 import { z as z6 } from "zod";
 var { Unrestricted: Unrestricted3 } = DataClassification;
 var { Persisted: Persisted3, Transient: Transient3 } = SchemaPersistence;
@@ -1494,7 +1494,7 @@ var entitlementPaths = {
   }
 };
 
-// ../scaffold/src/placements/models/schema.ts
+// scaffold/src/placements/models/schema.ts
 import { z as z7 } from "zod";
 var { Unrestricted: Unrestricted4 } = DataClassification;
 var { Persisted: Persisted4, Transient: Transient4 } = SchemaPersistence;
@@ -1847,10 +1847,10 @@ var placementPaths = {
   }
 };
 
-// ../scaffold/src/user/models/schema.ts
+// scaffold/src/user/models/schema.ts
 import { z as z9 } from "zod";
 
-// ../scaffold/src/customers/models/schema.ts
+// scaffold/src/customers/models/schema.ts
 import { z as z8 } from "zod";
 var { Unrestricted: Unrestricted5, Pii } = DataClassification;
 var { Persisted: Persisted5, Transient: Transient5 } = SchemaPersistence;
@@ -2018,7 +2018,7 @@ var customerPaths = {
   }
 };
 
-// ../scaffold/src/user/models/schema.ts
+// scaffold/src/user/models/schema.ts
 var { Unrestricted: Unrestricted6, Pii: Pii2, Financial: Financial2 } = DataClassification;
 var { Persisted: Persisted6, Transient: Transient6 } = SchemaPersistence;
 var { External: External5, Internal: Internal5 } = SchemaExposure;
@@ -2301,7 +2301,7 @@ var userContextPaths = {
   }
 };
 
-// ../scaffold/src/segments/models/schema.ts
+// scaffold/src/segments/models/schema.ts
 import { z as z10 } from "zod";
 var { Unrestricted: Unrestricted7 } = DataClassification;
 var { Persisted: Persisted7, Transient: Transient7 } = SchemaPersistence;
@@ -2485,7 +2485,7 @@ var segmentPaths = {
   }
 };
 
-// ../scaffold/src/content/models/schema.ts
+// scaffold/src/content/models/schema.ts
 import { z as z11 } from "zod";
 var { Unrestricted: Unrestricted8 } = DataClassification;
 var { Persisted: Persisted8, Transient: Transient8 } = SchemaPersistence;
@@ -2708,7 +2708,7 @@ var contentPaths = {
   }
 };
 
-// ../scaffold/src/ui/models/schema.ts
+// scaffold/src/ui/models/schema.ts
 import { z as z12 } from "zod";
 var { Unrestricted: Unrestricted9, Pii: Pii3 } = DataClassification;
 var { Persisted: Persisted9, Transient: Transient9 } = SchemaPersistence;
@@ -2780,7 +2780,7 @@ var uiPreferencePaths = {
   }
 };
 
-// ../scaffold/src/analytics/models/schema.ts
+// scaffold/src/analytics/models/schema.ts
 import { z as z13 } from "zod";
 var { Unrestricted: Unrestricted10, Financial: Financial3 } = DataClassification;
 var { Persisted: Persisted10, Transient: Transient10 } = SchemaPersistence;
@@ -2959,7 +2959,7 @@ var analyticsPaths = {
   }
 };
 
-// ../scaffold/src/analytics/models/view-schema.ts
+// scaffold/src/analytics/models/view-schema.ts
 import { z as z14 } from "zod";
 var { Unrestricted: Unrestricted11 } = DataClassification;
 var { Transient: Transient11 } = SchemaPersistence;
@@ -3605,7 +3605,7 @@ var AnalyticsResultSchema = z14.object({
   meta: AnalyticsResultMetaSchema.meta(Unrestricted11)
 }).meta(meta("AnalyticsResult"));
 
-// ../scaffold/src/analytics/models/saved-view-schema.ts
+// scaffold/src/analytics/models/saved-view-schema.ts
 import { z as z15 } from "zod";
 var { Unrestricted: Unrestricted12 } = DataClassification;
 var { Persisted: Persisted11, Transient: Transient12 } = SchemaPersistence;
@@ -3658,10 +3658,10 @@ var AnalyticsViewAccessSchema = IdField.merge(TenantIdField).merge(EnvironmentSc
   role: AnalyticsViewAccessRoleSchema.meta(Unrestricted12)
 }).meta(persistedMeta("AnalyticsViewAccess"));
 
-// ../scaffold/src/analytics/models/catalog-schema.ts
+// scaffold/src/analytics/models/catalog-schema.ts
 import { z as z17 } from "zod";
 
-// ../scaffold/src/analytics/models/annotation-schema.ts
+// scaffold/src/analytics/models/annotation-schema.ts
 import { z as z16 } from "zod";
 var { Unrestricted: Unrestricted13 } = DataClassification;
 var { Transient: Transient13 } = SchemaPersistence;
@@ -3767,7 +3767,7 @@ var AnalyticsAnnotationResponseSchema = z16.object({
   as_of: z16.string().datetime().meta(Unrestricted13)
 }).meta(meta2("AnalyticsAnnotationResponse"));
 
-// ../scaffold/src/analytics/models/catalog-schema.ts
+// scaffold/src/analytics/models/catalog-schema.ts
 var { Unrestricted: Unrestricted14 } = DataClassification;
 var { Transient: Transient14 } = SchemaPersistence;
 var { Internal: Internal12 } = SchemaExposure;
@@ -3821,10 +3821,10 @@ var AnalyticsCatalogSearchResultSchema = z17.object({
   entries: z17.array(AnalyticsAgentCatalogEntrySchema).max(50).meta(Unrestricted14)
 }).meta(meta3("AnalyticsCatalogSearchResult"));
 
-// ../scaffold/src/analytics/catalog/in-memory.ts
+// scaffold/src/analytics/catalog/in-memory.ts
 import { z as z20 } from "zod";
 
-// ../scaffold/src/events/models/event-payloads.ts
+// scaffold/src/events/models/event-payloads.ts
 import { z as z18 } from "zod";
 var { Unrestricted: Unrestricted15 } = DataClassification;
 var { Transient: Transient15 } = SchemaPersistence;
@@ -4170,7 +4170,7 @@ function validateEventPayload(eventName, payload) {
   return { ok: true, payload: parsed.data };
 }
 
-// ../scaffold/src/events/models/taxonomy.ts
+// scaffold/src/events/models/taxonomy.ts
 import { z as z19 } from "zod";
 var { Unrestricted: Unrestricted16 } = DataClassification;
 var { Transient: Transient16 } = SchemaPersistence;
@@ -4416,7 +4416,7 @@ function namespacePlatformCollision(normalizedName) {
 }
 var DEPRECATED_EVENT_NAMES = PLATFORM_EVENT_TAXONOMY.events.filter((e) => e.stability === "deprecated").map((e) => e.name);
 
-// ../scaffold/src/analytics/catalog/in-memory.ts
+// scaffold/src/analytics/catalog/in-memory.ts
 var byId = (items) => [...items].sort((a, b) => a.id.localeCompare(b.id, "en"));
 var PLATFORM_EVENT_NAMES = new Set(PLATFORM_EMITTED_EVENT_NAMES);
 var PLATFORM_PAYLOAD_FIELDS = new Set(
@@ -4672,7 +4672,7 @@ function searchAgentCatalog(catalog, query, limit = 20) {
   return { catalog_version: catalog.version, query, entries };
 }
 
-// ../scaffold/src/analytics/catalog/fixture.ts
+// scaffold/src/analytics/catalog/fixture.ts
 var FIXTURE_ANALYTICS_CATALOG = {
   // Versioned additively (§15) as the ported surfaces need semantics:
   //   fixture-2 — placement.payload + content.message_block dimensions, the
@@ -5703,7 +5703,7 @@ function createFixtureAnalyticsCatalog() {
   return createInMemoryAnalyticsCatalog(FIXTURE_ANALYTICS_CATALOG);
 }
 
-// ../scaffold/src/analytics/compile/defaults.ts
+// scaffold/src/analytics/compile/defaults.ts
 var FAMILY_RENDER_COMPATIBILITY = {
   scalar: ["metric"],
   timeseries: ["cartesian"],
@@ -5765,7 +5765,7 @@ function defaultRenderForQuery(query, catalog) {
   }
 }
 
-// ../scaffold/src/analytics/validation/semantic.ts
+// scaffold/src/analytics/validation/semantic.ts
 var ANALYTICS_VALIDATION_CODES = [
   "UNKNOWN_CONCEPT",
   "UNKNOWN_DIMENSION",
@@ -6322,7 +6322,7 @@ function validateAnalyticsView(view, catalog, options = {}) {
   };
 }
 
-// ../scaffold/src/analytics/compile/compile.ts
+// scaffold/src/analytics/compile/compile.ts
 var RECOMMENDED_FILTER_DIMENSIONS = [
   "commercial.plan",
   "commercial.billing_period",
@@ -6557,7 +6557,7 @@ function compileAnalyticsDraft(draft, catalog, options = {}) {
   return validation.valid ? { view, visibility, resolutions, validation } : { visibility, resolutions, validation };
 }
 
-// ../scaffold/src/analytics/models/api-schema.ts
+// scaffold/src/analytics/models/api-schema.ts
 import { z as z21 } from "zod";
 var { Unrestricted: Unrestricted17 } = DataClassification;
 var { Transient: Transient17 } = SchemaPersistence;
@@ -6736,10 +6736,10 @@ var analyticsViewPaths = {
   }
 };
 
-// ../scaffold/src/analytics/models/optimization-schema.ts
+// scaffold/src/analytics/models/optimization-schema.ts
 import { z as z23 } from "zod";
 
-// ../scaffold/src/core/providers/schema.ts
+// scaffold/src/core/providers/schema.ts
 import { z as z22 } from "zod";
 var { Unrestricted: Unrestricted18 } = DataClassification;
 var { Transient: Transient18 } = SchemaPersistence;
@@ -6782,7 +6782,7 @@ var ProviderBindingRefSchema = z22.object({
   capability: ProviderCapabilitySchema.meta(Unrestricted18)
 }).meta(meta6("ProviderBindingRef"));
 
-// ../scaffold/src/analytics/models/optimization-schema.ts
+// scaffold/src/analytics/models/optimization-schema.ts
 var { Unrestricted: Unrestricted19 } = DataClassification;
 var { Transient: Transient19 } = SchemaPersistence;
 var { Internal: Internal15 } = SchemaExposure;
@@ -6878,7 +6878,7 @@ var OpportunityCandidateSchema = z23.object({
   suggested_experiment: OpaqueStructuredPayloadSchema.optional().meta(Unrestricted19)
 }).meta(meta7("OpportunityCandidate"));
 
-// ../scaffold/src/events/models/schema.ts
+// scaffold/src/events/models/schema.ts
 import { z as z24 } from "zod";
 var { Unrestricted: Unrestricted20, Pii: Pii4 } = DataClassification;
 var { Persisted: Persisted12, Transient: Transient20 } = SchemaPersistence;
@@ -7412,7 +7412,7 @@ var eventPaths = {
   }
 };
 
-// ../scaffold/src/customers/models/subscription-evidence.ts
+// scaffold/src/customers/models/subscription-evidence.ts
 import { z as z25 } from "zod";
 var privateField = { ...DataClassification.Operational, ...ServerOnly, readOnly: true };
 var privateBilling = { ...DataClassification.Financial, ...ServerOnly, readOnly: true };
@@ -7769,7 +7769,7 @@ function resolveSubscriptionEvidence(input) {
   });
 }
 
-// ../scaffold/src/events/models/webhook-delivery.ts
+// scaffold/src/events/models/webhook-delivery.ts
 import { z as z26 } from "zod";
 var privateField2 = { ...DataClassification.Operational, ...ServerOnly, readOnly: true };
 var privatePayload = { ...DataClassification.Financial, ...ServerOnly, readOnly: true };
@@ -7909,7 +7909,7 @@ var WebhookDeliverySchema = IdField.merge(TenantIdField).merge(TimestampFields).
   }
 });
 
-// ../scaffold/src/trials/models/schema.ts
+// scaffold/src/trials/models/schema.ts
 import { z as z27 } from "zod";
 var { Unrestricted: Unrestricted21 } = DataClassification;
 var { Persisted: Persisted13, Transient: Transient21 } = SchemaPersistence;
@@ -8291,10 +8291,10 @@ var trialPaths = {
   }
 };
 
-// ../scaffold/src/experiments/models/schema.ts
+// scaffold/src/experiments/models/schema.ts
 import { z as z28 } from "zod";
 
-// ../scaffold/src/core/bundle/canonical-json.ts
+// scaffold/src/core/bundle/canonical-json.ts
 function canonicalizeJson(value) {
   if (value === null) return "null";
   if (typeof value === "number") {
@@ -8327,7 +8327,7 @@ function canonicalizeJson(value) {
   throw new Error(`canonicalizeJson: unsupported value type ${typeof value}`);
 }
 
-// ../scaffold/src/experiments/models/schema.ts
+// scaffold/src/experiments/models/schema.ts
 var { Unrestricted: Unrestricted22, Financial: Financial4 } = DataClassification;
 var { Persisted: Persisted14, Transient: Transient22 } = SchemaPersistence;
 var { Internal: Internal18 } = SchemaExposure;
@@ -9154,7 +9154,7 @@ var experimentPaths = {
   }
 };
 
-// ../scaffold/src/promotions/models/schema.ts
+// scaffold/src/promotions/models/schema.ts
 import { z as z29 } from "zod";
 var { Unrestricted: Unrestricted23, Financial: Financial5 } = DataClassification;
 var { Persisted: Persisted15, Transient: Transient23 } = SchemaPersistence;
@@ -9273,7 +9273,7 @@ var promotionPaths = {
   }
 };
 
-// ../scaffold/src/config/models/schema.ts
+// scaffold/src/config/models/schema.ts
 import { z as z30 } from "zod";
 var { Unrestricted: Unrestricted24 } = DataClassification;
 var { Persisted: Persisted16, Transient: Transient24 } = SchemaPersistence;
@@ -10359,7 +10359,7 @@ var configPaths = {
   }
 };
 
-// ../scaffold/src/changemgmt/models/changelog-schema.ts
+// scaffold/src/changemgmt/models/changelog-schema.ts
 import { z as z31 } from "zod";
 var { Unrestricted: Unrestricted25 } = DataClassification;
 var { Persisted: Persisted17 } = SchemaPersistence;
@@ -10406,7 +10406,7 @@ var changelogPaths = {
   }
 };
 
-// ../scaffold/src/core/tenant/schema.ts
+// scaffold/src/core/tenant/schema.ts
 import { z as z32 } from "zod";
 var { Unrestricted: Unrestricted26 } = DataClassification;
 var { Persisted: Persisted18, Transient: Transient25 } = SchemaPersistence;
@@ -10485,7 +10485,7 @@ var tenantPaths = {
   }
 };
 
-// ../scaffold/src/core/environment/schema.ts
+// scaffold/src/core/environment/schema.ts
 import { z as z33 } from "zod";
 var { Unrestricted: Unrestricted27 } = DataClassification;
 var { Persisted: Persisted19, Transient: Transient26 } = SchemaPersistence;
@@ -10604,7 +10604,7 @@ var environmentPaths = {
   }
 };
 
-// ../scaffold/src/decisions/models/schema.ts
+// scaffold/src/decisions/models/schema.ts
 import { z as z34 } from "zod";
 var { Unrestricted: Unrestricted28, Pii: Pii5 } = DataClassification;
 var { Transient: Transient27, Persisted: Persisted20 } = SchemaPersistence;
@@ -10732,7 +10732,7 @@ var ServerEvaluationPayloadSchema = z34.object({
   user_context: ServerEvaluationPayloadUserContextSchema.optional().meta(Pii5)
 }).meta({ id: "ServerEvaluationPayload", "x-revturbine-schema-persistence": Transient27, "x-revturbine-schema-exposure": External13 });
 
-// ../scaffold/src/changemgmt/models/changesets-schema.ts
+// scaffold/src/changemgmt/models/changesets-schema.ts
 import { z as z35 } from "zod";
 var { Unrestricted: Unrestricted29 } = DataClassification;
 var { Persisted: Persisted21, Transient: Transient28 } = SchemaPersistence;
@@ -10938,7 +10938,7 @@ var playbookVersionPaths = {
   }
 };
 
-// ../scaffold/src/settings/models/schema.ts
+// scaffold/src/settings/models/schema.ts
 import { z as z36 } from "zod";
 var { Unrestricted: Unrestricted30 } = DataClassification;
 var { Persisted: Persisted22 } = SchemaPersistence;
@@ -11230,7 +11230,7 @@ var settingsPaths = {
   }
 };
 
-// ../scaffold/src/core/auth/schema.ts
+// scaffold/src/core/auth/schema.ts
 import { z as z37 } from "zod";
 var { Unrestricted: Unrestricted31, Pii: Pii6 } = DataClassification;
 var { Persisted: Persisted23, Transient: Transient29 } = SchemaPersistence;
