@@ -70,6 +70,36 @@ function stripVendoredAnnotations(file) {
   return text.split('\n').length - cleaned.split('\n').length;
 }
 
+/**
+ * esbuild prefixes every bundled module with a `// <path>` boundary comment,
+ * and that path is written RELATIVE TO THE PROCESS'S CURRENT WORKING
+ * DIRECTORY at build time — i.e. it bakes in wherever the generating
+ * machine happened to invoke this script from and however many `../`
+ * segments that cwd was from the scaffold checkout. Two correct
+ * invocations from different cwds (or against a `--scaffold-dir` pointed
+ * at a differently-named/nested checkout) produce marker-only diffs with
+ * zero semantic content (cli #78: 76 lines changed, 0 semantic — BL-0143).
+ * Rewrite each marker that resolves inside the scaffold source tree to a
+ * stable, root-relative form (`// scaffold/<path-from-scaffold-src-root>`)
+ * so the vendored bytes are identical regardless of cwd or checkout layout.
+ */
+const MODULE_PATH_MARKER = /^\/\/ ([^\r\n]+\.(?:ts|tsx|mts|cts))$/gm;
+
+function normalizeSourceMarkers(file, sourceRoot, rootLabel) {
+  const text = readFileSync(file, 'utf8');
+  let count = 0;
+  const rewritten = text.replace(MODULE_PATH_MARKER, (line, relPath) => {
+    const abs = path.resolve(process.cwd(), relPath);
+    const rel = path.relative(sourceRoot, abs);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return line;
+    count += 1;
+    return `// ${rootLabel}/${rel.split(path.sep).join('/')}`;
+  });
+  if (count === 0) return 0;
+  writeFileSync(file, rewritten, 'utf8');
+  return count;
+}
+
 const banner = `// GENERATED — do not edit by hand.
 // Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@${version}
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
@@ -111,6 +141,14 @@ const strippedSchema = stripVendoredAnnotations(outFile);
 const strippedValidators = stripVendoredAnnotations(validatorsOut);
 if (strippedSchema || strippedValidators) {
   console.log(`[generate-schema] stripped ${strippedSchema + strippedValidators} vendored graph annotation(s)`);
+}
+
+const normalizedSchema = normalizeSourceMarkers(outFile, scaffoldDir, 'scaffold');
+const normalizedValidators = normalizeSourceMarkers(validatorsOut, scaffoldDir, 'scaffold');
+if (normalizedSchema || normalizedValidators) {
+  console.log(
+    `[generate-schema] normalized ${normalizedSchema + normalizedValidators} source marker(s) to a layout-independent form`,
+  );
 }
 
 writeFileSync(versionFile, `${version}\n`, 'utf8');

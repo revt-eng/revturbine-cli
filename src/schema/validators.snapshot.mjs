@@ -4,7 +4,7 @@
 //   node scripts/generate-schema-snapshot.mjs
 
 
-// ../scaffold/src/core/validation/types.ts
+// scaffold/src/core/validation/types.ts
 import { z } from "zod";
 var SeveritySchema = z.enum([
   "error_draft",
@@ -52,7 +52,7 @@ var ValidationFindingSchema = z.object({
   spotlight: z.boolean().optional()
 });
 
-// ../scaffold/src/core/validation/catalog.ts
+// scaffold/src/core/validation/catalog.ts
 var CATALOG = {
   // entitlement-rule overlap. Origin: the `rule.overlap` check (plan 40);
   // scoped to same-entitlement pairs per §5.8 (plan 179 / devkit #597).
@@ -137,14 +137,14 @@ function listCatalogIds() {
   return Object.keys(CATALOG);
 }
 
-// ../scaffold/src/core/validation/disposition.ts
+// scaffold/src/core/validation/disposition.ts
 function disposition(finding2, callSite) {
   if (finding2.severity === "error_draft") return "block";
   if (finding2.severity === "error_launch" && callSite === "publish") return "block";
   return "advise";
 }
 
-// ../scaffold/src/core/helpers.ts
+// scaffold/src/core/helpers.ts
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -160,7 +160,7 @@ function categoryBucket(category) {
   return 99;
 }
 
-// ../scaffold/src/core/validation/rules.ts
+// scaffold/src/core/validation/rules.ts
 var SEMANTIC_RULE_CODES = [
   "VAL-PLN-05",
   "VAL-PLN-06",
@@ -565,7 +565,7 @@ function collectPublicCollisions(rows, objectType, parentField) {
   return findings;
 }
 
-// ../scaffold/src/core/validation/zod-adapter.ts
+// scaffold/src/core/validation/zod-adapter.ts
 function fieldLabel(path) {
   if (!path || path.length === 0) return "This value";
   return String(path[path.length - 1]);
@@ -610,7 +610,7 @@ function zodErrorToFindings(error, opts = {}) {
   }));
 }
 
-// ../scaffold/src/core/validation/evaluate.ts
+// scaffold/src/core/validation/evaluate.ts
 function spotlights(finding2, focus) {
   if (!focus) return false;
   const { object_type, object_id } = finding2.targetRef;
@@ -629,19 +629,19 @@ function evaluate(graph, opts = {}) {
   return findings.map((f) => spotlights(f, opts.focus) ? { ...f, spotlight: true } : f);
 }
 
-// ../scaffold/src/config/models/schema.ts
+// scaffold/src/config/models/schema.ts
 import { z as z9 } from "zod";
 
-// ../scaffold/src/core/common.ts
+// scaffold/src/core/common.ts
 import { z as z3 } from "zod";
 
-// ../scaffold/src/core/classification.ts
+// scaffold/src/core/classification.ts
 import { z as z2 } from "zod";
 
-// ../scaffold/src/core/handle-pattern.ts
+// scaffold/src/core/handle-pattern.ts
 var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
 
-// ../scaffold/src/core/classification.ts
+// scaffold/src/core/classification.ts
 var SchemaPersistence = {
   Persisted: "persisted",
   Transient: "transient"
@@ -692,7 +692,7 @@ function toCreateSchema(schema) {
   return writable;
 }
 
-// ../scaffold/src/core/common.ts
+// scaffold/src/core/common.ts
 var { Unrestricted } = DataClassification;
 var { Transient, Persisted } = SchemaPersistence;
 var { Internal, External } = SchemaExposure;
@@ -906,7 +906,7 @@ var CtaActionTypeSchema = z3.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 
-// ../scaffold/src/core/identity.ts
+// scaffold/src/core/identity.ts
 import { z as z4 } from "zod";
 var IdentityKind = {
   /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
@@ -922,7 +922,7 @@ function mintedIdentity(handleField = "handle") {
   return { [SCHEMA_IDENTITY_META_KEY]: { kind: IdentityKind.Minted, handleField } };
 }
 
-// ../scaffold/src/core/facets.ts
+// scaffold/src/core/facets.ts
 var SchemaContext = {
   Playbook: "playbook",
   Branding: "branding",
@@ -986,10 +986,10 @@ function getSchemaDeprecation(schema) {
   };
 }
 
-// ../scaffold/src/entitlements/models/schema.ts
+// scaffold/src/entitlements/models/schema.ts
 import { z as z6 } from "zod";
 
-// ../scaffold/src/core/openapi/helpers.ts
+// scaffold/src/core/openapi/helpers.ts
 import { z as z5 } from "zod";
 var ListEnvelope = (itemSchema) => z5.object({
   items: z5.array(itemSchema)
@@ -1008,7 +1008,7 @@ var ListQueryParamsSchema = z5.object({
   include_deleted: z5.boolean().default(false).optional()
 });
 
-// ../scaffold/src/entitlements/models/schema.ts
+// scaffold/src/entitlements/models/schema.ts
 var { Unrestricted: Unrestricted2 } = DataClassification;
 var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
 var { Internal: Internal2, External: External2 } = SchemaExposure;
@@ -1400,7 +1400,7 @@ var entitlementPaths = {
   }
 };
 
-// ../scaffold/src/trials/models/schema.ts
+// scaffold/src/trials/models/schema.ts
 import { z as z7 } from "zod";
 var { Unrestricted: Unrestricted3 } = DataClassification;
 var { Persisted: Persisted3, Transient: Transient3 } = SchemaPersistence;
@@ -1782,7 +1782,7 @@ var trialPaths = {
   }
 };
 
-// ../scaffold/src/plans/models/schema.ts
+// scaffold/src/plans/models/schema.ts
 import { z as z8 } from "zod";
 var { Unrestricted: Unrestricted4, Financial } = DataClassification;
 var { Persisted: Persisted4, Transient: Transient4 } = SchemaPersistence;
@@ -2241,7 +2241,7 @@ var planPaths = {
   }
 };
 
-// ../scaffold/src/config/models/schema.ts
+// scaffold/src/config/models/schema.ts
 var { Unrestricted: Unrestricted5 } = DataClassification;
 var { Persisted: Persisted5, Transient: Transient5 } = SchemaPersistence;
 var { Internal: Internal4, External: External4 } = SchemaExposure;
@@ -3316,7 +3316,7 @@ var configPaths = {
   }
 };
 
-// ../scaffold/src/core/validation/deprecation-repair.ts
+// scaffold/src/core/validation/deprecation-repair.ts
 var DEPRECATED_FIELD_REPAIR_CODE = "VAL-DEP-01";
 function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -3355,7 +3355,7 @@ function repairDeprecatedFields(config, schema = PlaybookObjectSchema) {
   return { config: repaired ?? config, findings };
 }
 
-// ../scaffold/src/core/validation/catalog-drift.ts
+// scaffold/src/core/validation/catalog-drift.ts
 var REFINE_RULE_CODES = [];
 var RENAMED_SEVERITIES = ["error_publish"];
 function checkCatalogDrift(ownedCodes = [...SEMANTIC_RULE_CODES, ...REFINE_RULE_CODES], catalogIds = listCatalogIds(), severityOptions = SeveritySchema.options, catalogSeverities = listCatalogIds().map(
@@ -3412,7 +3412,7 @@ ${issues.map((i) => `  - ${i.message}`).join("\n")}`
   );
 }
 
-// ../scaffold/src/core/validation/error-map.ts
+// scaffold/src/core/validation/error-map.ts
 import { z as z10 } from "zod";
 function installValidationErrorMap() {
   z10.config({
