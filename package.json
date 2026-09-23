@@ -1,6 +1,6 @@
 {
   "name": "@revturbine/cli",
-  "version": "0.19.2",
+  "version": "0.19.4",
   "description": "revturbine — validate RevTurbine Playbooks and ship them to a RevTurbine instance through the playbook-version lifecycle (draft → Release).",
   "license": "MIT",
   "repository": {
@@ -30,7 +30,7 @@
     "verify": "npm run typecheck && npm run lint && npm run check:schema && npm run test"
   },
   "dependencies": {
-    "@revturbine/sdk": "^0.7.4",
+    "@revturbine/sdk": ">=0.10.9 <1",
     "commander": "^15.0.0",
     "semver": "^7.8.5",
     "zod": "4.4.3"

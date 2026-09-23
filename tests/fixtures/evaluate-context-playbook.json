@@ -1,0 +1,245 @@
+{
+  "artifact_type": "playbook",
+  "format_version": "1.0.0",
+  "playbook_handle": "evaluate-context-fixture",
+  "playbook_version_id": null,
+  "tenant_id": "local",
+  "environment_id": "local",
+  "plans": [
+    {
+      "id": "plan_free",
+      "unique_handle": "free",
+      "name": "Free",
+      "tier_position": 0,
+      "sort_order": 0
+    },
+    {
+      "id": "plan_pro",
+      "unique_handle": "pro",
+      "name": "Pro",
+      "tier_position": 1,
+      "sort_order": 1
+    }
+  ],
+  "entitlements": [
+    {
+      "id": "ent_api_calls",
+      "unique_handle": "api_calls",
+      "name": "API Calls",
+      "type": "usage_limit",
+      "unit": "calls"
+    }
+  ],
+  "entitlement_rules": [
+    {
+      "id": "er_api_calls_pro",
+      "entitlement_id": "api_calls",
+      "targets": [
+        {
+          "kind": "plan",
+          "id": "pro"
+        }
+      ],
+      "segment_ids": [],
+      "kind": "usage_limit",
+      "unit": "calls",
+      "enabled": true,
+      "limit_value": 100,
+      "current_usage": 0
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg_enterprise",
+      "name": "Enterprise",
+      "handle": "seg_enterprise",
+      "predicates": [
+        {
+          "field": "tier",
+          "operator": "eq",
+          "value": "enterprise"
+        }
+      ]
+    },
+    {
+      "id": "seg_smb",
+      "name": "SMB",
+      "handle": "seg_smb",
+      "predicates": [
+        {
+          "field": "tier",
+          "operator": "eq",
+          "value": "smb"
+        }
+      ]
+    }
+  ],
+  "content_ui_paths": [],
+  "surface_templates": [
+    {
+      "id": "banner_inline",
+      "surface_type": "banner",
+      "fields": []
+    },
+    {
+      "id": "modal_overlay",
+      "surface_type": "modal",
+      "fields": []
+    }
+  ],
+  "placement_slots": [
+    {
+      "id": "slot_dashboard_banner",
+      "name": "Dashboard banner",
+      "component_type": "banner"
+    }
+  ],
+  "placements": [
+    {
+      "id": "pl_usage_warn",
+      "name": "pl_usage_warn",
+      "category": "usage_credit_seat",
+      "order": 0,
+      "trigger": {
+        "type": "usage_threshold",
+        "entitlement_handle": "api_calls",
+        "threshold_percent": 80
+      },
+      "payloads": [
+        {
+          "id": "pl_usage_warn_p0",
+          "target": {
+            "plan_ids": [
+              "pro"
+            ],
+            "segment_chips": []
+          },
+          "surfaces": [
+            {
+              "template_id": "banner_inline",
+              "fields": {
+                "header": "You are near your API limit",
+                "body": "{{usage_current}} of {{usage_limit}} calls used."
+              },
+              "ctas": [
+                {
+                  "label": "Upgrade",
+                  "path": "view_plans"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pl_trial_ending",
+      "name": "pl_trial_ending",
+      "category": "trials",
+      "order": 1,
+      "trigger": {
+        "type": "trial_ending",
+        "days_before_end": 7
+      },
+      "payloads": [
+        {
+          "id": "pl_trial_ending_p0",
+          "target": {
+            "plan_ids": [],
+            "segment_chips": []
+          },
+          "surfaces": [
+            {
+              "template_id": "modal_overlay",
+              "fields": {
+                "header": "Your trial ends soon",
+                "body": "Only {{trial_days_remaining}} days left."
+              },
+              "ctas": [
+                {
+                  "label": "Upgrade",
+                  "path": "open_checkout"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pl_segmented_banner",
+      "name": "pl_segmented_banner",
+      "category": "fixed",
+      "order": 2,
+      "trigger": {
+        "type": "surface_render",
+        "slot_id": "slot_dashboard_banner"
+      },
+      "payloads": [
+        {
+          "id": "pl_segmented_banner_enterprise",
+          "target": {
+            "plan_ids": [],
+            "segment_chips": [
+              "seg_enterprise"
+            ]
+          },
+          "surfaces": [
+            {
+              "template_id": "banner_inline",
+              "fields": {
+                "header": "Enterprise",
+                "body": "Enterprise copy."
+              },
+              "ctas": [
+                {
+                  "label": "Contact sales",
+                  "path": "contact_sales"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "pl_segmented_banner_smb",
+          "target": {
+            "plan_ids": [],
+            "segment_chips": [
+              "seg_smb"
+            ]
+          },
+          "surfaces": [
+            {
+              "template_id": "banner_inline",
+              "fields": {
+                "header": "SMB",
+                "body": "SMB copy."
+              },
+              "ctas": [
+                {
+                  "label": "See plans",
+                  "path": "view_plans"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "free_trial_rules": [
+    {
+      "id": "ftr_pro",
+      "name": "Pro trial",
+      "handle": "pro_trial",
+      "plan_id": "plan_pro",
+      "trial_limit_type": "time",
+      "duration_days": 14,
+      "grace_period_days": 0,
+      "require_payment_method": false,
+      "auto_convert": true,
+      "limit_per_customer": 1,
+      "is_active": true
+    }
+  ]
+}

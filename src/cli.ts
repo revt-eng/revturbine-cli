@@ -46,6 +46,7 @@ import {
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
 import { classifyToken, formatAuthentication } from './lib/whoami';
+import { parseDecisionContext } from './lib/evaluate-context';
 import { evaluateLocal, resolvePlacementComponentType } from './lib/evaluate-local';
 import { createIngestKey, listIngestKeys, revokeIngestKey, formatIngestKeyLine } from './lib/ingest-keys';
 import {
@@ -1360,7 +1361,7 @@ program
 program
   .command('evaluate')
   .description(
-    'Run placement/entitlement decisions for a user context against a config version — evaluated LOCALLY: the CLI fetches the version\'s Playbook and runs the SDK engine in-process (plan 192; clean-room, no suppression/cap history). Requires --live, --draft, or --release <id>.',
+    'Run placement/entitlement decisions for a user context against a config version — evaluated LOCALLY: the CLI fetches the version\'s Playbook and runs the SDK engine in-process (plan 192; clean-room, no suppression/cap history). The ctx file carries the full decision context — plan, traits, usage, trial state and a clock pin — so usage-threshold and trial placements decide here as they do in an app. Requires --live, --draft, or --release <id>.',
   )
   .option('--live', 'Evaluate the live (deployed) configuration')
   .option('--draft', "Evaluate the tenant's open draft")
@@ -1370,8 +1371,11 @@ program
   .option('--component-type <type>', 'Disambiguate a slot that can render more than one component, or resolve by component type alone')
   .option('--surface-type <type>', 'Deprecated alias for --component-type')
   .option('--plan-handle <handle>', 'Evaluate as if the user were on this plan (overrides the ctx file)')
+  .option('--usage <json>', 'Usage entries keyed by entitlement handle, e.g. \'{"api_calls":{"amount":95}}\' (overrides the ctx file) — required to decide usage/credit-threshold placements')
+  .option('--trial-status <json>', 'Trial status, e.g. \'{"in_trial":true,"trial_limit_type":"time","days_remaining":3}\' (overrides the ctx file) — required to decide trial placements')
+  .option('--now <iso>', 'Pin the clock (ISO-8601) for trial derivation from the ctx file\'s trial_instances (overrides ctx now_iso)')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
-  .requiredOption('--user <file>', 'JSON file: { user_id, customer_id?, plan_handle?, traits?, now_iso? }')
+  .requiredOption('--user <file>', 'JSON file: { user_id, plan_handle?, traits?, usage?, trial?, trial_instances?, now_iso? }')
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .action(
     async (opts: {
@@ -1383,6 +1387,9 @@ program
       componentType?: string;
       surfaceType?: string;
       planHandle?: string;
+      usage?: string;
+      trialStatus?: string;
+      now?: string;
       url: string;
       user: string;
       tenantId?: string;
@@ -1415,8 +1422,21 @@ program
       }
       const userId = typeof ctx.user_id === 'string' && ctx.user_id.length > 0 ? ctx.user_id : undefined;
       if (!userId) fail(EXIT.VALIDATION, `user file must carry a non-empty string "user_id" (${opts.user})`);
-      if (typeof ctx.now_iso === 'string') {
-        diag('WARNING: now_iso is ignored — local evaluation uses the real clock.');
+      // BL-0123: usage, trial state and the clock are part of the decision
+      // context, not decoration. They are forwarded under the SDK's own input
+      // names so the CLI drives the same engine a customer app does.
+      const parsed = parseDecisionContext({
+        ctx,
+        usage: opts.usage,
+        trialStatus: opts.trialStatus,
+        now: opts.now,
+      });
+      if (!parsed.ok) fail(EXIT.VALIDATION, `invalid decision context in ${opts.user}: ${parsed.errors.join('; ')}`);
+      const decisionContext = parsed.context;
+      if (decisionContext.nowIso && !decisionContext.trialInstances) {
+        diag(
+          'NOTE: the pinned clock only moves trial derivation from trial_instances; an explicit "trial" status is already fixed in time.',
+        );
       }
       if (typeof ctx.customer_id === 'string') {
         diag(
@@ -1442,6 +1462,7 @@ program
         userId,
         planHandle,
         traits,
+        ...decisionContext,
         entitlementHandles: opts.entitlement ? [opts.entitlement] : bulk ? asStringArray(ctx.entitlement_handles) : [],
         placementIds: bulk ? asStringArray(ctx.placement_ids) : [],
         slot: wantsSlot ? { slotId: opts.slot, componentType } : undefined,
@@ -1452,10 +1473,18 @@ program
           tenant_id: conn.tenantId,
           user_id: userId,
           ...(playbookVersionId ? { playbook_version_id: playbookVersionId } : {}),
-          evaluated_at: new Date().toISOString(),
+          // The pinned clock when one was given, so the stamp matches the
+          // instant the decisions were made against.
+          evaluated_at: decisionContext.nowIso ?? new Date().toISOString(),
           // Provenance: decided in-process by the SDK engine, not by a server.
           evaluation: 'local',
-          ...result,
+          decisions: result.decisions,
+          // Which authored payload the resolver chose, per requested placement.
+          payload_ids: result.payloadIds,
+          entitlements: result.entitlements,
+          placement: result.placement,
+          personalization_tokens: result.personalizationTokens,
+          ...(result.trialStatus !== undefined ? { trial_status: result.trialStatus } : {}),
         },
         true,
       );
@@ -1871,10 +1900,23 @@ const COMMAND_EXAMPLES: Record<string, string> = {
   ].join('\n'),
   evaluate: [
     '',
-    'Example:',
+    'Examples:',
     '  revturbine evaluate --live --user ./ctx.json --entitlement seats',
     '  revturbine evaluate --draft --user ./ctx.json --slot upgrade_banner --component-type banner --plan-handle pro',
-    '    ctx.json: { "user_id": "u1", "plan_handle": "pro", "entitlement_handles": ["seats"] }',
+    '  revturbine evaluate --live --user ./ctx.json --usage \'{"api_calls":{"amount":95}}\'',
+    '  revturbine evaluate --live --user ./ctx.json --trial-status \'{"in_trial":true,"trial_limit_type":"time","days_remaining":3}\'',
+    '  revturbine evaluate --live --user ./ctx.json --now 2026-09-21T00:00:00Z',
+    '',
+    'ctx.json — the whole decision context:',
+    '    { "user_id": "u1", "plan_handle": "pro", "traits": { "tier": "smb" },',
+    '      "usage": { "api_calls": { "amount": 95, "limit": 100 } },',
+    '      "trial": { "in_trial": true, "trial_limit_type": "time", "days_remaining": 3 },',
+    '      "trial_instances": [ ... ], "now_iso": "2026-09-21T00:00:00Z",',
+    '      "entitlement_handles": ["seats"], "placement_ids": ["pl_usage_warn"] }',
+    '',
+    '  usage — omit "limit" and it is taken from the Playbook\'s entitlement rule.',
+    '  trial — an explicit status; trial_instances + now_iso derive one at that clock.',
+    '  Output carries payload_ids: which authored payload won, per placement.',
   ].join('\n'),
 };
 for (const [name, text] of Object.entries(COMMAND_EXAMPLES)) {
