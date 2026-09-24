@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.325
+// Vendored validation engine bundled from @revt-eng/schema@0.1.339
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -123,11 +123,72 @@ var CATALOG = {
   // both means every user on every plan — legal and occasionally intended,
   // but indistinguishable from an unfinished rule after authoring. Reverse
   // trial rules can't hit this (premium_plan_id is required).
+  // ── Dangling handle references (BL-0124) ─────────────────────────────────
+  // Four references nothing checked: each fails silently at runtime (the
+  // trigger never arms, the trial grants nothing, the rule targets nobody, the
+  // chip lowers to a literal no user carries), so a Playbook with a typo
+  // validated clean and shipped dead config. `error_launch` per spec §2 — "a
+  // reference whose target is created in a later step" is legitimate mid-draft
+  // and must never reach launch.
+  "VAL-PLC-08": {
+    id: "VAL-PLC-08",
+    severity: "error_launch",
+    message: "This placement triggers on an entitlement that does not exist.",
+    specRef: "config-validation.md \xA75.2 (BL-0124)"
+  },
+  "VAL-PLC-09": {
+    id: "VAL-PLC-09",
+    severity: "error_launch",
+    message: "This payload targets a segment chip that matches no segment or plan.",
+    specRef: "config-validation.md \xA75.2 (BL-0124)"
+  },
+  "VAL-PLN-08": {
+    id: "VAL-PLN-08",
+    severity: "error_launch",
+    message: "This entitlement rule targets a plan, add-on, or variation that does not exist.",
+    specRef: "config-validation.md \xA75.3 (BL-0124)"
+  },
+  "VAL-TRL-05": {
+    id: "VAL-TRL-05",
+    severity: "error_launch",
+    message: "This trial rule references a plan that does not exist.",
+    specRef: "config-validation.md \xA75.5 (BL-0124)"
+  },
   "VAL-TRL-04": {
     id: "VAL-TRL-04",
     severity: "warning",
     message: "Trial rule '{rule}' targets every user on every plan (no plan, no segment). Confirm the widest possible audience is intended.",
     specRef: "config-validation.md \xA75.8 (promoted \u2014 plan 174 TASK-7)"
+  },
+  // entitlement rule → entitlement (BL-0164): same dangling-reference family as
+  // the four above, just the one reference §5.9's original sweep missed.
+  "VAL-ENT-01": {
+    id: "VAL-ENT-01",
+    severity: "error_launch",
+    message: "This entitlement rule links an entitlement that does not exist.",
+    specRef: "config-validation.md \xA75.3 (BL-0164)"
+  },
+  // BL-0168: VAL-PLC-07's `plansKnown` precondition (every plan row carries a
+  // non-empty `unique_handle`) fails silently for a DB-shape plan row that
+  // spells the identifier `handle` — the whole check goes dark for the
+  // Playbook with nothing recording that it did not run. `warning`, never
+  // blocking: it is a meta-finding about check coverage, not a config defect.
+  "VAL-PLC-07-SKIPPED": {
+    id: "VAL-PLC-07-SKIPPED",
+    severity: "warning",
+    message: "VAL-PLC-07 ('targets no configured plan') could not run: the plan catalog carries a row with no usable unique_handle.",
+    specRef: "config-validation.md \xA75.2 (BL-0168)"
+  },
+  // BL-0168: the payload→placement parent lookup (`placementPayloads`) matches
+  // a standalone `placement_payloads` row on `row.id === payload.placement_id`
+  // only. A miss leaves `category` undefined, `categoryBucket` falls through to
+  // 99, and VAL-PLC-06's Access-Gate/Fixed cap check silently never runs for
+  // that payload. `warning`, never blocking, same rationale as above.
+  "VAL-PLC-06-SKIPPED": {
+    id: "VAL-PLC-06-SKIPPED",
+    severity: "warning",
+    message: "VAL-PLC-06 (ignored cap/cooldown settings) could not run: this payload's placement_id matches no configured placement.",
+    specRef: "config-validation.md \xA75.2 (BL-0168)"
   }
 };
 function getCatalogEntry(id) {
@@ -167,10 +228,17 @@ var SEMANTIC_RULE_CODES = [
   "VAL-PLN-07",
   "VAL-PLC-05",
   "VAL-PLC-06",
+  "VAL-PLC-06-SKIPPED",
   "VAL-PLC-07",
+  "VAL-PLC-07-SKIPPED",
+  "VAL-PLC-08",
+  "VAL-PLC-09",
+  "VAL-PLN-08",
   "VAL-TRL-04",
+  "VAL-TRL-05",
   "VAL-SEG-01",
-  "VAL-EXP-01"
+  "VAL-EXP-01",
+  "VAL-ENT-01"
 ];
 function runSemanticRules(graph, opts = {}) {
   return [
@@ -181,28 +249,285 @@ function runSemanticRules(graph, opts = {}) {
     ...checkPlacementAuthoring(graph),
     ...checkTrialRuleWidestAudience(graph),
     ...checkSegmentExperimentRefs(graph),
-    ...checkExperimentMetricRefs(graph, opts.knownMetricIds)
+    ...checkExperimentMetricRefs(graph, opts.knownMetricIds),
+    ...checkDanglingReferences(graph)
   ];
+}
+function referenceNamespace(graph, table, handleField) {
+  const rows = graph[table];
+  if (!rows) return void 0;
+  const known = /* @__PURE__ */ new Set();
+  for (const row of rows) {
+    const handle = row[handleField];
+    if (typeof handle !== "string" || !handle) return void 0;
+    known.add(handle);
+  }
+  return known;
+}
+function knownHandlesHint(known, label) {
+  if (known.size === 0) return "";
+  const sorted = [...known].sort();
+  const shown = sorted.slice(0, 8);
+  const rest = sorted.length > shown.length ? `, \u2026 (${sorted.length} total)` : "";
+  return ` Declared ${label}: ${shown.map((h) => `'${h}'`).join(", ")}${rest}.`;
+}
+function firstStringField(row, fields) {
+  for (const field of fields) {
+    const value = row[field];
+    if (typeof value === "string" && value.length > 0) return { field, value };
+  }
+  return void 0;
+}
+function checkDanglingReferences(graph) {
+  return [
+    ...checkTriggerEntitlementRefs(graph),
+    ...checkTrialPlanRefs(graph),
+    ...checkEntitlementRuleTargetRefs(graph),
+    ...checkEntitlementRuleEntitlementRefs(graph),
+    ...checkPayloadSegmentChipRefs(graph)
+  ];
+}
+function checkTriggerEntitlementRefs(graph) {
+  const known = referenceNamespace(graph, "entitlements", "unique_handle");
+  if (!known) return [];
+  const findings = [];
+  for (const [index, placement] of (graph.placements ?? []).entries()) {
+    if (!isRecord(placement.trigger)) continue;
+    const ref = firstStringField(placement.trigger, ["entitlement_handle", "entitlement_id"]);
+    if (!ref || known.has(ref.value)) continue;
+    const id = String(placement.handle ?? placement.id ?? "");
+    findings.push(
+      finding(
+        "VAL-PLC-08",
+        {
+          object_type: "placement",
+          object_id: id,
+          field: `trigger.${ref.field}`,
+          path: ["placements", index, "trigger", ref.field],
+          studio: "placements"
+        },
+        {
+          message: `Placement '${id}' triggers on entitlement '${ref.value}', which no entitlement declares.`,
+          detail: "A trigger's entitlement reference must be an entitlement's unique_handle, not its config id. A reference that matches nothing never arms the trigger, so the placement looks configured and can never show." + knownHandlesHint(known, "entitlement handles")
+        }
+      )
+    );
+  }
+  return findings;
+}
+var TRIAL_PLAN_FIELDS = ["plan_id", "convert_to_plan_id", "fallback_plan_id", "premium_plan_id"];
+function checkTrialPlanRefs(graph) {
+  const known = referenceNamespace(graph, "plans", "unique_handle");
+  if (!known) return [];
+  const findings = [];
+  for (const table of ["free_trial_rules", "reverse_trial_rules"]) {
+    const objectType = table === "free_trial_rules" ? "free_trial_rule" : "reverse_trial_rule";
+    for (const [index, rule] of (graph[table] ?? []).entries()) {
+      const id = String(rule.handle ?? rule.id ?? "");
+      for (const field of TRIAL_PLAN_FIELDS) {
+        const value = rule[field];
+        if (typeof value !== "string" || value.length === 0 || known.has(value)) continue;
+        findings.push(
+          finding(
+            "VAL-TRL-05",
+            {
+              object_type: objectType,
+              object_id: id,
+              field,
+              path: [table, index, field],
+              studio: "trials"
+            },
+            {
+              message: `Trial rule '${id || "unnamed"}' references plan '${value}' in ${field}, which no plan declares.`,
+              detail: "Trial plan references must be a plan's unique_handle, not its config id. A reference that matches nothing makes the rule grant or convert nothing, and the trial silently never runs." + knownHandlesHint(known, "plan handles")
+            }
+          )
+        );
+      }
+    }
+  }
+  return findings;
+}
+var TARGET_KIND_TABLES = {
+  plan: { table: "plans", handleField: "unique_handle", label: "plan" },
+  addon: { table: "addons", handleField: "unique_handle", label: "add-on" },
+  plan_variation: { table: "plan_variations", handleField: "handle", label: "plan variation" },
+  addon_variation: { table: "addon_variations", handleField: "handle", label: "add-on variation" }
+};
+function checkEntitlementRuleTargetRefs(graph) {
+  const namespaces = /* @__PURE__ */ new Map();
+  const namespaceFor = (kind) => {
+    const spec = TARGET_KIND_TABLES[kind];
+    if (!spec) return void 0;
+    if (!namespaces.has(kind)) namespaces.set(kind, referenceNamespace(graph, spec.table, spec.handleField));
+    return namespaces.get(kind);
+  };
+  const findings = [];
+  for (const [index, rule] of (graph.entitlement_rules ?? []).entries()) {
+    const id = String(rule.handle ?? rule.id ?? "");
+    const refs = [];
+    if (Array.isArray(rule.targets)) {
+      for (const [targetIndex, target] of rule.targets.entries()) {
+        if (!isRecord(target) || typeof target.id !== "string" || target.id.length === 0) continue;
+        const kind = typeof target.kind === "string" ? target.kind : "plan";
+        refs.push({
+          kind,
+          value: target.id,
+          field: `targets.${targetIndex}.id`,
+          path: ["entitlement_rules", index, "targets", targetIndex, "id"]
+        });
+      }
+    } else if (Array.isArray(rule.plan_ids)) {
+      for (const [planIndex, planRef] of rule.plan_ids.entries()) {
+        if (typeof planRef !== "string" || planRef.length === 0) continue;
+        refs.push({
+          kind: "plan",
+          value: planRef,
+          field: `plan_ids.${planIndex}`,
+          path: ["entitlement_rules", index, "plan_ids", planIndex]
+        });
+      }
+    } else if (typeof rule.plan_id === "string" && rule.plan_id.length > 0) {
+      refs.push({
+        kind: "plan",
+        value: rule.plan_id,
+        field: "plan_id",
+        path: ["entitlement_rules", index, "plan_id"]
+      });
+    }
+    for (const ref of refs) {
+      const known = namespaceFor(ref.kind);
+      if (!known || known.has(ref.value)) continue;
+      const label = TARGET_KIND_TABLES[ref.kind]?.label ?? ref.kind;
+      findings.push(
+        finding(
+          "VAL-PLN-08",
+          {
+            object_type: "entitlement_rule",
+            object_id: id,
+            field: ref.field,
+            path: ref.path,
+            studio: "plans-entitlements"
+          },
+          {
+            message: `Entitlement rule '${id || "unnamed"}' targets ${label} '${ref.value}', which no ${label} declares.`,
+            detail: "Rule targets must be the target's unique_handle, not its config id. A target that matches nothing makes the rule apply to no one, so the entitlement it grants is silently absent for every user." + knownHandlesHint(known, `${label} handles`)
+          }
+        )
+      );
+    }
+  }
+  return findings;
+}
+function checkEntitlementRuleEntitlementRefs(graph) {
+  const known = referenceNamespace(graph, "entitlements", "unique_handle");
+  if (!known) return [];
+  const findings = [];
+  for (const [index, rule] of (graph.entitlement_rules ?? []).entries()) {
+    const value = rule.entitlement_id;
+    if (typeof value !== "string" || value.length === 0 || known.has(value)) continue;
+    const id = String(rule.handle ?? rule.id ?? "");
+    findings.push(
+      finding(
+        "VAL-ENT-01",
+        {
+          object_type: "entitlement_rule",
+          object_id: id,
+          field: "entitlement_id",
+          path: ["entitlement_rules", index, "entitlement_id"],
+          studio: "plans-entitlements"
+        },
+        {
+          message: `Entitlement rule '${id || "unnamed"}' links entitlement '${value}', which no entitlement declares.`,
+          detail: "A rule's entitlement reference must be an entitlement's unique_handle, not its config id. A reference that matches nothing means the entitlement it grants or limits is silently absent for every user." + knownHandlesHint(known, "entitlement handles")
+        }
+      )
+    );
+  }
+  return findings;
+}
+function payloadSegmentChips(payload, path) {
+  const target = isRecord(payload.target) ? payload.target : void 0;
+  if (target && Array.isArray(target.segment_chips)) {
+    return { fields: ["target", "segment_chips"], path: [...path, "target", "segment_chips"], chips: target.segment_chips };
+  }
+  if (Array.isArray(payload.target_segment_chips)) {
+    return { fields: ["target_segment_chips"], path: [...path, "target_segment_chips"], chips: payload.target_segment_chips };
+  }
+  return void 0;
+}
+function checkPayloadSegmentChipRefs(graph) {
+  const segments = referenceNamespace(graph, "segments", "handle");
+  const plans = referenceNamespace(graph, "plans", "unique_handle");
+  if (!segments || !plans) return [];
+  const findings = [];
+  for (const { payload, path } of placementPayloads(graph)) {
+    const chips = payloadSegmentChips(payload, path);
+    if (!chips) continue;
+    const id = String(payload.payload_id ?? payload.id ?? "");
+    for (const [chipIndex, raw] of chips.chips.entries()) {
+      if (typeof raw !== "string") continue;
+      const value = raw.trim();
+      if (!value || segments.has(value) || plans.has(value)) continue;
+      findings.push(
+        finding(
+          "VAL-PLC-09",
+          {
+            object_type: "placement_payload",
+            object_id: id,
+            field: `${chips.fields.join(".")}.${chipIndex}`,
+            path: [...chips.path, chipIndex],
+            studio: "placements"
+          },
+          {
+            message: `Payload '${id}' targets segment chip '${value}', which matches no segment or plan.`,
+            detail: "A chip resolves against segment handles first, then plan handles \u2014 never a config id or a display name. An unresolved chip compiles to a literal no user carries, so the payload can never be shown." + knownHandlesHint(segments, "segment handles")
+          }
+        )
+      );
+    }
+  }
+  return findings;
 }
 function* placementPayloads(graph) {
   const placements = graph.placements ?? [];
   for (const [index, placement] of placements.entries()) {
     if (!Array.isArray(placement.payloads)) continue;
     for (const [payloadIndex, payload] of placement.payloads.entries()) {
-      if (isRecord(payload)) yield { payload, category: placement.category, path: ["placements", index, "payloads", payloadIndex] };
+      if (isRecord(payload)) yield { payload, category: placement.category, path: ["placements", index, "payloads", payloadIndex], parentFound: true };
     }
   }
   for (const [index, payload] of (graph.placement_payloads ?? []).entries()) {
     const placement = placements.find((row) => typeof row.id === "string" && row.id === payload.placement_id);
-    yield { payload, category: placement?.category, path: ["placement_payloads", index] };
+    yield { payload, category: placement?.category, path: ["placement_payloads", index], parentFound: placement !== void 0 };
   }
 }
 function checkPlacementAuthoring(graph) {
   const findings = [];
-  const plansKnown = Array.isArray(graph.plans) && graph.plans.every((plan) => typeof plan.unique_handle === "string" && plan.unique_handle.length > 0);
-  const planHandles = new Set((graph.plans ?? []).map((plan) => plan.unique_handle));
-  for (const { payload, category, path } of placementPayloads(graph)) {
+  const plans = graph.plans;
+  const plansKnown = Array.isArray(plans) && plans.every((plan) => typeof plan.unique_handle === "string" && plan.unique_handle.length > 0);
+  const planHandles = new Set((plans ?? []).map((plan) => plan.unique_handle));
+  if (Array.isArray(plans) && plans.length > 0 && !plansKnown) {
+    findings.push(finding("VAL-PLC-07-SKIPPED", {
+      object_type: "plan",
+      studio: "placements"
+    }, {
+      detail: "Every plan row needs a non-empty unique_handle for VAL-PLC-07 to run against this Playbook. A DB-shape row that spells the identifier `handle` does not satisfy it."
+    }));
+  }
+  for (const { payload, category, path, parentFound } of placementPayloads(graph)) {
     const id = String(payload.payload_id ?? payload.id ?? "");
+    if (!parentFound) {
+      findings.push(finding("VAL-PLC-06-SKIPPED", {
+        object_type: "placement_payload",
+        object_id: id,
+        field: "placement_id",
+        studio: "placements"
+      }, {
+        message: `Payload '${id}' names a placement_id that matches no configured placement, so VAL-PLC-06's cap/cooldown check could not run for it.`,
+        detail: "Fix placement_id (or add the placement it should reference) to restore the cap check for Access Gate and Fixed placements."
+      }));
+    }
     const bucket = typeof category === "string" ? categoryBucket(category) : 99;
     if (bucket === 0 || bucket === 1) {
       const caps = isRecord(payload.caps) ? payload.caps : {};
@@ -905,6 +1230,7 @@ var CtaActionTypeSchema = z3.enum([
   "snooze",
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var ObjectiveField = HandleField.optional();
 
 // scaffold/src/core/identity.ts
 import { z as z4 } from "zod";
@@ -1123,6 +1449,12 @@ var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).
   // "match all users" (replaces the legacy 'all' sentinel).
   segment_ids: z6.array(z6.string()).default([]).meta(Unrestricted2),
   visibility: RuleVisibilitySchema.default("public").meta(Unrestricted2),
+  // Business objective this rule monetizes for — the analytics `objective`
+  // slice, which resolves `rule_handle → objective` through a configuration
+  // snapshot (BL-0065 / worksheet G4). Config-only, and deliberately NOT part
+  // of the minted identity below: an objective relabel is a behaviour-only
+  // edit that coalesces onto the same rule, not a new rule scope.
+  objective: ObjectiveField.meta(Unrestricted2),
   // Usage-Limit "measured over" window, rule-level (plan #55). Rate Limit
   // keeps its entitlement-level `period_scope`; this is the per-rule one.
   period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted2),
