@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.339
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.343
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -5250,7 +5250,7 @@ var FIXTURE_ANALYTICS_CATALOG = {
     { id: "retention.active_days_rate", label: "Active days rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "user", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
     { id: "decision.eligible_accounts", label: "Eligible accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
     { id: "decision.reached_accounts", label: "Reached accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
-    { id: "placement.presented_accounts", label: "Presented accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
+    { id: "placement.presented_accounts", label: "Presented accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "BL-0195: reconsidered and left OFF growth_funnel_signals. web treatment-interaction-rows.ts stamps account_id on placement_interaction, so the per-rule aggregate CAN compute uniqExact(account_id) \u2014 but this metric belongs to monetization.entitlement_decision, not placement.presentation, and only placement.presentation gets the decision.rule execution route (bindings.ts PLACEMENT_RULE_METRICS/isPlacementRuleCut). Grounded data with no route to travel is not honest carriage; see placement.clicks for the metric that IS on that route." } },
     { id: "conversion.paid_accounts", label: "Converted accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
     {
       id: "conversion.rate",
@@ -5300,7 +5300,7 @@ var FIXTURE_ANALYTICS_CATALOG = {
     { id: "revenue.mrr", label: "MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "No contractual-stock source exists. The only revenue projection shipped today is the invoice-paid proxy now served as revenue.invoice_paid_amount_legacy, which is a cash-adjacent flow and not a run rate (revenue-accounting \xA76). MRR needs the normalized recurring stock carried forward on no-event days (plan 252 S1, AC-16, TASK-29/34/36)." } },
     { id: "revenue.net_new_mrr", label: "Net new MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "daily_revenue_rollup computes net_new_revenue_cents with the SAME expression as mrr_cents, so this served the invoice-paid proxy twice rather than a movement. A movement is the classified net change in contractual stock (plan 252 policy A-4, AC-17); until that exists there is nothing honest to serve." } },
     { id: "placement.impressions", label: "Impressions", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
-    { id: "placement.clicks", label: "Clicks", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
+    { id: "placement.clicks", label: "Clicks", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "BL-0195: the placement per-rule route (growth_funnel_signals, decision.rule) derives this from the SAME countIf(interaction_type = 'cta_clicked') already computed as placement.ctr's numerator over placement_interaction \u2014 the pipe just also emits it under its own metric name instead of only inside the ratio." } },
     { id: "placement.conversions", label: "Conversions", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
     { id: "conversion.paid_count", label: "Paid conversions", value_type: "number", when_to_use: "Billing-fact conversion events (subscription created), not distinct accounts.", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_revenue_timeseries"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "aggregates_daily_revenue"], note: "Counts customer.subscription.created rows, not distinct customers." } },
     { id: "placement.ctr", label: "Click-through rate", value_type: "percent", format: { type: "percent", decimals: 1 }, statistical_type: "ratio", direction: "increase", preferred_analysis_unit: "account", numerator_metric: "placement.clicks", denominator_metric: "placement.impressions", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
@@ -7122,6 +7122,30 @@ var TreatmentInteractionInputSchema = z24.object({
   message_block_id: z24.string().min(1).optional().meta(Unrestricted20),
   experiment_id: z24.string().min(1).optional().meta(Unrestricted20),
   variant_key: z24.string().min(1).optional().meta(Unrestricted20),
+  /**
+   * The `unique_handle` of the rule whose treatment was presented (BL-0200).
+   *
+   * #391 put `rule_handle` on the clickstream `placement_interaction` EVENT
+   * and deliberately kept it off this wire, so the BASE
+   * `placement_exposure_attribution` row this contract writes had no rule and
+   * `treatment-interaction-rows.ts` hard-coded `rule_handle: null`. Only an
+   * exposure that an attributed conversion later enriched carried one, which
+   * is why the attribution plane's rule cut could serve conversion-grain
+   * metrics and had to refuse presentation-grain ones BY NAME: computed over
+   * the attributed subset, `presented_accounts` would report the accounts
+   * that converted and `conversion.rate` ~100%.
+   *
+   * Carrying it here makes the rule a property of the EXPOSURE, known at
+   * presentation time by the only party that holds the resolved
+   * `PlacementOutput`, so those cuts become honestly servable.
+   *
+   * Optional AND nullable, the same contract #389/#391 chose and for the same
+   * reason: a required field would reject every already-deployed SDK's
+   * interactions at the ingest boundary. Absent = a pre-BL-0200 producer or
+   * an interaction with no decision in scope, `null` = no rule matched, a
+   * string = the winning rule.
+   */
+  rule_handle: z24.string().min(1).nullable().optional().meta(Unrestricted20),
   /**
    * Caller-declared test traffic (plan 164) — mirrors `TrackEvent.test` so
    * the presentation/interaction feed (the dashboard denominators) carries
