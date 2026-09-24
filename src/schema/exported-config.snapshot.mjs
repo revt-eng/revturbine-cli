@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.325
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.339
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -430,6 +430,7 @@ var CtaActionTypeSchema = z2.enum([
   "snooze",
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var ObjectiveField = HandleField.optional();
 
 // scaffold/src/core/facets.ts
 var SchemaContext = {
@@ -1217,6 +1218,12 @@ var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).
   // "match all users" (replaces the legacy 'all' sentinel).
   segment_ids: z6.array(z6.string()).default([]).meta(Unrestricted3),
   visibility: RuleVisibilitySchema.default("public").meta(Unrestricted3),
+  // Business objective this rule monetizes for — the analytics `objective`
+  // slice, which resolves `rule_handle → objective` through a configuration
+  // snapshot (BL-0065 / worksheet G4). Config-only, and deliberately NOT part
+  // of the minted identity below: an objective relabel is a behaviour-only
+  // edit that coalesces onto the same rule, not a new rule scope.
+  objective: ObjectiveField.meta(Unrestricted3),
   // Usage-Limit "measured over" window, rule-level (plan #55). Rate Limit
   // keeps its entitlement-level `period_scope`; this is the per-rule one.
   period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted3),
@@ -1573,6 +1580,13 @@ var PlacementSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(
   handle: HandleField.meta(Unrestricted4),
   description: DescriptionField.meta(Unrestricted4),
   category: PlacementCategorySchema.meta(Unrestricted4),
+  // Business objective this placement monetizes for — the analytics
+  // `objective` slice, which resolves `placement_id → objective` through a
+  // configuration snapshot (BL-0065 / worksheet G4). Config-only: nothing in
+  // the runtime decision reads it, so it is absent from the portable
+  // RevTurbineConfig projection and the compiled payload. Free handle; see
+  // `ObjectiveField` for why the value set is not enumerated here.
+  objective: ObjectiveField.meta(Unrestricted4),
   drag_order_in_category: z7.number().int().default(0).meta(Unrestricted4),
   // Trigger config (populated based on category)
   surface_slot_id: z7.string().optional().meta(Unrestricted4),
@@ -3876,7 +3890,29 @@ var placementLifecycleBase = {
   surface_slot_id: nstr(),
   payload_id: nstr(),
   decision_id: nstr(),
-  decision_source: nstr()
+  decision_source: nstr(),
+  /**
+   * The `unique_handle` of the entitlement rule / placement rule whose verdict
+   * this event records; `null` when no rule matched (BL-0062, worksheet gap
+   * G3). On the placement lane this is the winning placement entry's handle —
+   * `PlacementOutput.rule_id`, already selected by the local resolver and
+   * discarded at emit until now.
+   *
+   * Optional AND nullable, unlike the required-but-nullable siblings around
+   * it. Every SDK already in the field emits these payloads without the key,
+   * and `quarantineVerdict` (revturbine-web `src/lib/events/ingest-validation.ts`)
+   * holds platform event names to this contract at the ingest boundary — a
+   * required field would quarantine live telemetry from every deployed SDK.
+   * So: absent = a pre-BL-0062 producer, `null` = no rule matched, string =
+   * the winning rule.
+   *
+   * Why it rides the whole lifecycle base rather than `placement_resolved`
+   * alone: attribution reads the exposure and outcome facts and stamps the
+   * winning touch's keys onto the movement — "through it rule `usage_70pct`"
+   * in the metric-primitives worked example (§3), anchored `touch_time` per
+   * its R8. An exposure without the rule key cannot carry that.
+   */
+  rule_handle: onstr()
 };
 var PlacementLifecyclePayload = z18.looseObject({ ...placementLifecycleBase });
 var PlacementExposedPayload = z18.looseObject({
@@ -3901,7 +3937,29 @@ var PlacementInteractionPayload = z18.looseObject({
   // explicit null when the caller supplied no timestamp (plan 228 TASK-4 —
   // the typed emit surface surfaced the mismatch; the wire is the truth).
   interaction_at: onstr(),
-  remind_after_seconds: z18.number().optional().meta(Unrestricted15)
+  remind_after_seconds: z18.number().optional().meta(Unrestricted15),
+  /**
+   * The `unique_handle` of the placement rule whose treatment the user acted
+   * on — `PlacementOutput.rule_id`, the same value the lifecycle lane stamps
+   * (BL-0182, follow-up to BL-0062 / #389).
+   *
+   * `placement_interaction` does not share `placementLifecycleBase` — its
+   * placement keys are all optional, because a bare `trackInteraction` caller
+   * may supply none of them — so #389's single edit to that base reached the
+   * four lifecycle, five slot and three gate events and left the interaction
+   * lane without a rule key. The effect was a funnel sliceable by rule at
+   * exposure and at outcome but NOT at the click in between, which is the
+   * step the CTR and click-through primitives are computed over.
+   *
+   * Same contract as #389 and for the same reason: optional AND nullable.
+   * revturbine-web's `quarantineVerdict`
+   * (`src/lib/events/ingest-validation.ts`) holds platform event names to
+   * these contracts at the ingest boundary, so a required field would
+   * quarantine live interaction telemetry from every SDK already deployed.
+   * Absent = a pre-BL-0182 producer or an interaction with no decision in
+   * scope, `null` = no rule matched, string = the winning rule.
+   */
+  rule_handle: onstr()
 });
 var GateEvaluatedPayloadSchema = z18.looseObject({
   entitlement_handle: str(),
@@ -3910,13 +3968,38 @@ var GateEvaluatedPayloadSchema = z18.looseObject({
   reason: nstr(),
   limit: nnum(),
   used: nnum(),
-  remaining: nnum()
+  remaining: nnum(),
+  /**
+   * The `unique_handle` of the entitlement rule whose verdict this event
+   * records; `null` when no rule matched (BL-0062, worksheet gap G3).
+   *
+   * This is the rule the §2.6.5 most-permissive selection picked — the one
+   * whose `limit` / `enabled` / `allowance_value` produced the `outcome`
+   * beside it. Without it the event says WHAT was decided and never WHICH
+   * configured rule decided it, which is the rule slice, and the
+   * `rule_handle → objective` hop the objective slice needs (BL-0065).
+   *
+   * Optional as well as nullable — see `placementLifecycleBase.rule_handle`
+   * for why a required field would quarantine every deployed SDK's gate
+   * telemetry at the ingest boundary.
+   */
+  rule_handle: onstr()
 }).meta(meta4("GateEvaluatedPayload"));
 var GateAttemptedPayload = z18.looseObject({ entitlement_handle: str() });
-var GateAllowedPayload = z18.looseObject({ entitlement_handle: str() });
+var GateAllowedPayload = z18.looseObject({
+  entitlement_handle: str(),
+  /** The rule that granted. See `GateEvaluatedPayloadSchema.rule_handle`. */
+  rule_handle: onstr()
+});
 var GateDeniedPayload = z18.looseObject({
   entitlement_handle: str(),
-  reason: onstr()
+  reason: onstr(),
+  /**
+   * The rule that denied — `null` on the two identity-shaped denials
+   * (`no_plan_identity`, `no_matching_entitlement_rule`), where no rule
+   * matched at all. See `GateEvaluatedPayloadSchema.rule_handle`.
+   */
+  rule_handle: onstr()
 });
 var slotContextBase = {
   surface_slot_id: nstr(),
@@ -3927,7 +4010,18 @@ var slotContextBase = {
   category: nstr(),
   decision_source: nstr(),
   reason_codes: z18.array(z18.string()).meta(Unrestricted15),
-  decision_id: nstr()
+  decision_id: nstr(),
+  /**
+   * The placement rule that won this slot — `PlacementOutput.rule_id`, in
+   * scope in `slotContext()` and dropped there until now (BL-0062, gap G3).
+   *
+   * Slot events are a verdict lane, not merely a render log: `slot_filled`
+   * says a rule won, `slot_suppressed` / `slot_empty` say none did. Carrying
+   * the handle is what lets "which rule keeps losing its slot" be asked at
+   * all — `reason_codes` beside it names WHY, never WHOSE. `null` on the
+   * terminal-empty events, absent on a pre-BL-0062 producer.
+   */
+  rule_handle: onstr()
 };
 var SlotLifecyclePayload = z18.looseObject({ ...slotContextBase });
 var SlotErrorPayload = z18.looseObject({
@@ -5370,9 +5464,15 @@ var FIXTURE_ANALYTICS_CATALOG = {
       analytical_units: ["account"],
       primary_time_dimension: "time.occurred_at",
       historical_mode: "as_of_event",
-      dimensions: ["time.occurred_at", "entitlement.entitlement", "commercial.plan", "targeting.segment"],
+      dimensions: ["time.occurred_at", "entitlement.entitlement", "decision.rule", "commercial.plan", "targeting.segment"],
       dimension_groundings: {
         "entitlement.entitlement": { kind: "stamped", source: "payload:entitlement_handle" },
+        // BL-0062 (gap G3): every metric on this concept reads `gate_evaluated`,
+        // which now names the rule whose limit/enablement produced the outcome.
+        // "Which RULE is denying people" was unanswerable here while only the
+        // entitlement was stamped — an entitlement with four plan-scoped rules
+        // reported one undifferentiated denial count.
+        "decision.rule": { kind: "stamped", source: "payload:rule_handle", anchor: "fact_time", partitions: true, catalog_status: "bound" },
         "commercial.plan": { kind: "stamped", source: "payload:plan_handle" },
         "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", note: "R-11a stamp; lands with TASK-4" }
       },
@@ -5452,8 +5552,20 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "commercial.billing_period": { kind: "stamped", source: "payload:billing_period" },
         "lifecycle.state": { kind: "config_join", source: "config:activity_tier", note: "plan-180 tier, joined at read" },
         "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", note: "R-11a stamp; lands with TASK-4" },
-        "decision.rule": { kind: "config_join", source: "config:events_decisions", note: "decision-log datasource absent (register gap)" },
-        "decision.entitlement": { kind: "config_join", source: "config:events_decisions", note: "decision-log datasource absent (register gap)" },
+        // BL-0062 (worksheet gap G3): both of these were `config_join` against
+        // a `events_decisions` datasource that does not exist and was never
+        // planned — the "decision-log" shape assumed the decision had to be
+        // reconstructed from configuration because the EVENT recording it
+        // carried no rule identity. Stamping `rule_handle` at emit retires that
+        // assumption: the gate payloads now carry the winning rule themselves,
+        // so the slice is a plain stamped read of the fact row, anchored at the
+        // fact's own time, and the register gap is closed rather than deferred.
+        // `catalog_status: 'bound'` is deliberately not 'validated'/'tested' —
+        // the definition is bound to a real source, but the extraction in
+        // revturbine-web's `growth_funnel_signals` pipe and its conformance
+        // tests are the separate execution-layer step.
+        "decision.rule": { kind: "stamped", source: "payload:rule_handle", anchor: "fact_time", partitions: true, catalog_status: "bound", note: "BL-0062: the winning entitlement/placement rule, stamped at emit" },
+        "decision.entitlement": { kind: "stamped", source: "payload:entitlement_handle", anchor: "fact_time", partitions: true, catalog_status: "bound", note: "BL-0062: the gate payloads always carried this; the config_join was a consequence of the missing rule key, not of a missing entitlement key" },
         "release.playbook_version": { kind: "stamped", source: "column:playbook_version" },
         "experiment.experiment": { kind: "stamped", source: "column:experiment_id" },
         "experiment.variant": { kind: "stamped", source: "column:variant_key" }
@@ -5517,9 +5629,25 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "targeting.segment",
         "experiment.experiment",
         "experiment.variant",
-        "release.playbook_version"
+        "release.playbook_version",
+        // BL-0182: the placement lane's own rule slice. #389 stamped
+        // `rule_handle` on the four lifecycle, five slot and three gate
+        // events; BL-0182 completes the funnel by adding it to
+        // `placement_interaction`, which is the click between exposure and
+        // outcome and the only one of the three that did not share
+        // `placementLifecycleBase`. With all three stamped, "which placement
+        // RULE converts" is a read of the facts rather than a reconstruction.
+        "decision.rule"
       ],
       dimension_groundings: {
+        // Stamped on the payload, not a column: the placement events carry the
+        // winning `PlacementOutput.rule_id`, and `events_clickstream` holds
+        // payload fields inside its `properties` JSON, so no datasource
+        // migration stands between the stamp and the slice. `catalog_status:
+        // 'bound'` and not 'validated' for the same reason #389 gave — the
+        // definition names a real source; the extraction in revturbine-web's
+        // `growth_funnel_signals` pipe is the separate execution-layer step.
+        "decision.rule": { kind: "stamped", source: "payload:rule_handle", anchor: "fact_time", partitions: true, catalog_status: "bound", note: "BL-0182: the winning placement rule, stamped on exposure, interaction and outcome" },
         "commercial.plan": { kind: "stamped", source: "column:converted_plan_handle", note: "via placement_exposure_attribution (TASK-10)" },
         "targeting.segment": { kind: "stamped", source: "column:segment_ids", note: "as-of exposure, via placement_exposure_attribution (TASK-10)" },
         "placement.placement": { kind: "stamped", source: "column:placement_id" },
@@ -10687,6 +10815,14 @@ var EntitlementCheckResultSchema = z34.object({
   used: z34.number().optional().meta(Unrestricted28),
   /** `max(0, limit - used)`. */
   remaining: z34.number().optional().meta(Unrestricted28),
+  /**
+   * The `unique_handle` of the entitlement rule this verdict came from —
+   * the winner of the §2.6.5 most-permissive selection (BL-0062, gap G3).
+   * Absent when no rule produced the verdict (unknown handle, no plan
+   * identity, default policy). This is the value an SDK stamps as the
+   * gate event's `rule_handle`, grounding the analytics rule slice.
+   */
+  rule_handle: z34.string().optional().meta(Unrestricted28),
   /** Upsell placement to render when entitlement is denied. */
   placement: PlacementDecisionOutputSchema.optional().meta(Unrestricted28)
 }).meta({ id: "EntitlementCheckResult", "x-revturbine-schema-persistence": Transient27, "x-revturbine-schema-exposure": External13 });
@@ -11713,6 +11849,7 @@ export {
   NON_RETRYABLE_EVIDENCE_REASONS,
   NameField,
   NullableDatetimeField,
+  ObjectiveField,
   ObservationMaturitySchema,
   OnboardingChecklistSchema,
   OnboardingStateSchema,
@@ -11754,8 +11891,12 @@ export {
   PlaybookBodySchema,
   PlaybookHeaderSchema,
   PlaybookObjectSchema,
+  RevTurbineConfigPlacementItemSchema as PlaybookPlacementItemSchema,
   PlaybookSchema,
+  RevTurbineConfigSegmentsItemPredicatesItemSchema as PlaybookSegmentsItemPredicatesItemSchema,
+  RevTurbineConfigSegmentsItemSchema as PlaybookSegmentsItemSchema,
   PlaybookStrictSchema,
+  RevTurbineConfigUiPathActionTypeSchema as PlaybookUiPathActionTypeSchema,
   PlaybookVersionDeployResultSchema,
   PlaybookVersionDiffSchema,
   PlaybookVersionEntrySummarySchema,
