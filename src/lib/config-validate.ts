@@ -17,6 +17,15 @@ export interface ValidationFinding {
   code: string;
   severity: Severity | string;
   message: string;
+  /**
+   * The catalog's remedy text, when the rule carries one. The `message` names
+   * what is wrong; `detail` says what to do about it, and for several rules that
+   * is the only place the fix appears — the dangling-reference family (BL-0124)
+   * puts the declared handles a stale reference could have meant here, so
+   * printing `message` alone leaves the author with "no plan declares it" and
+   * nowhere to go.
+   */
+  detail?: string;
   targetRef?: Record<string, unknown>;
 }
 
@@ -63,12 +72,27 @@ export function hasBlockingFindings(
 /**
  * One human-readable line per finding — blocking findings marked `✗`, advisory
  * `•`. Always carries the finding's `message` verbatim (the same string the
- * studios show). Returns a clean-bill line for an empty set.
+ * studios show), and indents the rule's `detail` beneath it when there is one.
+ *
+ * `detail` used to be dropped. That was fine while it only restated the message,
+ * and stopped being fine with the dangling-reference rules (BL-0124), whose
+ * remedy — the declared handles a stale reference could have meant — lives only
+ * there. A CLI user saw "triggers on entitlement 'ent_neo1_minutes', which no
+ * entitlement declares" with no hint that the fix is to spell it
+ * `neo1_minutes`. Blocking findings only: an advisory list is long and its
+ * details are rarely the reason you ran the command.
+ *
+ * Returns a clean-bill line for an empty set.
  */
 export function formatFindings(findings: ReadonlyArray<ValidationFinding>): string {
   if (findings.length === 0) return 'No validation findings.';
   return findings
-    .map((f) => `${isBlockingFinding(f) ? '✗' : '•'} [${f.severity}] ${f.code}: ${f.message}`)
+    .map((f) => {
+      const blocking = isBlockingFinding(f);
+      const head = `${blocking ? '✗' : '•'} [${f.severity}] ${f.code}: ${f.message}`;
+      const detail = f.detail?.trim();
+      return blocking && detail ? `${head}\n    ${detail}` : head;
+    })
     .join('\n');
 }
 

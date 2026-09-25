@@ -80,6 +80,34 @@ describe('formatFindings', () => {
   it('reports a clean bill for no findings', () => {
     expect(formatFindings([])).toBe('No validation findings.');
   });
+
+  /**
+   * BL-0124: the dangling-reference rules put the remedy — the declared handles
+   * a stale reference could have meant — in `detail` and nowhere else, so
+   * dropping it left a CLI user with "no entitlement declares it" and no hint
+   * that the fix is to use the handle instead of the config id.
+   */
+  it('indents a blocking finding\'s detail beneath its message', () => {
+    const out = formatFindings([
+      finding('error_launch', {
+        code: 'VAL-PLC-08',
+        message: "Placement 'pl_gate_mp4' triggers on entitlement 'ent_neo1_minutes', which no entitlement declares.",
+        detail: "A trigger's entitlement reference must be an entitlement's unique_handle, not its config id. Declared entitlement handles: 'mp4_download', 'neo1_minutes'.",
+      }),
+    ]);
+    expect(out).toContain('✗ [error_launch] VAL-PLC-08:');
+    expect(out).toContain("\n    A trigger's entitlement reference must be");
+    expect(out).toContain("Declared entitlement handles: 'mp4_download', 'neo1_minutes'.");
+  });
+
+  it('omits detail on an advisory finding, and copes with a finding that has none', () => {
+    const out = formatFindings([
+      finding('warning', { code: 'VAL-PLN-07', message: 'No enforcement set.', detail: 'Set it explicitly.' }),
+      finding('error_draft', { message: 'Structurally invalid.' }),
+    ]);
+    expect(out).not.toContain('Set it explicitly.');
+    expect(out).toBe('• [warning] VAL-PLN-07: No enforcement set.\n✗ [error_draft] VAL-PLN-01: Structurally invalid.');
+  });
 });
 
 describe('fetchValidation against a stubbed /validate (AC-8)', () => {
