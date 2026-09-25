@@ -20,6 +20,8 @@ jobs:
           npm install --global "npm@$NPM_VERSION"
           npm --version
       - run: npm ci
+      - name: Line-ending check (BL-0216)
+        run: node scripts/check-line-endings.mjs --all
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
