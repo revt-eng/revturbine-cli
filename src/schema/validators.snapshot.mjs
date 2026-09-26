@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.362
+// Vendored validation engine bundled from @revt-eng/schema@0.1.367
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -163,6 +163,19 @@ var CATALOG = {
     severity: "error_launch",
     message: "This payload targets a segment chip that matches no segment or plan.",
     specRef: "config-validation.md \xA75.2 (BL-0124)"
+  },
+  // standalone placement_payload → placement (BL-0180, ruling D-31): the same
+  // dangling-reference family and handle-only contract as the rules above. A
+  // standalone `placement_payloads` row's `placement_id` that resolves to no
+  // placement is a permanently unreachable payload, the same silent failure
+  // this family exists to name — previously only surfaced as the coverage
+  // warning `VAL-PLC-06-SKIPPED` (BL-0168), which stays for its own narrower
+  // purpose (naming when VAL-PLC-06's cap check could not run).
+  "VAL-PLC-10": {
+    id: "VAL-PLC-10",
+    severity: "error_launch",
+    message: "This payload names a placement that does not exist.",
+    specRef: "config-validation.md \xA75.9 (BL-0180, D-31)"
   },
   "VAL-PLN-08": {
     id: "VAL-PLN-08",
@@ -430,6 +443,7 @@ var SEMANTIC_RULE_CODES = [
   "VAL-PLC-07-SKIPPED",
   "VAL-PLC-08",
   "VAL-PLC-09",
+  "VAL-PLC-10",
   "VAL-PLN-08",
   "VAL-TRL-04",
   "VAL-TRL-05",
@@ -487,7 +501,8 @@ function checkDanglingReferences(graph) {
     ...checkEntitlementRuleTargetRefs(graph),
     ...checkEntitlementRuleEntitlementRefs(graph),
     ...checkPayloadSegmentChipRefs(graph),
-    ...checkObjectiveRefs(graph)
+    ...checkObjectiveRefs(graph),
+    ...checkStandalonePayloadPlacementRefs(graph)
   ];
 }
 var OBJECTIVE_REFERRERS = [
@@ -722,6 +737,33 @@ function checkPayloadSegmentChipRefs(graph) {
         )
       );
     }
+  }
+  return findings;
+}
+function checkStandalonePayloadPlacementRefs(graph) {
+  const known = referenceNamespace(graph, "placements", "handle");
+  if (!known) return [];
+  const findings = [];
+  for (const [index, payload] of (graph.placement_payloads ?? []).entries()) {
+    const value = payload.placement_id;
+    if (typeof value !== "string" || value.length === 0 || known.has(value)) continue;
+    const id = String(payload.payload_id ?? payload.id ?? "");
+    findings.push(
+      finding(
+        "VAL-PLC-10",
+        {
+          object_type: "placement_payload",
+          object_id: id,
+          field: "placement_id",
+          path: ["placement_payloads", index, "placement_id"],
+          studio: "placements"
+        },
+        {
+          message: `Payload '${id || "unnamed"}' names placement '${value}', which no placement declares.`,
+          detail: "A payload's placement reference must be a placement's handle, not its config id. A reference that matches nothing is a standalone payload no placement ever surfaces \u2014 permanently unreachable." + knownHandlesHint(known, "placement handles")
+        }
+      )
+    );
   }
   return findings;
 }
@@ -1546,7 +1588,6 @@ var CtaActionTypeSchema = z3.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 var ObjectiveField = HandleField.optional();
-var NullableObjectiveField = z3.string().min(1).max(100).nullable().optional();
 
 // scaffold/src/core/identity.ts
 import { z as z4 } from "zod";
@@ -1774,7 +1815,7 @@ var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).
   // Nullable on the persisted entity so an editor can CLEAR the reference
   // (a PATCH merges, so omission keeps the old value); the portable
   // projection stays optional-only and omits it when unset.
-  objective: NullableObjectiveField.meta(Unrestricted2),
+  objective: ObjectiveField.nullable().meta(Unrestricted2),
   // Usage-Limit "measured over" window, rule-level (plan #55). Rate Limit
   // keeps its entitlement-level `period_scope`; this is the per-rule one.
   period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted2),
