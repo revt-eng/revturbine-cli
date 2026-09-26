@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.343
+// Vendored validation engine bundled from @revt-eng/schema@0.1.362
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -74,12 +74,34 @@ var CATALOG = {
     message: "This limit rule sets no enforcement \u2014 at the cap it blocks by default. Set enforcement explicitly (hard_block, block_with_upsell, degrade, allow_overage) if that isn't the intent.",
     specRef: "config-validation.md \xA75.8 (promoted \u2014 plan 179 Q-6)"
   },
+  // handle uniqueness (BL-0325; spec §5.1 VAL-UNI-01). A handle duplicates
+  // another object's handle within the same handle-bearing collection — the
+  // structural counterpart to the DB's partial unique indexes (migration
+  // 0050) and Compile+Activate's own handle collapse. `error_draft`: per §2
+  // this is a malformed/structurally-invalid value ("a duplicate handle"),
+  // so it must never enter the draft at all, on any surface — including an
+  // external config at ingestion.
+  "VAL-UNI-01": {
+    id: "VAL-UNI-01",
+    severity: "error_draft",
+    message: "This handle is already in use.",
+    specRef: "config-validation.md \xA75.1 (VAL-UNI-01)"
+  },
   // segment → experiment reference (plan 183). Handle, not id.
   "VAL-SEG-01": {
     id: "VAL-SEG-01",
     severity: "warning",
     message: "This segment enrols users into an experiment that does not exist.",
     specRef: "config-validation.md \xA75.3 (plan 183)"
+  },
+  // reserved built-in segment handle prefix (plan 279 TASK-2). Built-in
+  // `rt.<dimension>.<value>` definitions are generated at export; an authored
+  // one collides with or impersonates a built-in.
+  "VAL-SEG-02": {
+    id: "VAL-SEG-02",
+    severity: "error_launch",
+    message: "This segment's handle starts with 'rt.', which is reserved for built-in segments.",
+    specRef: "config-validation.md \xA75.4; targeting-studio-ui.md \xA74.1 (plan 279)"
   },
   // experiment metric → Semantic Catalog reference (plan 199). The identifier
   // is structurally valid, but the active catalog does not declare it.
@@ -168,6 +190,15 @@ var CATALOG = {
     message: "This entitlement rule links an entitlement that does not exist.",
     specRef: "config-validation.md \xA75.3 (BL-0164)"
   },
+  // placement / entitlement rule → objective (BL-0176, ruling D-15): the
+  // optional `objective` field references an `objectives[]` entity by handle.
+  // Same §5.9 dangling-reference family and severity.
+  "VAL-OBJ-01": {
+    id: "VAL-OBJ-01",
+    severity: "error_launch",
+    message: "This placement or entitlement rule names an objective that does not exist.",
+    specRef: "config-validation.md \xA75.9 (BL-0176)"
+  },
   // BL-0168: VAL-PLC-07's `plansKnown` precondition (every plan row carries a
   // non-empty `unique_handle`) fails silently for a DB-shape plan row that
   // spells the identifier `handle` — the whole check goes dark for the
@@ -221,6 +252,172 @@ function categoryBucket(category) {
   return 99;
 }
 
+// scaffold/src/core/handle-pattern.ts
+var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
+
+// scaffold/src/segments/controllers/builtin-dimensions.ts
+var BUILTIN_SEGMENT_HANDLE_PREFIX = "rt.";
+var BUILTIN_TRAIT_KEY_PREFIX = "rt_";
+var MAX_HANDLE_LENGTH = 100;
+function dimension(key, name, legacyAbbr, values, opts = {}) {
+  const legacyPrefix = `seg:${legacyAbbr}:`;
+  return {
+    key,
+    name,
+    traitKey: `${BUILTIN_TRAIT_KEY_PREFIX}${key}`,
+    dimensionId: `${BUILTIN_SEGMENT_HANDLE_PREFIX}${key}`,
+    vocabulary: opts.vocabulary ?? "closed",
+    values: values.map(([value, valueName, legacyValue]) => ({
+      value,
+      name: valueName,
+      legacyPickerId: `${legacyPrefix}${legacyValue ?? value}`
+    })),
+    ...opts.fallback !== void 0 ? { fallback: opts.fallback } : {},
+    legacyPrefix
+  };
+}
+var BUILTIN_DIMENSIONS = [
+  dimension("registration_state", "Registration State", "reg", [
+    ["unregistered", "Unregistered"],
+    ["registered", "Registered"]
+  ]),
+  dimension(
+    "activity_level",
+    "Activity State",
+    "act",
+    [
+      ["new", "New"],
+      ["high", "High Activity"],
+      ["medium", "Medium Activity"],
+      ["low", "Low Activity"],
+      ["inactive", "Inactive"]
+    ],
+    { fallback: "new" }
+  ),
+  dimension(
+    "subscription_state",
+    "Subscription State",
+    "sub",
+    [
+      ["none", "None"],
+      ["trial", "Trial"],
+      ["paid", "Paid"],
+      ["cancelled", "Cancelled"]
+    ],
+    { fallback: "none" }
+  ),
+  dimension(
+    "trial_type",
+    "Trial Type",
+    "trial",
+    [
+      ["none", "Not in trial"],
+      ["free_trial", "Free trial", "free"],
+      ["reverse_trial", "Reverse trial", "reverse"]
+    ],
+    { fallback: "none" }
+  ),
+  dimension("seat_type", "Seat Type", "seat", [], { vocabulary: "seat_type" }),
+  dimension("buyer_role", "Buyer Role", "role", [
+    ["buyer", "Buyer"],
+    ["non_buyer", "Non-buyer"]
+  ]),
+  dimension(
+    "email_type",
+    "Email Type",
+    "email",
+    [
+      ["business", "Business email"],
+      ["personal", "Personal email"],
+      ["unknown", "Unknown"]
+    ],
+    { fallback: "unknown" }
+  ),
+  dimension(
+    "billing_health",
+    "Billing Health",
+    "bill",
+    [
+      ["no_billing", "No billing", "none"],
+      ["good_standing", "Good standing", "good"],
+      ["trial_payment_method_attached", "Trial \u2014 payment method attached", "trial_pm"],
+      ["payment_method_missing", "Payment method missing", "pm_missing"],
+      ["payment_failed", "Payment failed", "failed"],
+      ["payment_overdue", "Payment overdue", "overdue"],
+      ["cancelled", "Cancelled"]
+    ],
+    { fallback: "no_billing" }
+  ),
+  dimension("region", "Country / Region", "geo", [
+    ["us_canada", "US / Canada"],
+    ["europe", "Europe"],
+    ["rest_of_world", "Rest of World", "row"]
+  ]),
+  dimension(
+    "device_type",
+    "Device Type",
+    "dev",
+    [
+      ["desktop", "Desktop"],
+      ["mobile", "Mobile"],
+      ["tablet", "Tablet"],
+      ["unknown", "Unknown"]
+    ],
+    { fallback: "unknown" }
+  )
+];
+var BY_KEY = new Map(
+  BUILTIN_DIMENSIONS.map((d) => [d.key, d])
+);
+function isBuiltinDimensionKey(key) {
+  return BY_KEY.has(key);
+}
+function getBuiltinDimension(key) {
+  const found = BY_KEY.get(key);
+  if (!found) throw new Error(`Unknown built-in dimension '${key}'`);
+  return found;
+}
+function builtinSegmentHandle(key, value) {
+  return `${BUILTIN_SEGMENT_HANDLE_PREFIX}${key}.${value}`;
+}
+function isReservedSegmentHandle(handle) {
+  return handle.startsWith(BUILTIN_SEGMENT_HANDLE_PREFIX);
+}
+function isBuiltinDimensionValue(key, value) {
+  const dim = getBuiltinDimension(key);
+  if (dim.vocabulary === "closed") return dim.values.some((v) => v.value === value);
+  return HANDLE_PATTERN.test(value) && builtinSegmentHandle(key, value).length <= MAX_HANDLE_LENGTH;
+}
+function parseBuiltinSegmentHandle(handle) {
+  if (!isReservedSegmentHandle(handle)) return void 0;
+  const rest = handle.slice(BUILTIN_SEGMENT_HANDLE_PREFIX.length);
+  const dot = rest.indexOf(".");
+  if (dot <= 0) return void 0;
+  const key = rest.slice(0, dot);
+  const value = rest.slice(dot + 1);
+  if (!isBuiltinDimensionKey(key) || !isBuiltinDimensionValue(key, value)) return void 0;
+  return { key, value };
+}
+function isGeneratedBuiltinSegment(segment) {
+  if (typeof segment.handle !== "string") return false;
+  const parsed = parseBuiltinSegmentHandle(segment.handle);
+  if (!parsed) return false;
+  const dim = getBuiltinDimension(parsed.key);
+  if (segment.dimension_id !== dim.dimensionId) return false;
+  if (segment.experiment_handle !== void 0 && segment.experiment_handle !== null) return false;
+  const predicates = segment.predicates;
+  if (!Array.isArray(predicates) || predicates.length !== 1) return false;
+  const [p] = predicates;
+  if (!p || typeof p !== "object") return false;
+  const { field, operator, value } = p;
+  return field === dim.traitKey && operator === "eq" && value === parsed.value;
+}
+var LEGACY_BY_ID = new Map(
+  BUILTIN_DIMENSIONS.flatMap(
+    (d) => d.values.map((v) => [v.legacyPickerId, builtinSegmentHandle(d.key, v.value)])
+  )
+);
+
 // scaffold/src/core/validation/rules.ts
 var SEMANTIC_RULE_CODES = [
   "VAL-PLN-05",
@@ -237,8 +434,11 @@ var SEMANTIC_RULE_CODES = [
   "VAL-TRL-04",
   "VAL-TRL-05",
   "VAL-SEG-01",
+  "VAL-SEG-02",
+  "VAL-UNI-01",
   "VAL-EXP-01",
-  "VAL-ENT-01"
+  "VAL-ENT-01",
+  "VAL-OBJ-01"
 ];
 function runSemanticRules(graph, opts = {}) {
   return [
@@ -249,6 +449,8 @@ function runSemanticRules(graph, opts = {}) {
     ...checkPlacementAuthoring(graph),
     ...checkTrialRuleWidestAudience(graph),
     ...checkSegmentExperimentRefs(graph),
+    ...checkReservedSegmentHandles(graph),
+    ...checkHandleUniqueness(graph),
     ...checkExperimentMetricRefs(graph, opts.knownMetricIds),
     ...checkDanglingReferences(graph)
   ];
@@ -284,8 +486,42 @@ function checkDanglingReferences(graph) {
     ...checkTrialPlanRefs(graph),
     ...checkEntitlementRuleTargetRefs(graph),
     ...checkEntitlementRuleEntitlementRefs(graph),
-    ...checkPayloadSegmentChipRefs(graph)
+    ...checkPayloadSegmentChipRefs(graph),
+    ...checkObjectiveRefs(graph)
   ];
+}
+var OBJECTIVE_REFERRERS = [
+  { table: "placements", objectType: "placement", label: "Placement", studio: "placements" },
+  { table: "entitlement_rules", objectType: "entitlement_rule", label: "Entitlement rule", studio: "plans-entitlements" }
+];
+function checkObjectiveRefs(graph) {
+  const known = referenceNamespace(graph, "objectives", "handle");
+  if (!known) return [];
+  const findings = [];
+  for (const referrer of OBJECTIVE_REFERRERS) {
+    for (const [index, row] of (graph[referrer.table] ?? []).entries()) {
+      const value = row.objective;
+      if (typeof value !== "string" || value.length === 0 || known.has(value)) continue;
+      const id = String(row.handle ?? row.id ?? "");
+      findings.push(
+        finding(
+          "VAL-OBJ-01",
+          {
+            object_type: referrer.objectType,
+            object_id: id,
+            field: "objective",
+            path: [referrer.table, index, "objective"],
+            studio: referrer.studio
+          },
+          {
+            message: `${referrer.label} '${id || "unnamed"}' names objective '${value}', which no objective declares.`,
+            detail: "An objective reference must be an objective's handle, not its config id. A reference that matches nothing drops this object out of the objective slice, so its results report under no objective." + knownHandlesHint(known, "objective handles")
+          }
+        )
+      );
+    }
+  }
+  return findings;
 }
 function checkTriggerEntitlementRefs(graph) {
   const known = referenceNamespace(graph, "entitlements", "unique_handle");
@@ -701,6 +937,90 @@ function checkSegmentExperimentRefs(graph) {
   }
   return findings;
 }
+function checkReservedSegmentHandles(graph) {
+  const findings = [];
+  for (const table of ["segments", "segment_values"]) {
+    for (const [index, segment] of (graph[table] ?? []).entries()) {
+      const handle = segment.handle;
+      if (typeof handle !== "string" || !isReservedSegmentHandle(handle)) continue;
+      if (table === "segments" && isGeneratedBuiltinSegment(segment)) continue;
+      findings.push(
+        finding(
+          "VAL-SEG-02",
+          {
+            object_type: "segment",
+            object_id: handle,
+            field: "handle",
+            path: [table, index, "handle"],
+            studio: "targeting"
+          },
+          {
+            message: `Segment '${handle}' uses the reserved '${BUILTIN_SEGMENT_HANDLE_PREFIX}' handle prefix.`,
+            detail: `Handles starting with '${BUILTIN_SEGMENT_HANDLE_PREFIX}' are reserved for RevTurbine's built-in segments, which are generated at export. Rename the segment; to target a built-in value, select it from the built-in dimension instead.`
+          }
+        )
+      );
+    }
+  }
+  return findings;
+}
+var HANDLE_UNIQUENESS_COLLECTIONS = [
+  { table: "plans", handleFields: ["unique_handle", "handle"], objectType: "plan", studio: "plans-entitlements" },
+  { table: "addons", handleFields: ["unique_handle", "handle"], objectType: "addon", studio: "plans-entitlements" },
+  {
+    table: "entitlements",
+    handleFields: ["unique_handle", "handle"],
+    objectType: "entitlement",
+    studio: "plans-entitlements"
+  },
+  {
+    table: "segments",
+    handleFields: ["handle"],
+    objectType: "segment",
+    studio: "targeting",
+    exempt: (row) => isGeneratedBuiltinSegment(row)
+  },
+  { table: "segment_values", handleFields: ["handle"], objectType: "segment", studio: "targeting" },
+  { table: "seat_types", handleFields: ["handle"], objectType: "seat_type", studio: "plans-entitlements" }
+];
+function checkHandleUniqueness(graph) {
+  const findings = [];
+  for (const { table, handleFields, objectType, studio, exempt } of HANDLE_UNIQUENESS_COLLECTIONS) {
+    const rows = graph[table];
+    if (!rows?.length) continue;
+    const seen = /* @__PURE__ */ new Set();
+    for (const [index, row] of rows.entries()) {
+      if (row.is_current === false) continue;
+      if (exempt?.(row)) continue;
+      const field = firstStringField(row, handleFields);
+      if (!field) continue;
+      const tenant = String(row.tenant_id ?? "");
+      const environment = String(row.environment_id ?? "");
+      const key = `${tenant}::${environment}::${field.value}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        continue;
+      }
+      const id = String(row.id ?? field.value);
+      findings.push(
+        finding(
+          "VAL-UNI-01",
+          {
+            object_type: objectType,
+            object_id: id,
+            field: field.field,
+            path: [table, index, field.field],
+            studio
+          },
+          {
+            detail: `Handle '${field.value}' is used by more than one ${objectType} \u2014 handles must be unique within a ${objectType} collection.`
+          }
+        )
+      );
+    }
+  }
+  return findings;
+}
 function checkExperimentMetricRefs(graph, knownMetricIds) {
   if (!knownMetricIds) return [];
   const findings = [];
@@ -962,11 +1282,6 @@ import { z as z3 } from "zod";
 
 // scaffold/src/core/classification.ts
 import { z as z2 } from "zod";
-
-// scaffold/src/core/handle-pattern.ts
-var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
-
-// scaffold/src/core/classification.ts
 var SchemaPersistence = {
   Persisted: "persisted",
   Transient: "transient"
@@ -1231,6 +1546,7 @@ var CtaActionTypeSchema = z3.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 var ObjectiveField = HandleField.optional();
+var NullableObjectiveField = z3.string().min(1).max(100).nullable().optional();
 
 // scaffold/src/core/identity.ts
 import { z as z4 } from "zod";
@@ -1451,10 +1767,14 @@ var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).
   visibility: RuleVisibilitySchema.default("public").meta(Unrestricted2),
   // Business objective this rule monetizes for — the analytics `objective`
   // slice, which resolves `rule_handle → objective` through a configuration
-  // snapshot (BL-0065 / worksheet G4). Config-only, and deliberately NOT part
-  // of the minted identity below: an objective relabel is a behaviour-only
-  // edit that coalesces onto the same rule, not a new rule scope.
-  objective: ObjectiveField.meta(Unrestricted2),
+  // snapshot (BL-0065 / worksheet G4). A reference by handle to an
+  // `objectives[]` entity (D-15; VAL-OBJ-01). Config-only, and deliberately
+  // NOT part of the minted identity below: an objective relabel is a
+  // behaviour-only edit that coalesces onto the same rule, not a new rule scope.
+  // Nullable on the persisted entity so an editor can CLEAR the reference
+  // (a PATCH merges, so omission keeps the old value); the portable
+  // projection stays optional-only and omits it when unset.
+  objective: NullableObjectiveField.meta(Unrestricted2),
   // Usage-Limit "measured over" window, rule-level (plan #55). Rate Limit
   // keeps its entitlement-level `period_scope`; this is the per-rule one.
   period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted2),
@@ -1876,6 +2196,39 @@ var TrialInstanceSchema = IdField.merge(TimestampFields).merge(TenantIdField).ex
   usage_limit_value: z7.number().int().min(1).optional().meta(Unrestricted3),
   converted_at: NullableDatetimeField.meta(Unrestricted3),
   cancelled_at: NullableDatetimeField.meta(Unrestricted3),
+  /**
+   * Stable identity of the trial EPISODE this row represents
+   * (BL-0247 / plan 276 TASK-12). A customer can run more than one
+   * trial, and a subscription can re-enter `trialing`, so the
+   * (customer, subscription) pair does not name an occurrence. The
+   * billing lane already discriminates an episode by the Stripe
+   * subscription id plus its `trial_start`; this column persists
+   * that same discriminator so a fact about one episode can be
+   * written to exactly that episode's row.
+   *
+   * Nullable: rows created before the column existed, and rows
+   * created by paths that have no Stripe evidence to mint an id
+   * from, carry NULL. NULL means "this episode has no first-class
+   * identity", never "episode zero" — and Postgres treats NULLs as
+   * distinct, so the composite UNIQUE below does not collapse them.
+   */
+  trial_episode_id: z7.string().min(1).nullable().optional().meta(Unrestricted3),
+  /**
+   * The Stripe subscription this episode belongs to — the binding
+   * that lets a Stripe fact resolve one episode without guessing
+   * (BL-0245 carried this in `metadata.stripe_subscription_id`).
+   * Nullable because a trial need not originate from Stripe at all.
+   */
+  stripe_subscription_id: z7.string().min(1).nullable().optional().meta(Unrestricted3),
+  /**
+   * The EVIDENCED end of the episode: the moment a provider fact
+   * said the trial actually stopped. Distinct from `expires_at`,
+   * which is the SCHEDULED end and must stay distinguishable
+   * (plan 276 R-1 — no clock authority; an elapsed `expires_at`
+   * with no fact behind it is not an end). Null until a fact
+   * proves one.
+   */
+  actual_end_at: NullableDatetimeField.meta(Unrestricted3),
   metadata: MetadataField.meta(Unrestricted3)
 }).meta(
   { id: "TrialInstance", "x-revturbine-schema-persistence": Persisted3, "x-revturbine-schema-exposure": Internal3 }
@@ -2078,7 +2431,12 @@ var trialPaths = {
       summary: "List trial instances",
       tags: ["trials"],
       responses: { "200": { description: "Trial instance list", content: { "application/json": { schema: ListEnvelope(TrialInstanceSchema) } } } },
-      "x-revturbine-operation": { exposure: "internal", resource: "trial-instances", persistence: { table: "trialInstances", mode: "list" } }
+      // One row per trial EPISODE (BL-0247 / plan 276 TASK-12). This is the
+      // ON CONFLICT target the Stripe binding writer upserts against, so a
+      // re-delivered `customer.subscription.*` event updates the episode it
+      // already created instead of minting a duplicate. NULL episode ids are
+      // distinct in Postgres, so pre-existing and non-Stripe rows are unaffected.
+      "x-revturbine-operation": { exposure: "internal", resource: "trial-instances", persistence: { table: "trialInstances", mode: "list", uniqueBy: ["tenant_id", "customer_id", "trial_episode_id"] } }
     })
   },
   "/api/trials/instances/{instanceId}": {
@@ -2637,6 +2995,16 @@ var PersonalizationTokenSchema = IdField.merge(TimestampFields).merge(TenantIdFi
   { id: "PersonalizationToken", "x-revturbine-schema-persistence": Persisted5, "x-revturbine-schema-exposure": Internal4, ...PENDING_PLAYBOOK_FACETS2, ...namedIdentity() }
 );
 var PersonalizationTokenAnchorSchema = makeAnchor("PersonalizationTokenAnchor");
+var ObjectiveSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
+  anchor_id: z9.string().min(1).meta({ ...Unrestricted5, readOnly: true }),
+  handle: HandleField.meta(Unrestricted5),
+  name: NameField.meta(Unrestricted5),
+  description: DescriptionField.meta(Unrestricted5),
+  metadata: MetadataField.meta(Unrestricted5)
+}).meta(
+  { id: "Objective", "x-revturbine-schema-persistence": Persisted5, "x-revturbine-schema-exposure": Internal4, ...PLAYBOOK_AUTHORING_FACETS2, ...namedIdentity() }
+);
+var ObjectiveAnchorSchema = makeAnchor("ObjectiveAnchor");
 var OnboardingStateSchema = z9.enum(["not_started", "started", "details_submitted", "charges_enabled", "activated", "deauthorized"]).meta({ id: "OnboardingState", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": Internal4 });
 var StripeIntegrationConfigSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
   handle: HandleField.meta({ ...Unrestricted5, readOnly: true }),
@@ -2954,7 +3322,9 @@ var RevTurbineConfigEntitlementRulesItemSchema = z9.object({
   }).shape,
   current_usage: z9.number().default(0).meta(Unrestricted5),
   /** How usage is partitioned across the identity hierarchy. */
-  allocation: UsageAllocationSchema.optional().meta(Unrestricted5)
+  allocation: UsageAllocationSchema.optional().meta(Unrestricted5),
+  /** Optional business objective, by `objectives[].handle` (VAL-OBJ-01). Config-only. */
+  objective: ObjectiveField.meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigEntitlementRulesItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
@@ -3049,6 +3419,13 @@ var RevTurbineConfigPersonalizationTokensItemSchema = z9.object({
   format: z9.enum(["string", "number", "currency", "percentage", "date"]).optional().meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigPersonalizationTokensItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
+);
+var RevTurbineConfigObjectivesItemSchema = z9.object({
+  handle: HandleField.meta(Unrestricted5),
+  name: NameField.meta(Unrestricted5),
+  description: DescriptionField.meta(Unrestricted5)
+}).meta(
+  { id: "RevTurbineConfigObjectivesItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_AUTHORING_FACETS2 }
 );
 var MessageBlockContentSchema = z9.object({
   header: z9.string().optional().meta(Unrestricted5),
@@ -3153,7 +3530,9 @@ var RevTurbineConfigPlacementItemSchema = z9.object({
   category: RevTurbineConfigPlacementCategorySchema.meta(Unrestricted5),
   trigger: RevTurbineConfigPlacementTriggerSchema.meta(Unrestricted5),
   payloads: z9.array(RevTurbineConfigStudioPayloadSchema).meta(Unrestricted5),
-  order: z9.number().int().min(0).meta(Unrestricted5)
+  order: z9.number().int().min(0).meta(Unrestricted5),
+  /** Optional business objective, by `objectives[].handle` (VAL-OBJ-01). Config-only. */
+  objective: ObjectiveField.meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigPlacementItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
@@ -3247,6 +3626,14 @@ var PlaybookBodySchema = z9.object({
    */
   free_trial_rules: z9.array(RevTurbineConfigFreeTrialRuleItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_AUTHORING_FACETS2 }),
   reverse_trial_rules: z9.array(RevTurbineConfigReverseTrialRuleItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  /**
+   * Business objectives (BL-0176 / BL-0178, ruling D-15). Optional so every
+   * Playbook authored before objectives existed still parses. Placements and
+   * entitlement rules reference an entry by `handle` through their optional
+   * `objective` field. Authoring-only: no runtime decision reads it, so it is
+   * not an SDK input and never lowers into the IR.
+   */
+  objectives: z9.array(RevTurbineConfigObjectivesItemSchema).optional().meta({ ...Unrestricted5, ...PLAYBOOK_AUTHORING_FACETS2 }),
   // Plan / add-on variation prices carried by handle (plan 118 TASK-16). These
   // live on the legacy schema (not just the canonical Playbook body) so that a
   // legacy `version`-shaped config — the shape the demo-data configs and the
@@ -3510,6 +3897,56 @@ var configPaths = {
       tags: ["config"],
       responses: { "204": { description: "Deleted" } },
       "x-revturbine-operation": { exposure: "internal", resource: "personalization-tokens", persistence: { table: "personalizationTokenVersions", mode: "delete" } }
+    })
+  },
+  "/api/objective-anchors": {
+    get: operation({
+      operationId: "listObjectiveAnchors",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List objective anchors (identity registry)",
+      tags: ["config"],
+      responses: {
+        "200": { description: "Objective anchor list", content: { "application/json": { schema: ListEnvelope(ObjectiveAnchorSchema) } } },
+        default: { description: "Error response", content: { "application/json": { schema: ErrorEnvelope } } }
+      },
+      "x-revturbine-operation": { exposure: "internal", resource: "objective-anchors", persistence: { table: "objectives", mode: "list" } }
+    })
+  },
+  "/api/config/objectives": {
+    get: operation({
+      operationId: "listObjectives",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List objectives",
+      tags: ["config"],
+      responses: { "200": { description: "Objective list", content: { "application/json": { schema: ListEnvelope(ObjectiveSchema) } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "objectives", persistence: { table: "objectiveVersions", mode: "list" } }
+    }),
+    post: operation({
+      operationId: "createObjective",
+      summary: "Create objective",
+      tags: ["config"],
+      requestBody: { required: true, content: { "application/json": { schema: toCreateSchema(ObjectiveSchema) } } },
+      responses: { "201": { description: "Created", content: { "application/json": { schema: ObjectiveSchema } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "objectives", persistence: { table: "objectiveVersions", mode: "create" } }
+    })
+  },
+  "/api/config/objectives/{id}": {
+    patch: operation({
+      operationId: "updateObjective",
+      requestParams: { path: z9.object({ id: z9.string() }) },
+      summary: "Update objective",
+      tags: ["config"],
+      requestBody: { required: true, content: { "application/json": { schema: ObjectiveSchema.partial() } } },
+      responses: { "200": { description: "Updated", content: { "application/json": { schema: ObjectiveSchema } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "objectives", persistence: { table: "objectiveVersions", mode: "update" } }
+    }),
+    delete: operation({
+      operationId: "deleteObjective",
+      requestParams: { path: z9.object({ id: z9.string() }) },
+      summary: "Delete objective",
+      tags: ["config"],
+      responses: { "204": { description: "Deleted" } },
+      "x-revturbine-operation": { exposure: "internal", resource: "objectives", persistence: { table: "objectiveVersions", mode: "delete" } }
     })
   },
   "/api/config/stripe": {
