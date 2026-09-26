@@ -34,6 +34,22 @@ describe('diffExportedConfig', () => {
     expect(diff.segments).toEqual({ added: [], changed: ['enterprise'], removed: [] });
   });
 
+  it('diffs the objectives collection by handle (BL-0176)', () => {
+    const current = { objectives: [{ handle: 'expansion', name: 'Expansion' }, { handle: 'retention', name: 'Retention' }] };
+    const next = { objectives: [{ handle: 'expansion', name: 'Seat expansion' }, { handle: 'trial_conversion', name: 'Trial conversion' }] };
+    expect(diffExportedConfig(current, next).objectives).toEqual({
+      added: ['trial_conversion'],
+      changed: ['expansion'],
+      removed: ['retention'],
+    });
+  });
+
+  it('shows a changed objective reference on a placement (BL-0178)', () => {
+    const pl = { id: 'nudge', name: 'Nudge', category: 'fixed', order: 0, trigger: { type: 'trial_ended' }, payloads: [] };
+    const diff = diffExportedConfig({ placements: [pl] }, { placements: [{ ...pl, objective: 'expansion' }] });
+    expect(diff.placements).toEqual({ added: [], changed: ['Nudge'], removed: [] });
+  });
+
   it('is empty when the configs match', () => {
     expect(diffExportedConfig(base, base)).toEqual({});
     expect(formatDiff({})).toContain('no changes');

@@ -16,6 +16,8 @@ const COLLECTIONS = [
   'placements',
   'free_trial_rules',
   'reverse_trial_rules',
+  // BL-0176 / BL-0178: first-class objectives, keyed by handle.
+  'objectives',
 ] as const;
 
 // Handle-first: under the anchor+ledger identity model, `handle` is the sole

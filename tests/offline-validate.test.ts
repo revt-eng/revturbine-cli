@@ -49,4 +49,28 @@ describe('offline validation (vendored engine)', () => {
     expect(findings.every((f) => f.severity === 'error_draft')).toBe(true);
     expect(hasBlockingFindings(findings as never)).toBe(true);
   });
+
+  it('validates objectives offline: declared references resolve, a dangling one is VAL-OBJ-01 (BL-0176)', () => {
+    const placement = { id: 'nudge', name: 'Nudge', category: 'fixed', order: 0, trigger: { type: 'trial_ended' }, payloads: [] };
+    const withObjectives = { ...base, objectives: [{ handle: 'expansion', name: 'Expansion' }] };
+    const clean = validateOffline({ ...withObjectives, placements: [{ ...placement, objective: 'expansion' }] });
+    expect(clean.some((f) => f.code === 'VAL-OBJ-01')).toBe(false);
+
+    const dangling = validateOffline({ ...withObjectives, placements: [{ ...placement, objective: 'retention' }] });
+    const finding = dangling.find((f) => f.code === 'VAL-OBJ-01');
+    expect(finding?.severity).toBe('error_launch');
+    expect(finding?.targetRef).toMatchObject({ path: ['placements', 0, 'objective'] });
+  });
+
+  it('keeps objectives and objective references through the vendored parse (BL-0178)', () => {
+    const result = (RevTurbineConfigSchema as { safeParse(v: unknown): { success: boolean; data?: unknown } }).safeParse({
+      ...base,
+      objectives: [{ handle: 'expansion', name: 'Expansion' }],
+      entitlement_rules: [{ id: 'r1', entitlement_id: 'e1', targets: [{ kind: 'plan', id: 'p1' }], objective: 'expansion' }],
+    });
+    expect(result.success).toBe(true);
+    const parsed = result.data as Record<string, unknown>;
+    expect(parsed.objectives).toEqual([{ handle: 'expansion', name: 'Expansion' }]);
+    expect((parsed.entitlement_rules as Array<Record<string, unknown>>)[0]?.objective).toBe('expansion');
+  });
 });

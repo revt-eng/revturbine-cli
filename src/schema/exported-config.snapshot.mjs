@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.343
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.362
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -431,6 +431,7 @@ var CtaActionTypeSchema = z2.enum([
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
 var ObjectiveField = HandleField.optional();
+var NullableObjectiveField = z2.string().min(1).max(100).nullable().optional();
 
 // scaffold/src/core/facets.ts
 var SchemaContext = {
@@ -1220,10 +1221,14 @@ var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).
   visibility: RuleVisibilitySchema.default("public").meta(Unrestricted3),
   // Business objective this rule monetizes for — the analytics `objective`
   // slice, which resolves `rule_handle → objective` through a configuration
-  // snapshot (BL-0065 / worksheet G4). Config-only, and deliberately NOT part
-  // of the minted identity below: an objective relabel is a behaviour-only
-  // edit that coalesces onto the same rule, not a new rule scope.
-  objective: ObjectiveField.meta(Unrestricted3),
+  // snapshot (BL-0065 / worksheet G4). A reference by handle to an
+  // `objectives[]` entity (D-15; VAL-OBJ-01). Config-only, and deliberately
+  // NOT part of the minted identity below: an objective relabel is a
+  // behaviour-only edit that coalesces onto the same rule, not a new rule scope.
+  // Nullable on the persisted entity so an editor can CLEAR the reference
+  // (a PATCH merges, so omission keeps the old value); the portable
+  // projection stays optional-only and omits it when unset.
+  objective: NullableObjectiveField.meta(Unrestricted3),
   // Usage-Limit "measured over" window, rule-level (plan #55). Rate Limit
   // keeps its entitlement-level `period_scope`; this is the per-rule one.
   period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted3),
@@ -1582,11 +1587,15 @@ var PlacementSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(
   category: PlacementCategorySchema.meta(Unrestricted4),
   // Business objective this placement monetizes for — the analytics
   // `objective` slice, which resolves `placement_id → objective` through a
-  // configuration snapshot (BL-0065 / worksheet G4). Config-only: nothing in
-  // the runtime decision reads it, so it is absent from the portable
-  // RevTurbineConfig projection and the compiled payload. Free handle; see
-  // `ObjectiveField` for why the value set is not enumerated here.
-  objective: ObjectiveField.meta(Unrestricted4),
+  // configuration snapshot (BL-0065 / worksheet G4). A reference by handle to
+  // an `objectives[]` entity (D-15; VAL-OBJ-01). Config-only: nothing in the
+  // runtime decision reads it, so it round-trips through the portable
+  // Playbook projection but never lowers into the compiled IR. See
+  // `ObjectiveField`.
+  // Nullable on the persisted entity so an editor can CLEAR the reference
+  // (a PATCH merges, so omission keeps the old value); the portable
+  // projection stays optional-only and omits it when unset.
+  objective: NullableObjectiveField.meta(Unrestricted4),
   drag_order_in_category: z7.number().int().default(0).meta(Unrestricted4),
   // Trigger config (populated based on category)
   surface_slot_id: z7.string().optional().meta(Unrestricted4),
@@ -2095,6 +2104,34 @@ var UserPlanContextSchema = z9.object({
 }).meta(
   { id: "UserPlanContext", "x-revturbine-schema-persistence": Transient6, "x-revturbine-schema-exposure": External5 }
 );
+var BuiltinActivityLevelSchema = z9.enum(["new", "high", "medium", "low", "inactive"]);
+var BuiltinSubscriptionStateSchema = z9.enum(["none", "trial", "paid", "cancelled"]);
+var BuiltinTrialTypeSchema = z9.enum(["none", "free_trial", "reverse_trial"]);
+var BuiltinBuyerRoleSchema = z9.enum(["buyer", "non_buyer"]);
+var BuiltinEmailTypeSchema = z9.enum(["business", "personal", "unknown"]);
+var BuiltinBillingHealthSchema = z9.enum([
+  "no_billing",
+  "good_standing",
+  "trial_payment_method_attached",
+  "payment_method_missing",
+  "payment_failed",
+  "payment_overdue",
+  "cancelled"
+]);
+var BuiltinRegionSchema = z9.enum(["us_canada", "europe", "rest_of_world"]);
+var BuiltinDeviceTypeSchema = z9.enum(["desktop", "mobile", "tablet", "unknown"]);
+var BuiltinSeatTypeSchema = z9.string().regex(/^[a-z0-9._]{1,87}$/);
+var UserBuiltinDimensionsSchema = z9.object({
+  activity_level: BuiltinActivityLevelSchema.optional().meta(Unrestricted6),
+  subscription_state: BuiltinSubscriptionStateSchema.optional().meta(Unrestricted6),
+  trial_type: BuiltinTrialTypeSchema.optional().meta(Unrestricted6),
+  seat_type: BuiltinSeatTypeSchema.optional().meta(Unrestricted6),
+  buyer_role: BuiltinBuyerRoleSchema.optional().meta(Unrestricted6),
+  email_type: BuiltinEmailTypeSchema.optional().meta(Unrestricted6),
+  billing_health: BuiltinBillingHealthSchema.optional().meta(Unrestricted6),
+  region: BuiltinRegionSchema.optional().meta(Unrestricted6),
+  device_type: BuiltinDeviceTypeSchema.optional().meta(Unrestricted6)
+});
 var UserInstanceContextSchema = z9.object({
   product_instance_id: z9.string().min(1).meta(Unrestricted6),
   user_id: z9.string().min(1).meta(Pii2),
@@ -2157,13 +2194,27 @@ var UserContextSchema = IdField.merge(TenantIdField).merge(TimestampFields).exte
   /** Customer-defined fields: role, app-level permissions, display prefs. */
   custom: z9.record(z9.string(), z9.union([z9.string(), z9.number(), z9.boolean(), z9.null()])).default({}).meta(Pii2),
   /**
-   * Transient personalization token map.
+   * Personalization token map.
    *
    * Holds SDK-derived tokens (plan_name, usage_current, etc.) merged with
-   * app-provided tokens.  Not persisted to the backend — rebuilt on each
-   * SDK session from context + exported config.
+   * app-provided tokens; the SDK rebuilds it on each session from context +
+   * exported config.
+   *
+   * Deliberately NOT marked field-level Transient: the `user_contexts` table
+   * carries a `personalization` jsonb column (web `drizzle/0000_*.sql`) and
+   * the generic user-context write persists it (web
+   * `src/lib/user-context/sanitize-write.ts` redacts it first). The drizzle
+   * generator emits no column for a field-level Transient (plan 279
+   * TASK-3), so the label has to match the table.
    */
-  personalization: z9.record(z9.string(), z9.union([z9.string(), z9.number()])).default({}).meta({ ...Unrestricted6, "x-revturbine-schema-persistence": Transient6 }),
+  personalization: z9.record(z9.string(), z9.union([z9.string(), z9.number()])).default({}).meta(Unrestricted6),
+  /**
+   * Built-in segment dimension values (plan 279 PD-3) — see
+   * {@link UserBuiltinDimensionsSchema}. Field-level Transient: no DB
+   * column; assembled at retrieval, or set by the app in `local_only` mode
+   * and on the server ports.
+   */
+  builtin_dimensions: UserBuiltinDimensionsSchema.optional().meta({ ...Unrestricted6, "x-revturbine-schema-persistence": Transient6 }),
   // ── Derived-entitlement cache (plan 74 REQ-12/REQ-13) ──────────────
   // `entitlements` above is the rule-evaluated projection — a CACHE, not
   // source of truth. These stamps record what it was computed against so a
@@ -2249,6 +2300,18 @@ var ClientContextPlanSchema = z9.object({
 }).meta(
   { id: "ClientContextPlan", "x-revturbine-schema-persistence": Transient6, "x-revturbine-schema-exposure": Internal5 }
 );
+var ClientContextBuiltinDimensionsSchema = z9.object({
+  activity_level: BuiltinActivityLevelSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
+  subscription_state: BuiltinSubscriptionStateSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
+  trial_type: BuiltinTrialTypeSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
+  seat_type: BuiltinSeatTypeSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
+  buyer_role: BuiltinBuyerRoleSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
+  email_type: BuiltinEmailTypeSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
+  region: BuiltinRegionSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
+  device_type: BuiltinDeviceTypeSchema.optional().meta({ ...Unrestricted6, ...ClientSafe })
+}).meta(
+  { id: "ClientContextBuiltinDimensions", "x-revturbine-schema-persistence": Transient6, "x-revturbine-schema-exposure": Internal5 }
+);
 var ClientContextSchema = z9.object({
   /** The end-user subject the client token was minted for (carried by the token, not the request). */
   subject: z9.string().min(1).meta({ ...Unrestricted6, ...ClientSafe }),
@@ -2257,7 +2320,9 @@ var ClientContextSchema = z9.object({
   trial: ClientContextTrialSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
   billing: ClientContextBillingSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
   plan: ClientContextPlanSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
-  capabilities: ClientContextCapabilitiesSchema.optional().meta({ ...Unrestricted6, ...ClientSafe })
+  capabilities: ClientContextCapabilitiesSchema.optional().meta({ ...Unrestricted6, ...ClientSafe }),
+  /** Server-evaluated built-in segment dimensions (plan 279 PD-3). */
+  builtin_dimensions: ClientContextBuiltinDimensionsSchema.optional().meta({ ...Unrestricted6, ...ClientSafe })
 }).meta(
   { id: "ClientContext", "x-revturbine-schema-persistence": Transient6, "x-revturbine-schema-exposure": Internal5 }
 );
@@ -3152,6 +3217,91 @@ var AnalyticsMetricLayerSchema = z14.enum(["primitive", "derived"]).meta(meta("A
 var AnalyticsCatalogStatusSchema = z14.enum(["declared", "bound", "validated", "tested", "unavailable"]).meta(meta("AnalyticsCatalogStatus"));
 var AnalyticsFactKindSchema = z14.enum(["transaction", "periodic_snapshot", "accumulating_snapshot"]).meta(meta("AnalyticsFactKind"));
 var AnalyticsConceptProducerSchema = z14.enum(["platform", "customer_authored", "simulation"]).meta(meta("AnalyticsConceptProducer"));
+var AnalyticsRecordDedupSchema = z14.enum(["deduplicated_on_record_id", "summed_on_sorting_key", "append_only", "upsert_on_primary_key", "recomputed_at_query", "unknown"]).meta(meta("AnalyticsRecordDedup"));
+var AnalyticsRecordRevisionSchema = z14.enum(["immutable", "re_emit_higher_version", "in_place_update", "recomputed_from_source", "unknown"]).meta(meta("AnalyticsRecordRevision"));
+var AnalyticsRecordLateArrivalSchema = z14.enum(["accepted", "accepted_within_retention", "rejected", "unknown"]).meta(meta("AnalyticsRecordLateArrival"));
+var AnalyticsRecordContractSchema = z14.object({
+  /** The columns whose tuple is the stable record id. Identity resolution is never part of it (R2). */
+  record_id: z14.array(z14.string().min(1).max(120)).min(1).max(8).meta(Unrestricted11),
+  /** Where the rows come from: `stripe`, `sdk_clickstream`, `revturbine_control_plane`. */
+  source_namespace: z14.string().min(1).max(120).meta(Unrestricted11),
+  /** Occurred (effective) time. */
+  occurred_time_field: z14.string().min(1).max(120).meta(Unrestricted11),
+  /** Received (observation) time; absent when the source records none. */
+  received_time_field: z14.string().min(1).max(120).optional().meta(Unrestricted11),
+  dedup: AnalyticsRecordDedupSchema.meta(Unrestricted11),
+  revision: AnalyticsRecordRevisionSchema.meta(Unrestricted11),
+  late_arrival: AnalyticsRecordLateArrivalSchema.meta(Unrestricted11),
+  correlation_keys: z14.array(z14.string().min(1).max(120)).max(12).optional().meta(Unrestricted11),
+  /**
+   * The field carrying Stripe live/test mode. R2 requires it on every
+   * billing fact; a billing concept that declares `livemode_qualified: true`
+   * must name it, and one that cannot is `livemode_qualified: false` with
+   * the gap stated in `note`.
+   */
+  livemode_field: z14.string().min(1).max(120).optional().meta(Unrestricted11),
+  /** Stamped policy-version fields (R2/R9). Empty or absent = none stamped. */
+  policy_version_fields: z14.array(z14.string().min(1).max(120)).max(8).optional().meta(Unrestricted11),
+  note: z14.string().max(400).optional().meta(Unrestricted11)
+}).meta(meta("AnalyticsRecordContract"));
+var AnalyticsKeyResolutionSchema = z14.enum(["source", "enriched", "absent"]).meta(meta("AnalyticsKeyResolution"));
+var AnalyticsConceptKeySchema = z14.object({
+  key: z14.string().regex(/^[a-z][a-z0-9_]{0,49}$/).meta(Unrestricted11),
+  /** `column:<name>`, `payload:<field>`, `envelope:<field>` - or `-` when absent. */
+  path: z14.string().min(1).max(200).meta(Unrestricted11),
+  resolution: AnalyticsKeyResolutionSchema.meta(Unrestricted11),
+  note: z14.string().max(400).optional().meta(Unrestricted11)
+}).meta(meta("AnalyticsConceptKey"));
+var AnalyticsMeasureUnitSchema = z14.enum(["currency_minor", "count", "seconds", "ratio", "timestamp", "usage_unit", "polymorphic"]).meta(meta("AnalyticsMeasureUnit"));
+var AnalyticsMeasureTemporalSchema = z14.enum(["stock", "flow", "gauge"]).meta(meta("AnalyticsMeasureTemporal"));
+var AnalyticsMeasureSignSchema = z14.enum(["signed", "positive_magnitude", "unsigned"]).meta(meta("AnalyticsMeasureSign"));
+var AnalyticsConceptMeasureSchema = z14.object({
+  name: z14.string().regex(/^[a-z][a-z0-9_]{0,63}$/).meta(Unrestricted11),
+  /** `column:<name>` or `row_count` - a transaction fact whose measure IS its row count. */
+  source: z14.string().min(1).max(200).meta(Unrestricted11),
+  unit: AnalyticsMeasureUnitSchema.meta(Unrestricted11),
+  temporal: AnalyticsMeasureTemporalSchema.meta(Unrestricted11),
+  sign: AnalyticsMeasureSignSchema.meta(Unrestricted11),
+  aggregation_semantics: AnalyticsMetricAggregationSemanticsSchema.meta(Unrestricted11),
+  note: z14.string().max(400).optional().meta(Unrestricted11)
+}).meta(meta("AnalyticsConceptMeasure"));
+var AnalyticsConceptEventAttributeSchema = z14.object({
+  name: z14.string().regex(/^[a-z][a-z0-9_]{0,63}$/).meta(Unrestricted11),
+  /** `column:<name>`, `payload:<field>` or `envelope:<field>`. */
+  path: z14.string().min(1).max(200).meta(Unrestricted11),
+  note: z14.string().max(400).optional().meta(Unrestricted11)
+}).meta(meta("AnalyticsConceptEventAttribute"));
+var AnalyticsConceptSourceKindSchema = z14.enum(["ingested_event", "datasource", "control_plane_table", "build", "unavailable"]).meta(meta("AnalyticsConceptSourceKind"));
+var AnalyticsConceptSourceSchema = z14.object({
+  kind: AnalyticsConceptSourceKindSchema.meta(Unrestricted11),
+  ref: z14.string().min(1).max(200).meta(Unrestricted11),
+  /** Required when `kind` is `unavailable`: what has to ship before rows exist. */
+  blocker: z14.string().max(400).optional().meta(Unrestricted11),
+  note: z14.string().max(400).optional().meta(Unrestricted11)
+}).meta(meta("AnalyticsConceptSource"));
+var AnalyticsConceptBuildSchema = z14.object({
+  kind: z14.enum(["pipe", "materialized_view", "worker", "query_time", "unavailable"]).meta(Unrestricted11),
+  ref: z14.string().min(1).max(200).meta(Unrestricted11),
+  inputs: z14.array(z14.string().min(1).max(200)).min(1).max(12).meta(Unrestricted11),
+  blocker: z14.string().max(400).optional().meta(Unrestricted11)
+}).meta(meta("AnalyticsConceptBuild"));
+var AnalyticsConceptMaturitySchema = z14.object({
+  status: z14.enum(["declared", "unavailable"]).meta(Unrestricted11),
+  horizon_field: z14.string().min(1).max(120).optional().meta(Unrestricted11),
+  observed_through_field: z14.string().min(1).max(120).optional().meta(Unrestricted11),
+  blocker: z14.string().max(400).optional().meta(Unrestricted11)
+}).meta(meta("AnalyticsConceptMaturity"));
+var AnalyticsOracleFamilySchema = z14.enum(["gate", "presentation", "revenue", "attribution", "event_count", "cohort", "funnel", "read_through", "none"]).meta(meta("AnalyticsOracleFamily"));
+var AnalyticsConceptOracleFamilySchema = z14.object({
+  family: AnalyticsOracleFamilySchema.meta(Unrestricted11),
+  blocker: z14.string().max(400).optional().meta(Unrestricted11)
+}).meta(meta("AnalyticsConceptOracleFamily"));
+var AnalyticsPolicyKindSchema = z14.enum(["mrr", "attribution", "lifecycle", "engagement"]).meta(meta("AnalyticsPolicyKind"));
+var AnalyticsConceptPolicyDependencySchema = z14.object({
+  kind: AnalyticsPolicyKindSchema.meta(Unrestricted11),
+  stamped: z14.boolean().meta(Unrestricted11),
+  blocker: z14.string().max(400).optional().meta(Unrestricted11)
+}).meta(meta("AnalyticsConceptPolicyDependency"));
 var AnalyticsGroundingAnchorSchema = z14.enum([
   "fact_time",
   "period_opening",
@@ -3352,13 +3502,20 @@ var AnalyticsCatalogConceptSchema = z14.object({
    * exposure, not per placement-day — a daily rollup is a pipe's physical
    * choice, not a second grain).
    *
-   * These fields are optional while the concepts migrate onto them. They
-   * are NOT decorative: a concept that declares `fact_kind` is asserting it
-   * has been mapped, and the structural rules tighten around it from there.
-   * Populating them for the existing concepts, and splitting `revenue.movement`
-   * into `revenue.stock` / `.movement` / `.ledger`, rides with the fact-table
-   * builds that produce the rows (later plan 252 tasks and plan 230) rather
-   * than being invented here.
+   * These fields stay optional on the canonical schema so a partial fixture
+   * still parses, but they are NOT decorative: a concept that declares
+   * `fact_kind` is asserting it has been mapped, and
+   * `AnalyticsCatalogConceptValidatedSchema` then REQUIRES the whole set —
+   * the same split as the metric schema. Every shipped concept declares them
+   * (BL-0246, TASK-58's second half).
+   *
+   * `revenue.movement` is still NOT split into `revenue.stock` /
+   * `.movement` / `.ledger`: today's definitions do not distinguish them
+   * (the only served measure is the invoice-paid cash proxy), so the split
+   * stays registered as the `catalog_status: 'unavailable'` blocker on
+   * `revenue.mrr` / `revenue.net_new_mrr` and rides with the normalized
+   * recurring stock and movement oracle (plan 252 TASK-29/34/36/45) that
+   * produce the rows. Declaring three empty concepts here would invent them.
    */
   fact_kind: AnalyticsFactKindSchema.optional().meta(Unrestricted11),
   family: z14.enum(["billing", "behavioral"]).optional().meta(Unrestricted11),
@@ -3372,8 +3529,286 @@ var AnalyticsCatalogConceptSchema = z14.object({
   }).optional().meta(Unrestricted11),
   /** Billing facts carry Stripe live/test mode; without it live and test revenue are indistinguishable. */
   livemode_qualified: z14.boolean().optional().meta(Unrestricted11),
+  /** The record contract the rows obey (R2). */
+  record_contract: AnalyticsRecordContractSchema.optional().meta(Unrestricted11),
+  /** Every entity key the fact carries, and the path it resolves through (R1). */
+  keys: z14.array(AnalyticsConceptKeySchema).max(24).optional().meta(Unrestricted11),
+  /**
+   * The stored measures. May be EMPTY for a concept every one of whose
+   * metrics is `catalog_status: 'unavailable'` — there is no measure to
+   * declare until the fact exists. The in-memory integrity check enforces
+   * that pairing, so an empty list cannot hide a served metric.
+   */
+  measures: z14.array(AnalyticsConceptMeasureSchema).max(32).optional().meta(Unrestricted11),
+  /** Non-key attributes carried on the row (R7). */
+  event_attributes: z14.array(AnalyticsConceptEventAttributeSchema).max(32).optional().meta(Unrestricted11),
+  /** Where the rows come from (R1/R5). */
+  sources: z14.array(AnalyticsConceptSourceSchema).min(1).max(12).optional().meta(Unrestricted11),
+  /** How snapshot rows are built (R5); required for both snapshot kinds. */
+  build: AnalyticsConceptBuildSchema.optional().meta(Unrestricted11),
+  /** Horizon / `observed_through` right-censoring (R5); required for accumulating snapshots. */
+  maturity: AnalyticsConceptMaturitySchema.optional().meta(Unrestricted11),
+  /** The pure oracle family that derives this concept's metrics (R6). */
+  oracle_family: AnalyticsConceptOracleFamilySchema.optional().meta(Unrestricted11),
+  /** The versioned policy kinds the rows depend on, and whether the version is stamped (R9). */
+  policy_dependencies: z14.array(AnalyticsConceptPolicyDependencySchema).max(8).optional().meta(Unrestricted11),
   deprecation: CatalogDeprecation.optional().meta(Unrestricted11)
 }).meta(meta("AnalyticsCatalogConcept"));
+var AnalyticsCatalogConceptValidatedSchema = AnalyticsCatalogConceptSchema.superRefine(
+  (concept, ctx) => {
+    const problem = (path, code, message) => {
+      ctx.addIssue({ code: "custom", path, params: { code }, message });
+    };
+    const duplicates = (names) => {
+      const seen = /* @__PURE__ */ new Set();
+      const dupes = /* @__PURE__ */ new Set();
+      for (const name of names) {
+        if (seen.has(name)) dupes.add(name);
+        seen.add(name);
+      }
+      return [...dupes].sort();
+    };
+    if (concept.fact_kind === void 0) {
+      for (const field of [
+        "family",
+        "primary_key",
+        "producer",
+        "materialization",
+        "livemode_qualified",
+        "record_contract",
+        "keys",
+        "measures",
+        "event_attributes",
+        "build",
+        "maturity"
+      ]) {
+        if (concept[field] !== void 0) {
+          problem(
+            [field],
+            "fact_table_field_without_fact_kind",
+            `${field} describes a fact table's rows, so the concept must declare fact_kind`
+          );
+        }
+      }
+      for (const [index, source] of (concept.sources ?? []).entries()) {
+        if (source.kind !== "unavailable") {
+          problem(
+            ["sources", index, "kind"],
+            "real_source_without_fact_kind",
+            "a concept naming a real row source must declare fact_kind (D-9: the concept IS the fact table)"
+          );
+        }
+      }
+    } else {
+      const required = [
+        "family",
+        "primary_key",
+        "producer",
+        "materialization",
+        "livemode_qualified",
+        "record_contract",
+        "keys",
+        "measures",
+        "event_attributes",
+        "sources",
+        "oracle_family",
+        "policy_dependencies"
+      ];
+      for (const field of required) {
+        if (concept[field] === void 0) {
+          problem(
+            [field],
+            "mapped_concept_missing_fact_table_field",
+            `a concept declaring fact_kind must declare ${field} (D-9: the concept IS the fact table)`
+          );
+        }
+      }
+      if (concept.keys !== void 0 && concept.keys.length === 0) {
+        problem(["keys"], "mapped_concept_without_keys", "a fact carries at least one entity key (R1)");
+      }
+      for (const [dimensionId, grounding] of Object.entries(concept.dimension_groundings ?? {})) {
+        if (grounding.anchor === void 0) {
+          problem(
+            ["dimension_groundings", dimensionId, "anchor"],
+            "grounding_without_anchor",
+            `grounding for ${dimensionId} must declare an anchor once the concept declares fact_kind (R8)`
+          );
+        }
+      }
+      if (concept.fact_kind === "accumulating_snapshot" && concept.maturity === void 0) {
+        problem(
+          ["maturity"],
+          "accumulating_snapshot_without_maturity",
+          "an accumulating snapshot must declare maturity \u2014 status 'unavailable' with a blocker when right-censoring is not implemented (R5)"
+        );
+      }
+      if (concept.fact_kind !== "transaction" && concept.build === void 0) {
+        problem(["build"], "snapshot_without_build", "a snapshot fact must declare the build that produces its rows (R5)");
+      }
+      if (concept.fact_kind === "transaction" && concept.maturity !== void 0) {
+        problem(["maturity"], "transaction_with_maturity", "maturity is a snapshot property; a transaction fact has no horizon (R5)");
+      }
+    }
+    for (const [dimensionId, grounding] of Object.entries(concept.dimension_groundings ?? {})) {
+      if (grounding.catalog_status === "unavailable" && !grounding.blocker?.trim()) {
+        problem(
+          ["dimension_groundings", dimensionId, "blocker"],
+          "unavailable_grounding_without_blocker",
+          `grounding for ${dimensionId} is catalog_status 'unavailable' and must name the blocker (R11/G13)`
+        );
+      }
+      if (grounding.catalog_status !== "unavailable" && grounding.blocker !== void 0) {
+        problem(
+          ["dimension_groundings", dimensionId, "blocker"],
+          "grounding_blocker_without_unavailable",
+          `grounding for ${dimensionId} carries a blocker, so its catalog_status must be 'unavailable' (R11/G13)`
+        );
+      }
+      if (grounding.kind !== "config_join" && grounding.kind !== "membership_join") continue;
+      if (grounding.catalog_status === "unavailable") continue;
+      const joined = (concept.sources ?? []).some(
+        (source) => source.ref === grounding.source && source.kind !== "unavailable"
+      );
+      if (!joined) {
+        problem(
+          ["dimension_groundings", dimensionId, "source"],
+          "join_grounding_without_execution_path",
+          `grounding for ${dimensionId} is a ${grounding.kind} against '${grounding.source}', which the concept does not declare among its sources \u2014 nothing performs that join, so the grounding must declare catalog_status 'unavailable' with its blocker (R11/G13)`
+        );
+      }
+    }
+    if (concept.materialization?.mode === "rollup" && concept.materialization.rollup_grain === void 0) {
+      problem(["materialization", "rollup_grain"], "rollup_without_grain", "materialization mode 'rollup' must name its rollup_grain");
+    }
+    if (concept.materialization && concept.materialization.mode !== "rollup" && concept.materialization.rollup_grain !== void 0) {
+      problem(["materialization", "rollup_grain"], "rollup_grain_without_rollup", "rollup_grain is only meaningful when mode is 'rollup'");
+    }
+    if (concept.family === "billing" && concept.livemode_qualified === void 0) {
+      problem(["livemode_qualified"], "billing_concept_without_livemode", "a billing fact must state whether it is live/test qualified (R2)");
+    }
+    if (concept.livemode_qualified === true && concept.record_contract?.livemode_field === void 0) {
+      problem(
+        ["record_contract", "livemode_field"],
+        "livemode_qualified_without_field",
+        "livemode_qualified: true must name the field carrying Stripe live/test mode (R2)"
+      );
+    }
+    for (const [index, key] of (concept.keys ?? []).entries()) {
+      if (key.resolution === "absent" && !key.note?.trim()) {
+        problem(["keys", index, "note"], "absent_key_without_note", "resolution 'absent' must state why the key is not carried (R1)");
+      }
+      if (key.resolution === "absent" && key.path !== "-") {
+        problem(["keys", index, "path"], "absent_key_with_path", "resolution 'absent' must carry path '-' \u2014 there is no path to read");
+      }
+      if (key.resolution !== "absent" && key.path === "-") {
+        problem(["keys", index, "path"], "resolved_key_without_path", "a source or enriched key must name the path it resolves through");
+      }
+    }
+    for (const duplicate of duplicates((concept.keys ?? []).map((key) => key.key))) {
+      problem(["keys"], "duplicate_key", `duplicate entity key: ${duplicate}`);
+    }
+    for (const [index, measure] of (concept.measures ?? []).entries()) {
+      if (measure.temporal === "stock" && measure.aggregation_semantics !== "semi_additive") {
+        problem(
+          ["measures", index, "aggregation_semantics"],
+          "stock_measure_not_semi_additive",
+          "a stock measure is semi_additive by construction \u2014 it is summed at one date, never across dates (R3)"
+        );
+      }
+      if (measure.unit === "polymorphic") {
+        if (!measure.note?.trim()) {
+          problem(
+            ["measures", index, "note"],
+            "polymorphic_measure_without_note",
+            "unit 'polymorphic' must name the column that decides the unit"
+          );
+        }
+        if (measure.aggregation_semantics !== "non_additive") {
+          problem(
+            ["measures", index, "aggregation_semantics"],
+            "polymorphic_measure_summed",
+            "unit 'polymorphic' is non_additive \u2014 rows of different units cannot be summed"
+          );
+        }
+      }
+      if (measure.unit === "count" && measure.sign === "signed") {
+        problem(["measures", index, "sign"], "signed_count_measure", "a count is unsigned; a signed change is a currency or usage delta (R3)");
+      }
+    }
+    for (const duplicate of duplicates((concept.measures ?? []).map((measure) => measure.name))) {
+      problem(["measures"], "duplicate_measure", `duplicate measure name: ${duplicate}`);
+    }
+    for (const duplicate of duplicates((concept.event_attributes ?? []).map((attribute) => attribute.name))) {
+      problem(["event_attributes"], "duplicate_event_attribute", `duplicate event attribute: ${duplicate}`);
+    }
+    for (const [index, source] of (concept.sources ?? []).entries()) {
+      if (source.kind === "unavailable" && !source.blocker?.trim()) {
+        problem(["sources", index, "blocker"], "unavailable_source_without_blocker", "source kind 'unavailable' must name the blocker");
+      }
+      if (source.kind !== "unavailable" && source.blocker !== void 0) {
+        problem(["sources", index, "blocker"], "available_source_with_blocker", "a real source carries no blocker \u2014 use note");
+      }
+    }
+    const sourceKinds = new Set((concept.sources ?? []).map((source) => source.kind));
+    if (sourceKinds.has("unavailable") && sourceKinds.size > 1) {
+      problem(["sources"], "mixed_unavailable_sources", "a concept with an 'unavailable' source declares no other source");
+    }
+    if (sourceKinds.has("unavailable") && (concept.measures?.length ?? 0) > 0) {
+      problem(["measures"], "unavailable_source_with_measures", "a concept with no fact declares no measures");
+    }
+    if (concept.build?.kind === "unavailable" && !concept.build.blocker?.trim()) {
+      problem(["build", "blocker"], "unavailable_build_without_blocker", "build kind 'unavailable' must name the blocker");
+    }
+    if (concept.build && concept.build.kind !== "unavailable" && concept.build.blocker !== void 0) {
+      problem(["build", "blocker"], "available_build_with_blocker", "a real build carries no blocker");
+    }
+    if (concept.maturity) {
+      if (concept.maturity.status === "declared") {
+        for (const field of ["horizon_field", "observed_through_field"]) {
+          if (concept.maturity[field] === void 0) {
+            problem(["maturity", field], "declared_maturity_missing_field", `maturity status 'declared' must name ${field} (R5)`);
+          }
+        }
+        if (concept.maturity.blocker !== void 0) {
+          problem(["maturity", "blocker"], "declared_maturity_with_blocker", "maturity status 'declared' carries no blocker");
+        }
+      } else if (!concept.maturity.blocker?.trim()) {
+        problem(["maturity", "blocker"], "unavailable_maturity_without_blocker", "maturity status 'unavailable' must name the blocker");
+      }
+    }
+    if (concept.oracle_family) {
+      if (concept.oracle_family.family === "none" && !concept.oracle_family.blocker?.trim()) {
+        problem(["oracle_family", "blocker"], "no_oracle_without_blocker", "oracle_family 'none' must name why no oracle covers this concept (R6)");
+      }
+      if (concept.oracle_family.family !== "none" && concept.oracle_family.blocker !== void 0) {
+        problem(["oracle_family", "blocker"], "oracle_family_with_blocker", "a concept with an oracle family carries no blocker");
+      }
+    }
+    for (const [index, dependency] of (concept.policy_dependencies ?? []).entries()) {
+      if (!dependency.stamped && !dependency.blocker?.trim()) {
+        problem(
+          ["policy_dependencies", index, "blocker"],
+          "unstamped_policy_without_blocker",
+          `policy dependency '${dependency.kind}' is not stamped on the row, so it must name the blocker (R9)`
+        );
+      }
+      if (dependency.stamped && dependency.blocker !== void 0) {
+        problem(["policy_dependencies", index, "blocker"], "stamped_policy_with_blocker", "a stamped policy dependency carries no blocker");
+      }
+    }
+    for (const duplicate of duplicates((concept.policy_dependencies ?? []).map((dependency) => dependency.kind))) {
+      problem(["policy_dependencies"], "duplicate_policy_dependency", `duplicate policy dependency: ${duplicate}`);
+    }
+    const stampedPolicies = (concept.policy_dependencies ?? []).filter((dependency) => dependency.stamped);
+    if (stampedPolicies.length > 0 && (concept.record_contract?.policy_version_fields?.length ?? 0) === 0) {
+      problem(
+        ["record_contract", "policy_version_fields"],
+        "stamped_policy_without_version_field",
+        "a stamped policy dependency requires the record contract to name the policy-version field it is stamped in (R2)"
+      );
+    }
+  }
+).meta(meta("AnalyticsCatalogConceptValidated"));
 var OrderBy = z14.strictObject({
   field: SemanticIdField.meta(Unrestricted11),
   direction: z14.enum(["asc", "desc"]).meta(Unrestricted11)
@@ -4082,6 +4517,57 @@ var MilestonePayload = z18.looseObject({});
 var AcquisitionMilestonePayload = z18.looseObject({
   acquisition_source: z18.string().optional().meta(Unrestricted15)
 });
+var LifecycleEvidence = z18.looseObject({
+  kind: z18.enum(["provider_fact", "app_fact", "usage_exhaustion"]).meta(Unrestricted15),
+  /** The producer-scoped reference to the proving fact (a Stripe event id, an
+   * app write id, a metering observation id). Opaque to RevTurbine. */
+  ref: str()
+});
+var AccountCreatedPayload = z18.looseObject({
+  acquisition_source: z18.string().optional().meta(Unrestricted15),
+  /** The account grain (plan 276 R-2) — never a user id. */
+  account_id: onstr(),
+  /** When the account came into existence, per the producer. */
+  created_at: onstr(),
+  /** What kind of act created it (e.g. `self_serve_signup`, `invite_accepted`,
+   * `provisioned`, `import`). A USER signup is not account creation (R-2). */
+  source: onstr(),
+  evidence: LifecycleEvidence.nullable().optional()
+});
+var TrialRevisionPayload = z18.looseObject({
+  /** Stable id for the episode this revision belongs to. Conversion links only
+   * its OWN episode (plan 276 AC-4), so this is half the identity key. */
+  trial_episode_id: str(),
+  /** The account the episode is materialized against (R-2). */
+  account_id: str(),
+  /** `user` retains a user-subject episode WITHOUT making it an account-wide
+   * grant (R-2); `account` is an account-wide grant. */
+  subject_scope: z18.enum(["account", "user"]).meta(Unrestricted15),
+  /** The Playbook trial rule's `unique_handle`, when the episode came from one. */
+  rule_handle: onstr(),
+  /** The trialed plan's handle, when the episode grants one plan. */
+  plan_handle: onstr(),
+  /** `free_trial` / `reverse_trial` / anything the tenant runs. Vocabulary only. */
+  trial_type: onstr(),
+  revision: z18.enum(["started", "extended", "converted", "reverted", "expired", "revoked"]).meta(Unrestricted15),
+  /** When the revision took effect, per the proving fact — never the write clock. */
+  effective_at: str(),
+  /** The declared end. Its passing proves only that the time passed (R-1(c)). */
+  scheduled_end_at: onstr(),
+  /** The EVIDENCED end. Null until a fact closes the episode. */
+  actual_end_at: onstr(),
+  evidence: LifecycleEvidence,
+  /** The biller's reference when a provider fact is involved (e.g. a Stripe
+   * subscription id), so an app fact and a provider derivative about the same
+   * episode can be reconciled. */
+  provider_ref: onstr()
+});
+function isEvidencedAccountCreation(payload) {
+  const parsed = AccountCreatedPayload.safeParse(payload ?? {});
+  if (!parsed.success) return false;
+  const { account_id, created_at, source, evidence } = parsed.data;
+  return Boolean(account_id && created_at && source && evidence);
+}
 var UsageRecordedPayload = z18.looseObject({
   metered_units: z18.number().nonnegative().meta(Unrestricted15),
   included_allowance: z18.number().nonnegative().meta(Unrestricted15),
@@ -4219,7 +4705,7 @@ var EVENT_PAYLOAD_CONTRACTS = {
   user_context_observed: { schema: UserContextObservedPayload, identity: envelopeIdentity },
   clickstream_page_view: { schema: PageViewPayload, identity: envelopeIdentity },
   // SDK client — customer-product lifecycle milestones (promoted, R-1)
-  account_created: { schema: AcquisitionMilestonePayload, identity: envelopeIdentity },
+  account_created: { schema: AccountCreatedPayload, identity: envelopeIdentity },
   user_signed_up: { schema: AcquisitionMilestonePayload, identity: envelopeIdentity },
   onboarding_completed: { schema: MilestonePayload, identity: envelopeIdentity },
   account_activated: { schema: MilestonePayload, identity: envelopeIdentity },
@@ -4229,6 +4715,10 @@ var EVENT_PAYLOAD_CONTRACTS = {
   plan_viewed: { schema: PlanViewedPayload, identity: envelopeIdentity },
   promotion_applied: { schema: PromotionAppliedPayload, identity: envelopeIdentity },
   promotion_converted: { schema: PromotionConvertedPayload, identity: envelopeIdentity },
+  // App-owned trial episode (plan 276 R-1(b)) — identity is the episode plus
+  // the revision, so a retry of the same app fact collapses while a later
+  // revision of the same episode stays a distinct occurrence.
+  trial_revision: { schema: TrialRevisionPayload, identity: ["trial_episode_id", "revision"] },
   // SDK server — derived observations
   growth_signal_observed: { schema: GrowthSignalObservedPayload, identity: envelopeIdentity },
   // SDK meta lane
@@ -4364,7 +4854,15 @@ var SDK_CLIENT_EVENT_NAMES = [
   "usage_recorded",
   "plan_viewed",
   "promotion_applied",
-  "promotion_converted"
+  "promotion_converted",
+  // App-owned trial-episode revision (plan 276 R-1(b), TASK-12/TASK-13; ruling
+  // D-21). The authoritative fact for an APP-RUN trial: the tenant's product
+  // owns trial execution, so only the tenant's product can state that an
+  // episode started, was extended, converted, reverted, expired or was
+  // revoked. Distinct from the `trial_*` billing band, which is the provider
+  // derivative (R-1(a)) and cannot establish enrolment. The clock is never an
+  // authority (R-1(c)): an elapsed scheduled end emits nothing at all.
+  "trial_revision"
 ];
 var SDK_SERVER_EVENT_NAMES = [
   "growth_signal_observed"
@@ -4445,7 +4943,7 @@ var EVENT_METADATA = {
   sdk_validation_warning: { purpose: "The SDK found a config or usage problem worth surfacing.", stability: "internal" },
   resolution_failure: { purpose: "A decision produced nothing; allow-listed handles and closed reason codes only.", stability: "internal" },
   // Customer-product lifecycle milestones (plan 228 TASK-2, promoted under R-1)
-  account_created: { purpose: "A customer account came into existence in the tenant product; acquisition_source rides on the payload.", stability: "stable" },
+  account_created: { purpose: "A customer account came into existence in the tenant product; acquisition_source rides on the payload, and the plan-276 REQ-3 account-creation evidence (account_id, created_at, source, evidence) rides on it when the producer holds it.", stability: "stable" },
   user_signed_up: { purpose: "A user completed signup in the tenant product.", stability: "stable" },
   onboarding_completed: { purpose: "A user finished the tenant product onboarding flow.", stability: "stable" },
   account_activated: { purpose: "An account reached the tenant-defined activation milestone.", stability: "stable" },
@@ -4455,6 +4953,7 @@ var EVENT_METADATA = {
   plan_viewed: { purpose: "A user viewed plan or pricing content; plan_handle and entry_tier ride on the payload.", stability: "stable" },
   promotion_applied: { purpose: "A promotion was applied to an account; promotion_handle rides on the payload.", stability: "stable" },
   promotion_converted: { purpose: "An account with a promotion converted; full_price marks conversions where the discount lapsed first.", stability: "stable" },
+  trial_revision: { purpose: "The app-owned authoritative fact about one trial episode (plan 276 R-1(b)): which revision occurred (started/extended/converted/reverted/expired/revoked), when it took effect, and the evidence that proves it. Trial execution and ownership stay with the customer app.", stability: "stable" },
   // Server-derived observations (plan 228 TASK-2)
   growth_signal_observed: { purpose: "A pre-computed windowed metric observation written by a server-side producer; readers should prefer read-time derivation where a platform source exists.", stability: "internal" },
   // Billing lifecycle (plan 228 R-2) — dual-source: Stripe webhook processor OR typed SDK emit.
@@ -4579,6 +5078,35 @@ function createInMemoryAnalyticsCatalog(data) {
           }
         }
       }
+    }
+    const structural = AnalyticsCatalogConceptValidatedSchema.safeParse(concept);
+    if (!structural.success) {
+      for (const issue2 of structural.error.issues) {
+        problems.push(`concept ${concept.id} failed structural validation at ${issue2.path.join(".") || "(root)"}: ${issue2.message}`);
+      }
+    }
+  }
+  for (const concept of catalog.concepts) {
+    const conceptMetrics = concept.metrics.flatMap((id) => metrics.get(id) ?? []);
+    if (conceptMetrics.length === 0) continue;
+    const allUnavailable = conceptMetrics.every((metric) => metric.catalog_status === "unavailable");
+    if (allUnavailable) {
+      if (concept.fact_kind !== void 0) {
+        problems.push(
+          `concept ${concept.id} declares fact_kind but every one of its metrics is catalog_status='unavailable' \u2014 declare sources with kind='unavailable' and the blocker instead`
+        );
+      }
+      continue;
+    }
+    if (concept.fact_kind === void 0) {
+      problems.push(
+        `concept ${concept.id} serves at least one available metric but declares no fact_kind (D-9: the concept IS the fact table)`
+      );
+    }
+    if ((concept.measures?.length ?? 0) === 0) {
+      problems.push(
+        `concept ${concept.id} serves at least one available metric but declares no stored measure`
+      );
     }
   }
   for (const metric of catalog.metrics) {
@@ -5225,6 +5753,34 @@ var FIXTURE_ANALYTICS_CATALOG = {
     { id: "reactivation.previously_healthy_account_count", label: "Previously healthy accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Allowlisted by the pipe but no producer emits it. Requires an account activity-history derivation that does not exist." } },
     { id: "reactivation.inactive_previously_healthy_rate", label: "Inactive previously healthy rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "decrease", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Same as reactivation.previously_healthy_account_count \u2014 allowlisted, unproduced." } },
     { id: "reactivation.reactivated_rate", label: "Reactivated account rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Same as reactivation.previously_healthy_account_count \u2014 allowlisted, unproduced." } },
+    // ── Account lifecycle transitions (plan 276 TASK-3, R-6) ──────────────
+    //
+    // The movement counts of `growth.account_lifecycle_transitions_v1`. All
+    // eleven are `catalog_status: 'unavailable'` and DECLARED rather than
+    // served, which is the point: the concept exists so a binding can refuse
+    // a lifecycle movement BY NAME instead of returning a silent zero, and so
+    // the surface can say "not available" with the blocker rather than "0".
+    //
+    // Two distinct blockers, never conflated:
+    //   Phase A (paid_started, plan_upgraded, plan_downgraded, paid_ended,
+    //   reactivated) — derivable from billing facts alone under R-6, blocked
+    //   only on the projection and endpoint that produce the rows
+    //   (plan 276 TASK-7/TASK-8, over plan 252's unshipped accounting chain).
+    //   Phase B (signup, trial_started, trial_converted, trial_reverted,
+    //   access_ended) — blocked on there being no authoritative producer AT
+    //   ALL (workspace D-21; plan 276 TASK-2's inventory found zero call
+    //   sites), which is a different and deeper gap.
+    { id: "lifecycle.paid_started_count", label: "Paid started", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase A, declared not served: plan 276 TASK-7/TASK-8 unshipped, so no transition row exists. Positive eligible recurring stock under the shared accounting policy is what makes an account paid, and that stock is plan 252 TASK-29/34/36 (also unshipped). Card collection or subscription status `active` never substitutes (R-6)." } },
+    { id: "lifecycle.plan_upgraded_count", label: "Plan upgrades", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase A, declared not served: plan 276 TASK-7/TASK-8 unshipped. Compares verified commercial TIERS in the applicable Playbook snapshot; seat growth, add-ons, price and billing-interval changes are separate causes and never an upgrade edge (R-6)." } },
+    { id: "lifecycle.plan_downgraded_count", label: "Plan downgrades", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase A, declared not served: plan 276 TASK-7/TASK-8 unshipped. Tier comparison as for lifecycle.plan_upgraded_count; a lower tier is not inferred from a lower amount." } },
+    { id: "lifecycle.paid_ended_count", label: "Paid ended", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase A, declared not served: plan 276 TASK-7/TASK-8 unshipped. Requires composing every relevant subscription before declaring an account no longer paid; a 100% recurring discount ends positive stock while subscription and access remain and keeps its accounting cause, and payment failure does not prove access ended (R-6)." } },
+    { id: "lifecycle.reactivated_count", label: "Reactivations", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase A, declared not served: plan 276 TASK-7/TASK-8 unshipped. R-6 additionally requires KNOWN prior history \u2014 incomplete history yields lifecycle.paid_started_count with an `unknown_prior_history` quality flag, never a fabricated first acquisition." } },
+    { id: "lifecycle.signup_count", label: "Account signups", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase B: no authoritative producer (workspace D-21). Plan 276 TASK-2 found zero call sites for any account-creation event in any repo, and `account_created` is not an emittable control-plane name; `provisionTenantForFirstUser` emits nothing. A USER signup is not account creation (R-2), so first observation may not stand in." } },
+    { id: "lifecycle.trial_started_count", label: "Trials started", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase B: no authoritative producer (workspace D-21). The app-owned `trial_instances` row emits nothing and carries no episode id or subject scope; a Playbook trial rule is vocabulary only and never an occurrence (R-1c). Plan 276 TASK-12/TASK-14." } },
+    { id: "lifecycle.trial_converted_count", label: "Trials converted", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase B: no authoritative producer (workspace D-21). Conversion must link the episode's OWN commitment at or after its actual end; `trial_instances` has no `actual_end`, and `deriveBillingRef` dedupes trial events once per subscription, so the episode evidence the link needs does not exist. Plan 276 TASK-12." } },
+    { id: "lifecycle.trial_reverted_count", label: "Trials reverted", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase B: no authoritative producer (workspace D-21). An elapsed scheduled end proves only that the scheduled time passed \u2014 the episode stays `pending_unknown` and NO reversion edge is emitted (R-1c). Today's live signal is clock-derived at read time, which R-1 forbids as an authority." } },
+    { id: "lifecycle.access_ended_count", label: "Access ended", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Phase B: no authoritative producer (workspace D-21). Requires resulting-access evidence from the app; usage-metered expiry additionally requires exhaustion or end evidence, and Free requires affirmative Free-access evidence rather than a lowest tier or zero revenue (R-1, R-6)." } },
+    { id: "lifecycle.moved_account_count", label: "Accounts moved", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Distinct accounts with at least one transition in the window \u2014 the plan 276 AC-8 companion to the per-kind occurrence counts. NON-ADDITIVE by construction: one account can traverse several edges, so distinct counts are never summed across edges and never used as a cohort denominator. Declared not served: plan 276 TASK-7/TASK-8 unshipped." } },
     { id: "entitlement.granted_account_count", label: "Granted accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "platform", ingested_events: ["gate_evaluated"], note: "uniq accounts whose gate_evaluated outcome was `allowed`." } },
     { id: "entitlement.adoption_rate", label: "Entitlement adoption rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "platform", ingested_events: ["gate_evaluated"], note: "allowed accounts over all evaluated accounts. gate_evaluated is the passive denominator the SDK emits on every gate render." } },
     { id: "entitlement.adopter_retention_lift", label: "Adopter retention lift", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: "Needs a retention cohort comparison between adopters and non-adopters. No retention derivation exists." } },
@@ -5248,9 +5804,9 @@ var FIXTURE_ANALYTICS_CATALOG = {
     { id: "retention.active_users_per_account", label: "Active users per account", value_type: "number", source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
     { id: "retention.core_action_frequency", label: "Core action frequency", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "user", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
     { id: "retention.active_days_rate", label: "Active days rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "user", catalog_status: "unavailable", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "none", ingested_events: [], note: 'Inputs are customer-authored track() names. The event taxonomy declares that set deliberately open ("the SDK has no closed event-name set"), so there is no platform vocabulary to derive from \u2014 this needs per-tenant event mapping, which does not exist.' } },
-    { id: "decision.eligible_accounts", label: "Eligible accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
-    { id: "decision.reached_accounts", label: "Reached accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
-    { id: "placement.presented_accounts", label: "Presented accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "BL-0195: reconsidered and left OFF growth_funnel_signals. web treatment-interaction-rows.ts stamps account_id on placement_interaction, so the per-rule aggregate CAN compute uniqExact(account_id) \u2014 but this metric belongs to monetization.entitlement_decision, not placement.presentation, and only placement.presentation gets the decision.rule execution route (bindings.ts PLACEMENT_RULE_METRICS/isPlacementRuleCut). Grounded data with no route to travel is not honest carriage; see placement.clicks for the metric that IS on that route." } },
+    { id: "decision.eligible_accounts", label: "Eligible accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet." } },
+    { id: "decision.reached_accounts", label: "Reached accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "The decision-log facts this reads do not exist in Tinybird yet." } },
+    { id: "placement.presented_accounts", label: "Presented accounts", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "BL-0195: reconsidered and left OFF growth_funnel_signals. account_id is stamped on placement_interaction, so the per-rule aggregate CAN compute uniqExact(account_id) \u2014 but this metric belongs to monetization.entitlement_decision, not placement.presentation, and only placement.presentation carries the decision.rule execution route. Grounded data with no route to travel is not honest carriage; see placement.clicks for the metric that IS on that route." } },
     { id: "conversion.paid_accounts", label: "Converted accounts", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } },
     {
       id: "conversion.rate",
@@ -5272,7 +5828,7 @@ var FIXTURE_ANALYTICS_CATALOG = {
     // honestly at conversion grain (rule 17): the presentation-family
     // templates read a column no writer populates and are a named refusal.
     { id: "revenue.attributed_mrr", label: "Attributed revenue (last-touch)", value_type: "currency", source_scope: "revturbine_influenced", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing"], note: "Declared success conversions credited once each to their read-time last-touch exposure (optimization-contracts rules 15-17)." } },
-    { id: "retention.retained_mrr_30d", label: "Retained MRR (30d)", value_type: "currency", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Needs a join against billing data that no presentation-backed executor has access to. Also on bindings.ts KNOWN_UNSERVABLE_METRICS." } },
+    { id: "retention.retained_mrr_30d", label: "Retained MRR (30d)", value_type: "currency", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Needs a join against billing data that no presentation-backed executor has access to." } },
     // ── Catalog honesty, BL-0063 (analytics spec cover note §2) ───────────
     // What daily_revenue_rollup actually projects is `sum(amount_cents)` over
     // `invoice.paid` rows. That is neither MRR nor collected cash: an
@@ -5326,7 +5882,7 @@ var FIXTURE_ANALYTICS_CATALOG = {
       value_type: "datetime",
       layer: "primitive",
       catalog_status: "tested",
-      derivation: { carried_by: ["analytics_presentation_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "Computed only by analytics_presentation_breakdown; the funnel pipe has no such column, so it sits on bindings.ts KNOWN_UNSERVABLE_METRICS for that executor. A binding-coverage gap, not a data-availability one." }
+      derivation: { carried_by: ["analytics_presentation_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "Served on the breakdown route via carried_by; the funnel pipe has no such column, so this metric has no execution route through that executor. A binding-coverage gap, not a data-availability one." }
     },
     {
       id: "revenue.attributed_amount",
@@ -5380,8 +5936,8 @@ var FIXTURE_ANALYTICS_CATALOG = {
       historical_mode: "as_of_event",
       dimensions: ["time.occurred_at", "acquisition.source", "targeting.segment"],
       dimension_groundings: {
-        "acquisition.source": { kind: "stamped", source: "payload:acquisition_source" },
-        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", note: "R-11a stamp; lands with TASK-4" }
+        "acquisition.source": { kind: "stamped", source: "payload:acquisition_source", anchor: "fact_time" },
+        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", anchor: "fact_time", note: "R-11a stamp; lands with TASK-4" }
       },
       metrics: [
         "acquisition.signup_count",
@@ -5390,7 +5946,54 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "retention.d7_rate"
       ],
       query_families: ["scalar", "timeseries", "breakdown", "table"],
-      source_scope: "total"
+      source_scope: "total",
+      fact_kind: "transaction",
+      family: "behavioral",
+      primary_key: ["tenant_id", "environment_id", "event_ts", "event_name", "request_id"],
+      producer: "customer_authored",
+      materialization: { mode: "rollup", rollup_grain: "day" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["tenant_id", "environment_id", "event_ts", "event_name", "request_id"],
+        source_namespace: "sdk_clickstream",
+        occurred_time_field: "event_ts",
+        received_time_field: "ingested_at",
+        dedup: "deduplicated_on_record_id",
+        revision: "re_emit_higher_version",
+        late_arrival: "accepted_within_retention",
+        correlation_keys: ["request_id", "event_id", "decision_id"],
+        note: "events_clickstream is a ReplacingMergeTree keyed on the sorting tuple with ingested_at as the version, so a re-emission supersedes rather than duplicates. Its `test` column marks simulated traffic, NOT Stripe live/test mode, so this fact is not livemode-qualified. Rows outside tenant_simulation expire after 365 days, which bounds late arrival."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "environment", path: "column:environment_id", resolution: "source" },
+        { key: "user", path: "column:user_id", resolution: "source" },
+        { key: "account", path: "column:account_id", resolution: "enriched", note: "Nullable on the wire; resolved through the identity map at ingest (R1). An unresolved row keeps its value and counts toward total scope." }
+      ],
+      measures: [
+        { name: "signal_count", source: "row_count", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" },
+        { name: "signal_value", source: "payload:value", unit: "polymorphic", temporal: "gauge", sign: "unsigned", aggregation_semantics: "non_additive", note: "growth_signal_observed is a generic metric carrier: the unit is decided by payload:metric, so one column serves signup counts, activation rates and time-to-value seconds. Rows of different units can never be summed." },
+        { name: "signal_numerator", source: "payload:numerator", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" },
+        { name: "signal_denominator", source: "payload:denominator", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" },
+        { name: "sample_size", source: "payload:sample_size", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" }
+      ],
+      event_attributes: [
+        { name: "event_name", path: "column:event_name" },
+        { name: "metric", path: "payload:metric" },
+        { name: "dimension_key", path: "payload:dimension_key" },
+        { name: "dimension_value", path: "payload:dimension_value" },
+        { name: "window_start", path: "payload:window_start" },
+        { name: "window_end", path: "payload:window_end" },
+        { name: "origin", path: "column:origin" },
+        { name: "test", path: "column:test" }
+      ],
+      sources: [
+        { kind: "ingested_event", ref: "growth_signal_observed" },
+        { kind: "datasource", ref: "events_clickstream" },
+        { kind: "build", ref: "growth_funnel_signals", note: "Query-time pipe; it groups the raw rows to the day, which is why materialization is a rollup rather than a second stored grain." }
+      ],
+      oracle_family: { family: "none", blocker: "growth_signal_observed aggregation is served straight out of the growth_funnel_signals pipe. DERIVED_METRIC_ORACLE_FAMILIES in @revt-eng/optimization-core covers gate, presentation, revenue, attribution, event_count, cohort and funnel only, so these metrics have no pure derivation to tie out against (R6, plan 228 REQ-6)." },
+      policy_dependencies: []
     },
     {
       id: "growth.funnel",
@@ -5403,8 +6006,8 @@ var FIXTURE_ANALYTICS_CATALOG = {
       historical_mode: "as_of_event",
       dimensions: ["time.occurred_at", "funnel.step", "targeting.segment"],
       dimension_groundings: {
-        "funnel.step": { kind: "derived", source: "observation", note: "growth_signal_observed dimension_key" },
-        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", note: "R-11a stamp; lands with TASK-4" }
+        "funnel.step": { kind: "derived", source: "observation", anchor: "fact_time", note: "growth_signal_observed dimension_key" },
+        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", anchor: "fact_time", note: "R-11a stamp; lands with TASK-4" }
       },
       metrics: [
         "funnel.entry_count",
@@ -5413,7 +6016,54 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "funnel.error_rate"
       ],
       query_families: ["scalar", "timeseries", "breakdown", "funnel", "table"],
-      source_scope: "total"
+      source_scope: "total",
+      fact_kind: "transaction",
+      family: "behavioral",
+      primary_key: ["tenant_id", "environment_id", "event_ts", "event_name", "request_id"],
+      producer: "customer_authored",
+      materialization: { mode: "rollup", rollup_grain: "day" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["tenant_id", "environment_id", "event_ts", "event_name", "request_id"],
+        source_namespace: "sdk_clickstream",
+        occurred_time_field: "event_ts",
+        received_time_field: "ingested_at",
+        dedup: "deduplicated_on_record_id",
+        revision: "re_emit_higher_version",
+        late_arrival: "accepted_within_retention",
+        correlation_keys: ["request_id", "event_id", "decision_id"],
+        note: "events_clickstream is a ReplacingMergeTree keyed on the sorting tuple with ingested_at as the version, so a re-emission supersedes rather than duplicates. Its `test` column marks simulated traffic, NOT Stripe live/test mode, so this fact is not livemode-qualified. Rows outside tenant_simulation expire after 365 days, which bounds late arrival."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "environment", path: "column:environment_id", resolution: "source" },
+        { key: "user", path: "column:user_id", resolution: "source" },
+        { key: "account", path: "column:account_id", resolution: "enriched", note: "Nullable on the wire; resolved through the identity map at ingest (R1). An unresolved row keeps its value and counts toward total scope." }
+      ],
+      measures: [
+        { name: "signal_count", source: "row_count", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" },
+        { name: "signal_value", source: "payload:value", unit: "polymorphic", temporal: "gauge", sign: "unsigned", aggregation_semantics: "non_additive", note: "Unit decided by payload:metric \u2014 the same carrier serves step entry counts, completion rates and elapsed seconds." },
+        { name: "signal_numerator", source: "payload:numerator", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" },
+        { name: "signal_denominator", source: "payload:denominator", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" },
+        { name: "sample_size", source: "payload:sample_size", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" }
+      ],
+      event_attributes: [
+        { name: "event_name", path: "column:event_name" },
+        { name: "metric", path: "payload:metric" },
+        { name: "dimension_key", path: "payload:dimension_key", note: "funnel.step grounds on this: the pipe reads JSONExtractString(properties, dimension_key)." },
+        { name: "dimension_value", path: "payload:dimension_value" },
+        { name: "window_start", path: "payload:window_start" },
+        { name: "window_end", path: "payload:window_end" },
+        { name: "origin", path: "column:origin" },
+        { name: "test", path: "column:test" }
+      ],
+      sources: [
+        { kind: "ingested_event", ref: "growth_signal_observed" },
+        { kind: "datasource", ref: "events_clickstream" },
+        { kind: "build", ref: "growth_funnel_signals" }
+      ],
+      oracle_family: { family: "none", blocker: "Served straight out of growth_funnel_signals; no growth-signal family exists in DERIVED_METRIC_ORACLE_FAMILIES, so there is no pure derivation to tie out against (R6)." },
+      policy_dependencies: []
     },
     {
       id: "growth.trial_conversion",
@@ -5431,7 +6081,14 @@ var FIXTURE_ANALYTICS_CATALOG = {
       },
       metrics: ["trial.start_count", "trial.activation_rate", "trial.conversion_rate"],
       query_families: ["scalar", "timeseries", "breakdown", "funnel", "table"],
-      source_scope: "total"
+      source_scope: "total",
+      sources: [
+        { kind: "unavailable", ref: "trial lifecycle fact (app-owned trial revision: episode, subject scope, scheduled vs actual end, outcome)", blocker: "No producer emits a trial lifecycle fact. All three metrics are catalog_status unavailable; plan 276 TASK-2 found zero call sites for any trial lifecycle event, and the only live trial signal is derived from the clock at read time, which plan 276 R-1 forbids as an authority. Blocked on workspace decision D-21." }
+      ],
+      oracle_family: { family: "none", blocker: "No fact, so no derivation to tie out. The oracle family lands with the trial lifecycle build." },
+      policy_dependencies: [
+        { kind: "lifecycle", stamped: false, blocker: "Commercial lifecycle (free, trialing, paying, previously paying) is R10 derived attributes on an account-state snapshot that does not exist; no row carries a lifecycle policy version (plan 252 TASK-30/54)." }
+      ]
     },
     {
       id: "growth.reactivation",
@@ -5453,7 +6110,85 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "reactivation.reactivated_rate"
       ],
       query_families: ["scalar", "timeseries", "breakdown", "table"],
-      source_scope: "total"
+      source_scope: "total",
+      sources: [
+        { kind: "unavailable", ref: "account-state snapshot with lifecycle and engagement attributes (R10)", blocker: "All three metrics are catalog_status unavailable. Demonstrated historical health, inactivity and return are R10 derived attributes on an account-state snapshot that nothing builds; plan 227 TASK-2 shipped a lifecycle generator family that models no reactivation at all (plan 276 TASK-18)." }
+      ],
+      oracle_family: { family: "none", blocker: "No fact, so no derivation to tie out." },
+      policy_dependencies: [
+        { kind: "lifecycle", stamped: false, blocker: "R10 lifecycle attributes are not built and carry no version." },
+        { kind: "engagement", stamped: false, blocker: "R10 engagement thresholds (active, dormant, never used) are not a versioned policy anywhere in the stack." }
+      ]
+    },
+    {
+      // Plan 276 TASK-3 (BL-0227), ruling R-6. The effective-time account
+      // transition product: one row per state-change OCCURRENCE, which is
+      // what retains repeated and same-day movements that a daily account
+      // snapshot cannot (the worksheet's S2 stays the daily snapshot).
+      //
+      // It is registered with NO `fact_kind`. That is not a narrower shape
+      // chosen for convenience — every one of its metrics is
+      // `catalog_status: 'unavailable'`, and D-9's cross-object rule is that
+      // such a concept must NOT describe a fact table it does not have. The
+      // fact is built by plan 276 TASK-7 over plan 252's qualified billing
+      // facts; when it exists, this concept gains `fact_kind` and the whole
+      // record contract at once. Declaring the contract now would be
+      // describing rows that do not exist.
+      //
+      // The record contract TASK-7 will publish is specified in plan 276
+      // "Transition materialization" and is deliberately NOT restated here.
+      //
+      // Registering it now is the point of TASK-3: a binding can refuse a
+      // lifecycle movement BY NAME with a stated blocker, instead of the
+      // surface returning a silent zero for a question nobody can answer.
+      id: "growth.account_lifecycle_transitions_v1",
+      version: 1,
+      label: "Account lifecycle transitions",
+      description: "Effective-time account state changes \u2014 one row per occurrence, retaining repeated and same-day movements.",
+      when_to_use: "Counting how accounts MOVED between commercial lifecycle states over a window, including several moves by one account in one day.",
+      do_not_use_for: "Point-in-time account state (that is the daily snapshot), revenue amounts, or any signup/trial path \u2014 the Phase B kinds have no producer.",
+      grain: ["tenant", "environment", "account", "transition"],
+      analytical_units: ["account"],
+      primary_time_dimension: "time.occurred_at",
+      historical_mode: "as_of_event",
+      dimensions: [
+        "time.occurred_at",
+        "lifecycle.state",
+        "commercial.plan",
+        "customer.account",
+        "trial.rule",
+        "release.playbook_version"
+      ],
+      dimension_groundings: {
+        "lifecycle.state": { kind: "derived", source: "derived:commercial_lifecycle_state", anchor: "fact_time", partitions: true, catalog_status: "unavailable", blocker: "R-6 restricts the Phase A vocabulary to metric rule R10's commercial-lifecycle attribute (free, trialing, paying, previously paying) plus `unknown` for incomplete history; billing health and engagement stay separate attributes. That derivation is not built \u2014 plan 276 TASK-4/TASK-7 over plan 252 TASK-29/TASK-54.", note: "A movement edge carries both endpoints (from_state, to_state); grouping resolves the TO endpoint, and the FROM endpoint is the previous edge's TO." },
+        "commercial.plan": { kind: "config_join", source: "config:playbook_plan_by_price", anchor: "carried_version", partitions: true, catalog_status: "unavailable", blocker: "Resolved price -> variation -> plan from the IMMUTABLE Playbook snapshot named by the row's carried release version, with a documented effective-time fallback (plan 276 TASK-5). No transition row exists yet (TASK-7).", note: "Single plan only where the composition supports one; a multi-plan account never gets an arbitrary primary plan." },
+        "customer.account": { kind: "derived", source: "derived:payer_account_mapping", anchor: "fact_time", partitions: true, catalog_status: "unavailable", blocker: "Account is resolved through the effective-dated payer->account mapping (plan 252 TASK-54, unshipped), NEVER through a latest clickstream association (plan 276 R-2 \u2014 that association is plan 229 F-7 / BL-0068). Unmatched and multi-account payers stay in coverage, never pooled." },
+        "trial.rule": { kind: "stamped", source: "column:trial_rule_handle", anchor: "fact_time", partitions: true, catalog_status: "unavailable", blocker: "Phase B only. A Playbook trial rule supplies VOCABULARY \u2014 handle, type, declared fallback target, tier order \u2014 and never an occurrence (R-1c); no producer emits a trial-revision fact, so nothing stamps this. Workspace D-21; plan 276 TASK-12/TASK-14." },
+        "release.playbook_version": { kind: "stamped", source: "column:playbook_version", anchor: "carried_version", partitions: true, catalog_status: "unavailable", blocker: "Carried on the transition row the plan 276 TASK-7 projection publishes, so generations are never mixed across incompatible configuration versions. No row exists yet." }
+      },
+      metrics: [
+        "lifecycle.paid_started_count",
+        "lifecycle.plan_upgraded_count",
+        "lifecycle.plan_downgraded_count",
+        "lifecycle.paid_ended_count",
+        "lifecycle.reactivated_count",
+        "lifecycle.signup_count",
+        "lifecycle.trial_started_count",
+        "lifecycle.trial_converted_count",
+        "lifecycle.trial_reverted_count",
+        "lifecycle.access_ended_count",
+        "lifecycle.moved_account_count"
+      ],
+      query_families: ["scalar", "timeseries", "breakdown", "funnel", "table"],
+      source_scope: "total",
+      sources: [
+        { kind: "unavailable", ref: "account_lifecycle_transitions_v1 \u2014 the immutable generation partitions plan 276 TASK-7 publishes over plan 252's qualified billing fact revisions", blocker: "No producer. The five Phase A kinds are derivable from billing facts alone but wait on plan 276 TASK-7 (projection + restartable publication) and TASK-8 (datasource + movement endpoint). The five Phase B kinds have NO authoritative producer of any kind \u2014 workspace D-21, evidenced by plan 276 TASK-2.", note: "TASK-7/TASK-8 in turn wait on plan 252 TASK-28/29/31/34/36/45/54, all unshipped as of 2026-09-25." }
+      ],
+      oracle_family: { family: "none", blocker: "The pure billing-only transition classifier is plan 276 TASK-4 and does not exist; no family in DERIVED_METRIC_ORACLE_FAMILIES covers a lifecycle transition, so there is nothing to tie out against yet (R6)." },
+      policy_dependencies: [
+        { kind: "lifecycle", stamped: false, blocker: "The R10 commercial-lifecycle attribute is derived by plan 276 TASK-4 and versioned by the generation TASK-7 publishes; neither exists, so no row carries a lifecycle policy version." },
+        { kind: "mrr", stamped: false, blocker: "from_mrr_positive / to_mrr_positive are CONSUMED from plan 252's normalized recurring stock and movement output (TASK-29/34/36/45), never derived from an invoice amount. That output does not exist and stamps no version." }
+      ]
     },
     {
       id: "growth.entitlement_usage",
@@ -5466,15 +6201,15 @@ var FIXTURE_ANALYTICS_CATALOG = {
       historical_mode: "as_of_event",
       dimensions: ["time.occurred_at", "entitlement.entitlement", "decision.rule", "commercial.plan", "targeting.segment"],
       dimension_groundings: {
-        "entitlement.entitlement": { kind: "stamped", source: "payload:entitlement_handle" },
+        "entitlement.entitlement": { kind: "stamped", source: "payload:entitlement_handle", anchor: "fact_time" },
         // BL-0062 (gap G3): every metric on this concept reads `gate_evaluated`,
         // which now names the rule whose limit/enablement produced the outcome.
         // "Which RULE is denying people" was unanswerable here while only the
         // entitlement was stamped — an entitlement with four plan-scoped rules
         // reported one undifferentiated denial count.
         "decision.rule": { kind: "stamped", source: "payload:rule_handle", anchor: "fact_time", partitions: true, catalog_status: "bound" },
-        "commercial.plan": { kind: "stamped", source: "payload:plan_handle" },
-        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", note: "R-11a stamp; lands with TASK-4" }
+        "commercial.plan": { kind: "stamped", source: "payload:plan_handle", anchor: "fact_time" },
+        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", anchor: "fact_time", note: "R-11a stamp; lands with TASK-4" }
       },
       metrics: [
         "entitlement.granted_account_count",
@@ -5491,7 +6226,55 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "usage.alert_coverage_rate"
       ],
       query_families: ["scalar", "timeseries", "breakdown", "table"],
-      source_scope: "total"
+      source_scope: "total",
+      fact_kind: "transaction",
+      family: "behavioral",
+      primary_key: ["tenant_id", "environment_id", "event_ts", "event_name", "request_id"],
+      producer: "platform",
+      materialization: { mode: "rollup", rollup_grain: "day" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["tenant_id", "environment_id", "event_ts", "event_name", "request_id"],
+        source_namespace: "sdk_clickstream",
+        occurred_time_field: "event_ts",
+        received_time_field: "ingested_at",
+        dedup: "deduplicated_on_record_id",
+        revision: "re_emit_higher_version",
+        late_arrival: "accepted_within_retention",
+        correlation_keys: ["request_id", "event_id", "decision_id"],
+        note: "events_clickstream is a ReplacingMergeTree keyed on the sorting tuple with ingested_at as the version, so a re-emission supersedes rather than duplicates. Its `test` column marks simulated traffic, NOT Stripe live/test mode, so this fact is not livemode-qualified. Rows outside tenant_simulation expire after 365 days, which bounds late arrival."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "environment", path: "column:environment_id", resolution: "source" },
+        { key: "user", path: "column:user_id", resolution: "source" },
+        { key: "account", path: "column:account_id", resolution: "enriched", note: "Nullable on the wire; resolved through the identity map at ingest (R1). An unresolved row keeps its value and counts toward total scope." }
+      ],
+      measures: [
+        { name: "gate_evaluations", source: "row_count", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" },
+        { name: "gate_limit", source: "payload:limit", unit: "usage_unit", temporal: "gauge", sign: "unsigned", aggregation_semantics: "non_additive" },
+        { name: "gate_used", source: "payload:used", unit: "usage_unit", temporal: "gauge", sign: "unsigned", aggregation_semantics: "non_additive" },
+        { name: "gate_remaining", source: "payload:remaining", unit: "usage_unit", temporal: "gauge", sign: "unsigned", aggregation_semantics: "non_additive" }
+      ],
+      event_attributes: [
+        { name: "event_name", path: "column:event_name", note: "gate_evaluated and gate_denied share this fact; the pipe discriminates on it." },
+        { name: "outcome", path: "payload:outcome" },
+        { name: "gated", path: "payload:gated" },
+        { name: "reason", path: "payload:reason" },
+        { name: "entitlement_handle", path: "payload:entitlement_handle" },
+        { name: "rule_handle", path: "payload:rule_handle", note: "BL-0062: the winning entitlement rule, stamped at emit; nullable when no rule matched." },
+        { name: "plan_handle", path: "payload:plan_handle" },
+        { name: "origin", path: "column:origin" },
+        { name: "test", path: "column:test" }
+      ],
+      sources: [
+        { kind: "ingested_event", ref: "gate_evaluated" },
+        { kind: "ingested_event", ref: "gate_denied" },
+        { kind: "datasource", ref: "events_clickstream" },
+        { kind: "build", ref: "growth_funnel_signals" }
+      ],
+      oracle_family: { family: "gate" },
+      policy_dependencies: []
     },
     {
       id: "growth.commercial_health",
@@ -5523,7 +6306,15 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "retention.active_days_rate"
       ],
       query_families: ["scalar", "timeseries", "breakdown", "table"],
-      source_scope: "total"
+      source_scope: "total",
+      sources: [
+        { kind: "unavailable", ref: "contractual recurring stock and the plan / promotion economics facts", blocker: "Every one of the twelve metrics is catalog_status unavailable. Utilization, pricing, promotion and retention rates all need the normalized recurring stock and the commercial facts plan 252 TASK-29/31/34/38 build; growth_funnel_signals carries the metric ids but no producer writes their rows." }
+      ],
+      oracle_family: { family: "none", blocker: "No fact, so no derivation to tie out." },
+      policy_dependencies: [
+        { kind: "mrr", stamped: false, blocker: "No MRR policy exists: normalization and movement classification are revenue-accounting semantics that plan 252 TASK-29/45 build." },
+        { kind: "engagement", stamped: false, blocker: "The retention metrics here need R10 engagement thresholds, which are not a versioned policy." }
+      ]
     },
     {
       id: "monetization.entitlement_decision",
@@ -5548,10 +6339,10 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "experiment.variant"
       ],
       dimension_groundings: {
-        "commercial.plan": { kind: "stamped", source: "payload:plan_handle" },
-        "commercial.billing_period": { kind: "stamped", source: "payload:billing_period" },
-        "lifecycle.state": { kind: "config_join", source: "config:activity_tier", note: "plan-180 tier, joined at read" },
-        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", note: "R-11a stamp; lands with TASK-4" },
+        "commercial.plan": { kind: "stamped", source: "payload:plan_handle", anchor: "fact_time" },
+        "commercial.billing_period": { kind: "stamped", source: "payload:billing_period", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: no serving pipe exposes a billing-period split. placement_presentations has no such column, and exposure_breakdown's dimension enum offers only segment and converted_plan, so the stamp never reaches a group_by. A Tinybird pipe change, not a mapping fix." },
+        "lifecycle.state": { kind: "config_join", source: "config:activity_tier", anchor: "current", catalog_status: "unavailable", blocker: "BL-0248/G13: a config join with no execution path. The plan-180 activity tier lives in Postgres configuration; the \xA75.6 tenant-scoped configuration snapshots that would put it in the warehouse do not exist, so no pipe performs this join and the concept declares no config source for it." },
+        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", anchor: "fact_time", note: "R-11a stamp; lands with TASK-4" },
         // BL-0062 (worksheet gap G3): both of these were `config_join` against
         // a `events_decisions` datasource that does not exist and was never
         // planned — the "decision-log" shape assumed the decision had to be
@@ -5565,10 +6356,18 @@ var FIXTURE_ANALYTICS_CATALOG = {
         // revturbine-web's `growth_funnel_signals` pipe and its conformance
         // tests are the separate execution-layer step.
         "decision.rule": { kind: "stamped", source: "payload:rule_handle", anchor: "fact_time", partitions: true, catalog_status: "bound", note: "BL-0062: the winning entitlement/placement rule, stamped at emit" },
-        "decision.entitlement": { kind: "stamped", source: "payload:entitlement_handle", anchor: "fact_time", partitions: true, catalog_status: "bound", note: "BL-0062: the gate payloads always carried this; the config_join was a consequence of the missing rule key, not of a missing entitlement key" },
-        "release.playbook_version": { kind: "stamped", source: "column:playbook_version" },
-        "experiment.experiment": { kind: "stamped", source: "column:experiment_id" },
-        "experiment.variant": { kind: "stamped", source: "column:variant_key" }
+        // BL-0248/G13: this grounding was `bound` while `bindings.ts` denied it
+        // globally — the exact split-brain G13 names, and the definition is the
+        // half that was wrong. The gate PAYLOADS carry `entitlement_handle`,
+        // but this concept's fact rows are placement exposures and outcomes
+        // (placement_presentations / placement_exposure_attribution), and that
+        // lane carries no entitlement key at all. The gate lane that does
+        // carries neither an exposure nor revenue, so borrowing a temporally
+        // adjacent gate event's entitlement would assert a link no fact makes.
+        "decision.entitlement": { kind: "stamped", source: "payload:entitlement_handle", anchor: "fact_time", partitions: true, catalog_status: "unavailable", blocker: "BL-0248/G13: the entitlement key is stamped on the GATE payloads, not on this concept's exposure/outcome fact rows; the gate lane carries neither an exposure nor revenue, so no honest join exists. Stamping the entitlement of a temporally adjacent gate event onto a movement would assert a link no fact makes.", note: "BL-0062 recorded the payload stamp; BL-0248 records that this concept's fact does not carry it" },
+        "release.playbook_version": { kind: "stamped", source: "column:playbook_version", anchor: "carried_version", catalog_status: "unavailable", blocker: "BL-0248/G13: the column exists on placement_presentations (plan 228 additive migration 003) but no serving pipe splits by it \u2014 a pipe change, no longer a data-capture gap." },
+        "experiment.experiment": { kind: "stamped", source: "column:experiment_id", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: experiment_id is on the fact rows, but only experiment.variant is wired into a serving pipe's split enum; an experiment-level split is a Tinybird pipe change." },
+        "experiment.variant": { kind: "stamped", source: "column:variant_key", anchor: "fact_time" }
       },
       metrics: [
         "decision.eligible_accounts",
@@ -5581,7 +6380,65 @@ var FIXTURE_ANALYTICS_CATALOG = {
       ],
       query_families: ["scalar", "timeseries", "breakdown", "funnel", "table"],
       source_scope: "revturbine_tracked",
-      coverage_metric: "coverage.matched_paid_accounts"
+      coverage_metric: "coverage.matched_paid_accounts",
+      fact_kind: "transaction",
+      family: "behavioral",
+      primary_key: ["tenant_id", "environment_id", "presented_at", "placement_id", "payload_id"],
+      producer: "platform",
+      materialization: { mode: "rollup", rollup_grain: "day" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["tenant_id", "environment_id", "presented_at", "placement_id", "payload_id"],
+        source_namespace: "sdk_clickstream",
+        occurred_time_field: "presented_at",
+        dedup: "append_only",
+        revision: "immutable",
+        late_arrival: "accepted_within_retention",
+        correlation_keys: ["exposure_id", "experiment_id", "surface_slot_id"],
+        note: "placement_presentations is a plain MergeTree: rows are append-only and immutable, and there is NO received-time column, so observation time is not recoverable from the fact (R2 asks for both). Its `test` column marks simulated traffic, not Stripe live/test mode."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "environment", path: "column:environment_id", resolution: "source" },
+        { key: "account", path: "column:account_id", resolution: "source" },
+        { key: "user", path: "column:user_id", resolution: "source" },
+        { key: "placement", path: "column:placement_id", resolution: "source" },
+        { key: "payload", path: "column:payload_id", resolution: "source" },
+        { key: "surface_slot", path: "column:surface_slot_id", resolution: "source" },
+        { key: "message_block", path: "column:message_block_handle", resolution: "source" },
+        { key: "experiment", path: "column:experiment_id", resolution: "source" },
+        { key: "variant", path: "column:variant_key", resolution: "source" },
+        { key: "exposure", path: "column:exposure_id", resolution: "source" }
+      ],
+      measures: [
+        { name: "presentations", source: "row_count", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" },
+        { name: "converted_amount_cents", source: "column:converted_amount_cents", unit: "currency_minor", temporal: "flow", sign: "signed", aggregation_semantics: "additive", note: "Carried on placement_exposure_attribution, not on placement_presentations: the conversion amount is last-touch enrichment from events_billing (rule 17), which is also why this concept is not livemode-qualified." }
+      ],
+      event_attributes: [
+        { name: "outcome", path: "column:outcome" },
+        { name: "outcome_at", path: "column:outcome_at" },
+        { name: "playbook_version", path: "column:playbook_version" },
+        { name: "rule_handle", path: "payload:rule_handle" },
+        { name: "entitlement_handle", path: "payload:entitlement_handle" },
+        { name: "plan_handle", path: "payload:plan_handle" },
+        { name: "billing_period", path: "payload:billing_period" },
+        { name: "converted", path: "column:converted" },
+        { name: "is_last_touch", path: "column:is_last_touch" },
+        { name: "test", path: "column:test" }
+      ],
+      sources: [
+        { kind: "ingested_event", ref: "placement_exposed" },
+        { kind: "ingested_event", ref: "placement_interaction" },
+        { kind: "ingested_event", ref: "placement_outcome" },
+        { kind: "datasource", ref: "placement_presentations" },
+        { kind: "datasource", ref: "placement_exposure_attribution" },
+        { kind: "datasource", ref: "events_billing", note: "Conversion enrichment only; the gate-funnel stages read the clickstream through growth_funnel_signals." },
+        { kind: "build", ref: "exposure_breakdown" }
+      ],
+      oracle_family: { family: "presentation" },
+      policy_dependencies: [
+        { kind: "attribution", stamped: false, blocker: "The last-touch attribution policy is the hard-coded ATTRIBUTION_WINDOW_SECONDS = 3600 constant in @revt-eng/optimization-core; placement_exposure_attribution stores the window per row but never a policy VERSION, so a result cannot cite the policy set that produced it (R2/R9, plan 252 TASK-46)." }
+      ]
     },
     {
       id: "revenue.movement",
@@ -5595,9 +6452,9 @@ var FIXTURE_ANALYTICS_CATALOG = {
       historical_mode: "current",
       dimensions: ["time.occurred_at", "commercial.plan", "commercial.billing_period", "revenue.currency"],
       dimension_groundings: {
-        "commercial.plan": { kind: "stamped", source: "payload:plan_handle" },
-        "commercial.billing_period": { kind: "stamped", source: "payload:billing_period" },
-        "revenue.currency": { kind: "stamped", source: "column:currency" }
+        "commercial.plan": { kind: "stamped", source: "payload:plan_handle", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: the daily revenue rollup carries no plan column, so aggregates_daily_revenue cannot be cut by plan. Plan cuts of revenue arrive with the billing-vocabulary datasource work (plan 252 TASK-9/TASK-31)." },
+        "commercial.billing_period": { kind: "stamped", source: "payload:billing_period", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: the daily revenue rollup carries no billing-period column; same billing-vocabulary datasource work as the plan slice (plan 252 TASK-9/TASK-31)." },
+        "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time" }
       },
       // Plan 229 TASK-5: attributed revenue left this concept — its only
       // revenue-family carrier summed the never-populated presentation
@@ -5609,7 +6466,53 @@ var FIXTURE_ANALYTICS_CATALOG = {
       // naming what a revenue reader expects and says it is not served.
       metrics: ["revenue.invoice_paid_amount_legacy", "revenue.mrr", "revenue.net_new_mrr", "conversion.paid_count"],
       query_families: ["scalar", "timeseries", "breakdown"],
-      source_scope: "total"
+      source_scope: "total",
+      fact_kind: "transaction",
+      family: "billing",
+      primary_key: ["tenant_id", "occurred_at", "stripe_event_id"],
+      producer: "platform",
+      materialization: { mode: "rollup", rollup_grain: "day" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["stripe_event_id"],
+        source_namespace: "stripe",
+        occurred_time_field: "occurred_at",
+        received_time_field: "ingested_at",
+        dedup: "deduplicated_on_record_id",
+        revision: "re_emit_higher_version",
+        late_arrival: "accepted",
+        correlation_keys: ["billing_ref", "subscription_id"],
+        note: "GAP against R2: events_billing carries NO Stripe livemode column, so live and test revenue are indistinguishable in the fact itself \u2014 the reason livemode_qualified is false rather than true. Plan 252 TASK-9 adds it. The datasource is TTL-free, so late Stripe deliveries are accepted without bound."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "payer", path: "column:customer_id", resolution: "source", note: "The Stripe customer. Billing facts and the ledger are keyed by payer; account is an enriched attribute (metric-primitives section 6)." },
+        { key: "subscription", path: "column:subscription_id", resolution: "source" },
+        { key: "user", path: "column:user_id", resolution: "source" },
+        { key: "account", path: "-", resolution: "absent", note: "events_billing carries the payer only and no enrichment writes an account key, so an account slice would have to run in account_matched scope with excluded payers shown as coverage. This concept offers no account cut for that reason." },
+        { key: "environment", path: "-", resolution: "absent", note: "Billing facts are tenant-global: events_billing has no environment_id. That is why the stored grain is [tenant, day] and per-environment revenue cuts are refused." }
+      ],
+      measures: [
+        { name: "amount_cents", source: "column:amount_cents", unit: "currency_minor", temporal: "flow", sign: "signed", aggregation_semantics: "additive" },
+        { name: "mrr_cents", source: "column:mrr_cents", unit: "currency_minor", temporal: "flow", sign: "signed", aggregation_semantics: "additive", note: "On aggregates_daily_revenue. Named mrr_cents but computed as the paid-invoice amount per day: a cash-adjacent FLOW, not a run rate, served as revenue.invoice_paid_amount_legacy (BL-0063). There is no MRR stock measure anywhere in the fact." },
+        { name: "paid_conversions", source: "column:paid_conversions", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" }
+      ],
+      event_attributes: [
+        { name: "stripe_event_type", path: "column:stripe_event_type" },
+        { name: "event_name", path: "column:event_name", note: "The declared billing vocabulary name plan 228 stamps beside the raw Stripe type." },
+        { name: "currency", path: "column:currency" },
+        { name: "plan_handle", path: "payload:plan_handle" },
+        { name: "billing_period", path: "payload:billing_period" }
+      ],
+      sources: [
+        { kind: "datasource", ref: "events_billing" },
+        { kind: "datasource", ref: "aggregates_daily_revenue" },
+        { kind: "build", ref: "daily_revenue_rollup", note: "Materialized view over events_billing; it keys on stripe_event_type = invoice.paid and hard-codes expansion_revenue_cents to 0 (BL-0063)." }
+      ],
+      oracle_family: { family: "revenue" },
+      policy_dependencies: [
+        { kind: "mrr", stamped: false, blocker: "No MRR policy exists to stamp: normalization and movement classification are revenue-accounting sections 3-4, built by plan 252 TASK-29/34/45. Same reason revenue.mrr and net_new_mrr are unavailable, and why the D-9 revenue.stock/.movement/.ledger split is NOT made here: the only served measure is the invoice-paid cash proxy." }
+      ]
     },
     {
       id: "placement.presentation",
@@ -5648,14 +6551,14 @@ var FIXTURE_ANALYTICS_CATALOG = {
         // definition names a real source; the extraction in revturbine-web's
         // `growth_funnel_signals` pipe is the separate execution-layer step.
         "decision.rule": { kind: "stamped", source: "payload:rule_handle", anchor: "fact_time", partitions: true, catalog_status: "bound", note: "BL-0182: the winning placement rule, stamped on exposure, interaction and outcome" },
-        "commercial.plan": { kind: "stamped", source: "column:converted_plan_handle", note: "via placement_exposure_attribution (TASK-10)" },
-        "targeting.segment": { kind: "stamped", source: "column:segment_ids", note: "as-of exposure, via placement_exposure_attribution (TASK-10)" },
-        "placement.placement": { kind: "stamped", source: "column:placement_id" },
-        "placement.payload": { kind: "stamped", source: "column:payload_id" },
-        "content.message_block": { kind: "stamped", source: "column:message_block_handle" },
-        "experiment.experiment": { kind: "stamped", source: "column:experiment_id" },
-        "experiment.variant": { kind: "stamped", source: "column:variant_key" },
-        "release.playbook_version": { kind: "stamped", source: "column:playbook_version", note: "additive column on placement_presentations \u2014 AC-10 first customer" }
+        "commercial.plan": { kind: "stamped", source: "column:converted_plan_handle", anchor: "touch_time", note: "via placement_exposure_attribution (TASK-10)" },
+        "targeting.segment": { kind: "stamped", source: "column:segment_ids", anchor: "exposure_time", note: "as-of exposure, via placement_exposure_attribution (TASK-10)" },
+        "placement.placement": { kind: "stamped", source: "column:placement_id", anchor: "fact_time" },
+        "placement.payload": { kind: "stamped", source: "column:payload_id", anchor: "fact_time" },
+        "content.message_block": { kind: "stamped", source: "column:message_block_handle", anchor: "fact_time" },
+        "experiment.experiment": { kind: "stamped", source: "column:experiment_id", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: experiment_id is on placement_presentations, but only experiment.variant is wired into the presentation pipes' split enum; an experiment-level split is a Tinybird pipe change." },
+        "experiment.variant": { kind: "stamped", source: "column:variant_key", anchor: "fact_time" },
+        "release.playbook_version": { kind: "stamped", source: "column:playbook_version", anchor: "carried_version", catalog_status: "unavailable", blocker: "BL-0248/G13: the column exists on placement_presentations (plan 228 additive migration 003) but no serving pipe splits by it yet \u2014 a pipe change, not a data-capture gap.", note: "additive column on placement_presentations \u2014 AC-10 first customer" }
       },
       metrics: [
         "placement.impressions",
@@ -5673,7 +6576,60 @@ var FIXTURE_ANALYTICS_CATALOG = {
       ],
       query_families: ["scalar", "timeseries", "breakdown", "table"],
       source_scope: "revturbine_tracked",
-      coverage_metric: "coverage.matched_paid_accounts"
+      coverage_metric: "coverage.matched_paid_accounts",
+      fact_kind: "transaction",
+      family: "behavioral",
+      primary_key: ["tenant_id", "environment_id", "presented_at", "placement_id", "payload_id"],
+      producer: "platform",
+      materialization: { mode: "rollup", rollup_grain: "day" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["tenant_id", "environment_id", "presented_at", "placement_id", "payload_id"],
+        source_namespace: "sdk_clickstream",
+        occurred_time_field: "presented_at",
+        dedup: "append_only",
+        revision: "immutable",
+        late_arrival: "accepted_within_retention",
+        correlation_keys: ["exposure_id", "experiment_id", "surface_slot_id"],
+        note: "placement_presentations is a plain MergeTree: rows are append-only and immutable, and there is NO received-time column, so observation time is not recoverable from the fact (R2 asks for both). Its `test` column marks simulated traffic, not Stripe live/test mode."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "environment", path: "column:environment_id", resolution: "source" },
+        { key: "account", path: "column:account_id", resolution: "source" },
+        { key: "user", path: "column:user_id", resolution: "source" },
+        { key: "placement", path: "column:placement_id", resolution: "source" },
+        { key: "payload", path: "column:payload_id", resolution: "source" },
+        { key: "surface_slot", path: "column:surface_slot_id", resolution: "source" },
+        { key: "message_block", path: "column:message_block_handle", resolution: "source" },
+        { key: "experiment", path: "column:experiment_id", resolution: "source" },
+        { key: "variant", path: "column:variant_key", resolution: "source" },
+        { key: "exposure", path: "column:exposure_id", resolution: "source" }
+      ],
+      measures: [
+        { name: "presentations", source: "row_count", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive", note: "Impressions, clicks and conversions are all this measure under an outcome filter; CTR and presentations-per-account are derived ratios over it. There is no separate stored click or conversion column." },
+        { name: "last_presented_at", source: "column:presented_at", unit: "timestamp", temporal: "gauge", sign: "unsigned", aggregation_semantics: "non_additive", note: "max(presented_at) drives Runtime Status; a recency marker, never a countable outcome." }
+      ],
+      event_attributes: [
+        { name: "outcome", path: "column:outcome" },
+        { name: "outcome_at", path: "column:outcome_at" },
+        { name: "surface_template_id", path: "column:surface_template_id" },
+        { name: "playbook_version", path: "column:playbook_version" },
+        { name: "rule_handle", path: "payload:rule_handle", note: "BL-0182: stamped on exposure, interaction and outcome; held in the clickstream properties JSON, so no datasource migration stands between the stamp and the slice." },
+        { name: "test", path: "column:test" }
+      ],
+      sources: [
+        { kind: "ingested_event", ref: "placement_exposed" },
+        { kind: "ingested_event", ref: "placement_interaction" },
+        { kind: "ingested_event", ref: "placement_outcome" },
+        { kind: "datasource", ref: "placement_presentations" },
+        { kind: "datasource", ref: "placement_exposure_attribution" },
+        { kind: "build", ref: "exposure_breakdown" }
+      ],
+      oracle_family: { family: "presentation" },
+      policy_dependencies: [
+        { kind: "attribution", stamped: false, blocker: "The last-touch attribution policy is the hard-coded ATTRIBUTION_WINDOW_SECONDS = 3600 constant in @revt-eng/optimization-core; placement_exposure_attribution stores the window per row but never a policy VERSION, so a result cannot cite the policy set that produced it (R2/R9, plan 252 TASK-46)." }
+      ]
     },
     {
       id: "revenue.attribution",
@@ -5688,15 +6644,84 @@ var FIXTURE_ANALYTICS_CATALOG = {
       historical_mode: "as_of_event",
       dimensions: ["time.occurred_at", "placement.placement", "placement.payload", "experiment.experiment", "experiment.variant", "revenue.currency"],
       dimension_groundings: {
-        "revenue.currency": { kind: "stamped", source: "column:currency" },
-        "placement.placement": { kind: "stamped", source: "column:placement_id" },
-        "placement.payload": { kind: "stamped", source: "column:payload_id" },
-        "experiment.experiment": { kind: "stamped", source: "column:experiment_id" },
-        "experiment.variant": { kind: "stamped", source: "column:variant_key" }
+        "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time" },
+        "placement.placement": { kind: "stamped", source: "column:placement_id", anchor: "touch_time" },
+        "placement.payload": { kind: "stamped", source: "column:payload_id", anchor: "touch_time" },
+        "experiment.experiment": { kind: "stamped", source: "column:experiment_id", anchor: "touch_time" },
+        "experiment.variant": { kind: "stamped", source: "column:variant_key", anchor: "touch_time" }
       },
       metrics: ["revenue.attributed_amount"],
       query_families: ["table"],
-      source_scope: "revturbine_influenced"
+      source_scope: "revturbine_influenced",
+      fact_kind: "accumulating_snapshot",
+      family: "behavioral",
+      primary_key: ["tenant_id", "environment_id", "presented_at", "exposure_id"],
+      producer: "platform",
+      materialization: { mode: "raw" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["tenant_id", "environment_id", "presented_at", "exposure_id"],
+        source_namespace: "sdk_clickstream",
+        occurred_time_field: "presented_at",
+        received_time_field: "enriched_at",
+        dedup: "deduplicated_on_record_id",
+        revision: "re_emit_higher_version",
+        late_arrival: "accepted_within_retention",
+        correlation_keys: ["exposure_id", "conversion_event_id"],
+        note: "One row per exposure, followed forward: enrichment re-emits the WHOLE row with a higher enriched_at, which is what makes this an accumulating snapshot rather than a transaction fact. Its conversion enrichment reads events_billing, which carries no Stripe livemode column, so the row cannot be livemode-qualified either."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "environment", path: "column:environment_id", resolution: "source", note: "Carried on the exposure row, but the concept grain is [tenant, conversion] because the conversion side comes from tenant-global billing facts." },
+        { key: "account", path: "column:account_id", resolution: "source" },
+        { key: "user", path: "column:user_id", resolution: "source" },
+        { key: "placement", path: "column:placement_id", resolution: "source" },
+        { key: "payload", path: "column:payload_id", resolution: "source" },
+        { key: "surface_slot", path: "column:surface_slot_id", resolution: "source" },
+        { key: "message_block", path: "column:message_block_handle", resolution: "source" },
+        { key: "experiment", path: "column:experiment_id", resolution: "source" },
+        { key: "variant", path: "column:variant_key", resolution: "source" },
+        { key: "exposure", path: "column:exposure_id", resolution: "source" }
+      ],
+      measures: [
+        { name: "conversions", source: "column:converted", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive", note: "Counted only where is_last_touch = 1, so one conversion is credited once (optimization-contracts rules 15-17)." },
+        { name: "converted_amount_cents", source: "column:converted_amount_cents", unit: "currency_minor", temporal: "flow", sign: "signed", aggregation_semantics: "additive" }
+      ],
+      event_attributes: [
+        { name: "outcome", path: "column:outcome" },
+        { name: "converted", path: "column:converted" },
+        { name: "converted_at", path: "column:converted_at" },
+        { name: "is_last_touch", path: "column:is_last_touch" },
+        { name: "converted_currency", path: "column:converted_currency" },
+        { name: "converted_plan_handle", path: "column:converted_plan_handle" },
+        { name: "converted_billing_period", path: "column:converted_billing_period" },
+        { name: "attribution_window_seconds", path: "column:attribution_window_seconds" },
+        { name: "rule_handle", path: "column:rule_handle" },
+        { name: "segment_ids", path: "column:segment_ids", note: "Segments as of exposure; multivalued, so grouping by it does not partition the rows (R7)." },
+        { name: "playbook_version", path: "column:playbook_version" },
+        { name: "test", path: "column:test" }
+      ],
+      sources: [
+        { kind: "ingested_event", ref: "placement_exposed" },
+        { kind: "datasource", ref: "placement_presentations" },
+        { kind: "datasource", ref: "placement_exposure_attribution" },
+        { kind: "datasource", ref: "events_billing" },
+        { kind: "build", ref: "rebuild_placement_exposure_attribution" }
+      ],
+      build: {
+        kind: "pipe",
+        ref: "rebuild_placement_exposure_attribution",
+        inputs: ["placement_presentations", "events_billing", "placement_exposure_attribution"]
+      },
+      maturity: {
+        status: "declared",
+        horizon_field: "attribution_window_seconds",
+        observed_through_field: "enriched_at"
+      },
+      oracle_family: { family: "attribution" },
+      policy_dependencies: [
+        { kind: "attribution", stamped: false, blocker: "The last-touch attribution policy is the hard-coded ATTRIBUTION_WINDOW_SECONDS = 3600 constant in @revt-eng/optimization-core; placement_exposure_attribution stores the window per row but never a policy VERSION, so a result cannot cite the policy set that produced it (R2/R9, plan 252 TASK-46)." }
+      ]
     },
     {
       id: "experiment.causal_result",
@@ -5721,18 +6746,62 @@ var FIXTURE_ANALYTICS_CATALOG = {
         "experiment.uncertainty"
       ],
       dimension_groundings: {
-        "experiment.experiment": { kind: "stamped", source: "column:experiment_handle" },
-        "experiment.variant": { kind: "stamped", source: "column:variant_key" },
-        "experiment.metric": { kind: "stamped", source: "column:metric_id" },
-        "experiment.evidence_state": { kind: "stamped", source: "column:evidence_state" },
-        "experiment.methodology": { kind: "stamped", source: "column:methodology" },
-        "experiment.analysis_health": { kind: "stamped", source: "column:analysis_health" },
-        "experiment.observation_window": { kind: "stamped", source: "column:observation_window" },
-        "experiment.uncertainty": { kind: "stamped", source: "column:uncertainty" }
+        "experiment.experiment": { kind: "stamped", source: "column:experiment_handle", anchor: "fact_time" },
+        "experiment.variant": { kind: "stamped", source: "column:variant_key", anchor: "fact_time" },
+        "experiment.metric": { kind: "stamped", source: "column:metric_id", anchor: "fact_time" },
+        "experiment.evidence_state": { kind: "stamped", source: "column:evidence_state", anchor: "fact_time" },
+        "experiment.methodology": { kind: "stamped", source: "column:methodology", anchor: "fact_time" },
+        "experiment.analysis_health": { kind: "stamped", source: "column:analysis_health", anchor: "fact_time" },
+        "experiment.observation_window": { kind: "stamped", source: "column:observation_window", anchor: "fact_time" },
+        "experiment.uncertainty": { kind: "stamped", source: "column:uncertainty", anchor: "fact_time" }
       },
       metrics: ["experiment.absolute_effect"],
       query_families: ["table"],
-      source_scope: "revturbine_influenced"
+      source_scope: "revturbine_influenced",
+      fact_kind: "transaction",
+      family: "behavioral",
+      primary_key: ["id"],
+      producer: "platform",
+      materialization: { mode: "raw" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["id"],
+        source_namespace: "revturbine_control_plane",
+        occurred_time_field: "observation_window_end",
+        received_time_field: "created_at",
+        dedup: "upsert_on_primary_key",
+        revision: "immutable",
+        late_arrival: "accepted",
+        correlation_keys: ["query_hash", "evidence_snapshot_id", "experiment_handle"],
+        policy_version_fields: ["estimator_version", "analysis_provider_contract_version", "summary_schema_version", "metric_catalog_version"],
+        note: "A Postgres table (experiment_analysis_results), not a Tinybird datasource: rows are written once by the analysis engine and never revised, which is what makes the readout citable as evidence. data_watermark records how far the evidence had landed when the analysis ran."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "experiment", path: "column:experiment_handle", resolution: "source" },
+        { key: "variant", path: "column:variant_key", resolution: "source" },
+        { key: "metric", path: "column:metric_semantic_id", resolution: "source" },
+        { key: "analysis_result", path: "column:id", resolution: "source" },
+        { key: "environment", path: "-", resolution: "absent", note: "The concept declares environment in its grain, but experiment_analysis_results carries no environment column; the environment is implied by the experiment version the analysis ran against." },
+        { key: "account", path: "-", resolution: "absent", note: "A result is an aggregate readout over an evidence snapshot, never a per-account row; there is no subject key to slice by." }
+      ],
+      measures: [
+        { name: "absolute_effect", source: "column:result", unit: "polymorphic", temporal: "gauge", sign: "signed", aggregation_semantics: "non_additive", note: "Unit decided by column:metric_semantic_id \u2014 the effect size is expressed in the analysed metric unit. Held inside the result JSONB with its p-value and standard error; an estimate is never summed across experiments or metrics." }
+      ],
+      event_attributes: [
+        { name: "evidence_state", path: "column:evidence_state" },
+        { name: "methodology", path: "column:engine" },
+        { name: "analysis_health", path: "column:analysis_health" },
+        { name: "observation_window", path: "column:observation_window_start" },
+        { name: "estimator", path: "column:estimator" },
+        { name: "data_watermark", path: "column:data_watermark" }
+      ],
+      sources: [
+        { kind: "ingested_event", ref: "experiment_assigned" },
+        { kind: "control_plane_table", ref: "experiment_analysis_results" }
+      ],
+      oracle_family: { family: "read_through" },
+      policy_dependencies: []
     },
     {
       id: "customer.timeline",
@@ -5746,15 +6815,59 @@ var FIXTURE_ANALYTICS_CATALOG = {
       historical_mode: "as_of_event",
       dimensions: ["time.occurred_at", "customer.account", "customer.user", "event.type", "commercial.plan", "targeting.segment"],
       dimension_groundings: {
-        "event.type": { kind: "stamped", source: "column:event_name" },
-        "customer.account": { kind: "stamped", source: "column:account_id" },
-        "customer.user": { kind: "stamped", source: "column:user_id" },
-        "commercial.plan": { kind: "config_join", source: "config:subscription_state", note: "no plan column on the clickstream; joins account subscription state" },
-        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", note: "R-11a stamp; lands with TASK-4" }
+        "event.type": { kind: "stamped", source: "column:event_name", anchor: "fact_time" },
+        "customer.account": { kind: "stamped", source: "column:account_id", anchor: "fact_time" },
+        "customer.user": { kind: "stamped", source: "column:user_id", anchor: "fact_time" },
+        "commercial.plan": { kind: "config_join", source: "config:subscription_state", anchor: "current", catalog_status: "unavailable", blocker: "BL-0248/G13: a config join with no execution path. The clickstream has no plan column and no pipe joins account subscription state; the \xA75.6 configuration snapshots that would make the join possible do not exist, and the concept declares no config source for it.", note: "no plan column on the clickstream; joins account subscription state" },
+        "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: the R-11a envelope stamp has not reached a timeline split \u2014 events_clickstream carries no segment column and no customer-timeline pipe splits by one (SDK/ingest follow-up).", note: "R-11a stamp; lands with TASK-4" }
       },
       metrics: ["event.count"],
       query_families: ["timeline", "table", "timeseries"],
-      source_scope: "revturbine_tracked"
+      source_scope: "revturbine_tracked",
+      fact_kind: "transaction",
+      family: "behavioral",
+      primary_key: ["tenant_id", "environment_id", "event_ts", "event_name", "request_id"],
+      producer: "platform",
+      materialization: { mode: "raw" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["tenant_id", "environment_id", "event_ts", "event_name", "request_id"],
+        source_namespace: "sdk_clickstream",
+        occurred_time_field: "event_ts",
+        received_time_field: "ingested_at",
+        dedup: "deduplicated_on_record_id",
+        revision: "re_emit_higher_version",
+        late_arrival: "accepted_within_retention",
+        correlation_keys: ["request_id", "event_id", "decision_id"],
+        note: "events_clickstream is a ReplacingMergeTree keyed on the sorting tuple with ingested_at as the version, so a re-emission supersedes rather than duplicates. Its `test` column marks simulated traffic, NOT Stripe live/test mode, so this fact is not livemode-qualified. Rows outside tenant_simulation expire after 365 days, which bounds late arrival."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "environment", path: "column:environment_id", resolution: "source" },
+        { key: "user", path: "column:user_id", resolution: "source" },
+        { key: "account", path: "column:account_id", resolution: "enriched", note: "Nullable on the wire; resolved through the identity map at ingest (R1)." },
+        { key: "placement", path: "column:placement_id", resolution: "source" },
+        { key: "payload", path: "column:payload_id", resolution: "source" },
+        { key: "surface_slot", path: "column:surface_slot_id", resolution: "source" },
+        { key: "experiment", path: "column:experiment_id", resolution: "source" },
+        { key: "variant", path: "column:variant_key", resolution: "source" }
+      ],
+      measures: [
+        { name: "events", source: "row_count", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive", note: "The whole concept: a timeline has no measure other than the rows themselves." }
+      ],
+      event_attributes: [
+        { name: "event_name", path: "column:event_name", note: "Open vocabulary: platform names plus customer track() names, which is why this concept carries no closed event list." },
+        { name: "origin", path: "column:origin" },
+        { name: "playbook_version", path: "column:playbook_version" },
+        { name: "decision_id", path: "column:decision_id" },
+        { name: "test", path: "column:test" }
+      ],
+      sources: [
+        { kind: "datasource", ref: "events_clickstream" },
+        { kind: "build", ref: "analytics_customer_timeline" }
+      ],
+      oracle_family: { family: "event_count" },
+      policy_dependencies: []
     },
     {
       // Plan 230 TASK-1 (killer demo views): signup cohorts. Cohort
@@ -5773,13 +6886,63 @@ var FIXTURE_ANALYTICS_CATALOG = {
       historical_mode: "as_of_event",
       dimensions: ["time.occurred_at", "customer.cohort_period", "customer.cohort_age", "revenue.currency"],
       dimension_groundings: {
-        "customer.cohort_period": { kind: "derived", source: "derived:first_observed_cohort", note: "min(occurred_at) per account across events_clickstream + events_billing, bucketed at the cohort grain (default month)." },
-        "customer.cohort_age": { kind: "derived", source: "derived:first_observed_cohort", note: "whole periods between the cohort period and the measured period." },
-        "revenue.currency": { kind: "stamped", source: "column:currency" }
+        "customer.cohort_period": { kind: "derived", source: "derived:first_observed_cohort", anchor: "cohort_entry", note: "min(occurred_at) per account across events_clickstream + events_billing, bucketed at the cohort grain (default month)." },
+        "customer.cohort_age": { kind: "derived", source: "derived:first_observed_cohort", anchor: "cohort_entry", note: "whole periods between the cohort period and the measured period." },
+        "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time" }
       },
       metrics: ["cohort.account_count", "cohort.paid_conversion_rate", "cohort.expansion_rate", "cohort.retention_rate", "cohort.ltv_cents"],
       query_families: ["table", "breakdown"],
-      source_scope: "total"
+      source_scope: "total",
+      fact_kind: "periodic_snapshot",
+      family: "billing",
+      primary_key: ["tenant_id", "cohort_period", "cohort_age"],
+      producer: "platform",
+      materialization: { mode: "logical" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["tenant_id", "cohort_period", "cohort_age"],
+        source_namespace: "revturbine_analytics_build",
+        occurred_time_field: "cohort_period",
+        dedup: "recomputed_at_query",
+        revision: "recomputed_from_source",
+        late_arrival: "accepted",
+        correlation_keys: ["account_id"],
+        note: "A LOGICAL snapshot: cohort_rollup recomputes every cell from events_clickstream and events_billing at query time, so nothing is stored and there is no received time. A late source row silently changes a published cell; R2 dataset generations are not implemented, so a query cannot pin one. events_billing carries no livemode column."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "account", path: "column:account_id", resolution: "enriched", note: "Cohort membership is per account: min(occurred_at) across events_clickstream and events_billing. The billing side is keyed by payer, so the account key there depends on the identity map." },
+        { key: "payer", path: "column:customer_id", resolution: "source", note: "On the events_billing side only." },
+        { key: "environment", path: "-", resolution: "absent", note: "Billing facts are tenant-global, so the cohort grid is too; per-environment cohort cuts are refused." }
+      ],
+      measures: [
+        { name: "cohort_accounts", source: "column:account_count", unit: "count", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Fixed cohort membership held at the cohort period: summed across cohorts at one age, never across ages (R3/R5)." },
+        { name: "ltv_cents", source: "column:ltv_cents", unit: "currency_minor", temporal: "stock", sign: "signed", aggregation_semantics: "semi_additive", note: "Cumulative revenue to the measured period, so it is a stock at each cohort age and must not be summed across ages." }
+      ],
+      event_attributes: [],
+      sources: [
+        { kind: "datasource", ref: "events_clickstream" },
+        { kind: "datasource", ref: "events_billing" },
+        { kind: "ingested_event", ref: "payment_succeeded" },
+        { kind: "ingested_event", ref: "subscription_started" },
+        { kind: "ingested_event", ref: "trial_converted" },
+        { kind: "ingested_event", ref: "subscription_expanded" },
+        { kind: "ingested_event", ref: "subscription_renewed" },
+        { kind: "build", ref: "cohort_rollup" }
+      ],
+      build: {
+        kind: "query_time",
+        ref: "cohort_rollup",
+        inputs: ["events_clickstream", "events_billing"]
+      },
+      maturity: {
+        status: "unavailable",
+        blocker: "cohort_rollup implements no right-censoring: it stores and returns no horizon and no observed_through, so an immature cohort-age cell is indistinguishable from a complete one and R5 maturity filtering cannot be applied to the retention and conversion rates. Needs the declared cohort origin, horizon and maturity contracts of plan 252 TASK-47."
+      },
+      oracle_family: { family: "cohort" },
+      policy_dependencies: [
+        { kind: "lifecycle", stamped: false, blocker: "Cohort entry is derived at read from the first observed fact (plan 230 R-2) rather than assigned under a versioned lifecycle policy, and no cell carries a policy version, so a cohort readout cannot cite the policy set that produced it (R2/R9)." }
+      ]
     },
     {
       // Plan 230 TASK-1: the six-stage platform monetization funnel
@@ -5799,11 +6962,60 @@ var FIXTURE_ANALYTICS_CATALOG = {
       historical_mode: "as_of_event",
       dimensions: ["time.occurred_at", "monetization.funnel_stage"],
       dimension_groundings: {
-        "monetization.funnel_stage": { kind: "derived", source: "derived:monetization_funnel_stage", note: "catalog-owned stage predicates over raw facts; see the dimension's description for the six-stage order." }
+        "monetization.funnel_stage": { kind: "derived", source: "derived:monetization_funnel_stage", anchor: "fact_time", note: "catalog-owned stage predicates over raw facts; see the dimension's description for the six-stage order." }
       },
       metrics: ["monetization.funnel_accounts", "monetization.funnel_stage_conversion"],
       query_families: ["funnel", "timeseries"],
-      source_scope: "total"
+      source_scope: "total",
+      fact_kind: "accumulating_snapshot",
+      family: "billing",
+      primary_key: ["tenant_id", "stage", "day"],
+      producer: "platform",
+      materialization: { mode: "logical" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["tenant_id", "stage", "day"],
+        source_namespace: "revturbine_analytics_build",
+        occurred_time_field: "day",
+        dedup: "recomputed_at_query",
+        revision: "recomputed_from_source",
+        late_arrival: "accepted",
+        correlation_keys: ["account_id"],
+        note: "A LOGICAL snapshot: monetization_funnel recomputes the reached-by flags per account from raw facts at query time, so nothing is stored and there is no received time. events_billing carries no Stripe livemode column, so the billing-derived stages are not livemode-qualified."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "account", path: "column:account_id", resolution: "enriched", note: "The stage flags are per account (R10). The billing-derived stages read events_billing, which carries only the payer, so they depend on the identity map." },
+        { key: "environment", path: "-", resolution: "absent", note: "The registered, free, paid and expanded stages are tenant-global because events_billing has no environment_id; only the placement stages read the tracked environment. That mixture is why the stored grain is [tenant, stage, day]." }
+      ],
+      measures: [
+        { name: "funnel_accounts", source: "column:accounts", unit: "count", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Distinct accounts that EVER reached the stage by the window end (R10), so stage-to-stage ratios are ratios of reached counts, not a followed-population conversion. A reached count is held at one date and never summed across days or stages." }
+      ],
+      event_attributes: [],
+      sources: [
+        { kind: "datasource", ref: "events_clickstream" },
+        { kind: "datasource", ref: "placement_presentations" },
+        { kind: "datasource", ref: "events_billing" },
+        { kind: "ingested_event", ref: "payment_succeeded" },
+        { kind: "ingested_event", ref: "subscription_started" },
+        { kind: "ingested_event", ref: "subscription_expanded" },
+        { kind: "ingested_event", ref: "trial_converted" },
+        { kind: "build", ref: "monetization_funnel" }
+      ],
+      build: {
+        kind: "query_time",
+        ref: "monetization_funnel",
+        inputs: ["events_clickstream", "placement_presentations", "events_billing"]
+      },
+      maturity: {
+        status: "unavailable",
+        blocker: "The stage flags carry no horizon and no observed_through, so an account that could still reach a later stage is counted as not having reached it and immature rows cannot be excluded from the stage ratios (R5). Needs the declared maturity contracts of plan 252 TASK-47."
+      },
+      oracle_family: { family: "funnel" },
+      policy_dependencies: [
+        { kind: "lifecycle", stamped: false, blocker: "The six stage predicates are catalog-owned over raw facts rather than read from a versioned R10 account-state snapshot, and no cell carries a lifecycle policy version." },
+        { kind: "engagement", stamped: false, blocker: "The engaged stage threshold is a catalog-owned predicate; R10 makes engagement an independently versioned policy, and nothing stamps its version." }
+      ]
     },
     {
       id: "optimization.opportunity",
@@ -5818,12 +7030,63 @@ var FIXTURE_ANALYTICS_CATALOG = {
       historical_mode: "current",
       dimensions: ["time.occurred_at", "opportunity.type", "optimization.detector"],
       dimension_groundings: {
-        "opportunity.type": { kind: "stamped", source: "column:opportunity_type" },
-        "optimization.detector": { kind: "stamped", source: "column:detector_id" }
+        "opportunity.type": { kind: "stamped", source: "column:opportunity_type", anchor: "current" },
+        "optimization.detector": { kind: "stamped", source: "column:detector_id", anchor: "current" }
       },
       metrics: ["opportunity.candidate_count"],
       query_families: ["table"],
-      source_scope: "revturbine_tracked"
+      source_scope: "revturbine_tracked",
+      fact_kind: "accumulating_snapshot",
+      family: "behavioral",
+      primary_key: ["id"],
+      producer: "platform",
+      materialization: { mode: "raw" },
+      livemode_qualified: false,
+      record_contract: {
+        record_id: ["id"],
+        source_namespace: "revturbine_control_plane",
+        occurred_time_field: "created_at",
+        received_time_field: "updated_at",
+        dedup: "upsert_on_primary_key",
+        revision: "in_place_update",
+        late_arrival: "accepted",
+        correlation_keys: ["resource_id", "experiment_id"],
+        policy_version_fields: ["detector_version"],
+        note: "The catalog datasource name optimization_opportunities resolves to the Postgres table optimization_suggestions in revturbine-web; the names diverge. Rows are updated in place (updated_at, is_dismissed), which is why historical_mode is `current`: an earlier state of a candidate is not recoverable."
+      },
+      keys: [
+        { key: "tenant", path: "column:tenant_id", resolution: "source" },
+        { key: "opportunity", path: "column:id", resolution: "source" },
+        { key: "experiment", path: "column:experiment_id", resolution: "source" },
+        { key: "account", path: "-", resolution: "absent", note: "A candidate is scoped to a configuration resource (resource_type / resource_id), not to an account; there is no account key to slice by even though the declared analytical unit is the account." },
+        { key: "environment", path: "-", resolution: "absent", note: "optimization_suggestions is tenant-scoped with no environment column." }
+      ],
+      measures: [
+        { name: "candidates", source: "row_count", unit: "count", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Current undismissed candidates: a stock read at one instant, never summed across instants." },
+        { name: "estimated_impact", source: "column:estimated_impact", unit: "polymorphic", temporal: "gauge", sign: "signed", aggregation_semantics: "non_additive", note: "Unit decided by column:opportunity_type \u2014 a detector-supplied estimate, not a measured amount, and never additive across detectors." },
+        { name: "confidence", source: "column:confidence", unit: "ratio", temporal: "gauge", sign: "unsigned", aggregation_semantics: "non_additive" }
+      ],
+      event_attributes: [
+        { name: "opportunity_type", path: "column:opportunity_type" },
+        { name: "detector_id", path: "column:detector_id" },
+        { name: "severity", path: "column:severity" },
+        { name: "is_dismissed", path: "column:is_dismissed" },
+        { name: "resource_type", path: "column:resource_type" }
+      ],
+      sources: [
+        { kind: "control_plane_table", ref: "optimization_opportunities" }
+      ],
+      build: {
+        kind: "worker",
+        ref: "optimization detector pipeline",
+        inputs: ["optimization_opportunities"]
+      },
+      maturity: {
+        status: "unavailable",
+        blocker: "Candidates carry no horizon and no observed_through, and rows are updated in place, so a candidate outcome cannot be followed forward and R5 maturity does not apply. Needs the declared maturity contracts of plan 252 TASK-47."
+      },
+      oracle_family: { family: "read_through" },
+      policy_dependencies: []
     }
   ]
 };
@@ -7022,7 +8285,29 @@ var EventEnvelopeSchema = IdField.extend({
   event_type: z24.string().min(1).meta(Unrestricted20),
   source: EventSourceSchema.default("sdk").meta(Unrestricted20),
   tenant_id: z24.string().min(1).optional().meta(Unrestricted20),
-  user_id: z24.string().min(1).optional().meta(Pii4),
+  /**
+   * Identity keys are `Unrestricted` on EVERY lane (BL-0131, Kent's **D-19**,
+   * 2026-09-25): *"Not treated as PII, but a PII leak still detectable. We
+   * want our customers to use UUIDs, but if they pass an email, we need to
+   * hash it consistently."*
+   *
+   * A `user_id` / `account_id` is the TENANT'S OWN primary key, not personal
+   * data. Before BL-0131 the three ingest lanes disagreed — `TrackEvent.user_id`
+   * and `TreatmentInteractionInput.account_id` were `Pii` while
+   * `TrackEvent.account_id` was `Unrestricted` — so the same logical key
+   * carried two classifications depending on which route it arrived through.
+   *
+   * The leak is handled at the BOUNDARY, not by the classification:
+   * `classifyIdentityValue` / `normalizeIdentityValue` in `@revt-eng/core`
+   * detect a PII-shaped value, consistently hash an email-shaped one
+   * (`eml_<sha256-16>`, unsalted so every writer and reader agrees), and
+   * report `identity_pii_detected` so the tenant learns to send UUIDs.
+   *
+   * Dropping `pii` does NOT widen browser exposure: the plan-157
+   * client-context filter is an allowlist keyed on field-level `external`
+   * exposure, which these fields do not carry, so they stay `server_only`.
+   */
+  user_id: z24.string().min(1).optional().meta(Unrestricted20),
   session_id: z24.string().min(1).optional().meta(Pii4),
   occurred_at: z24.string().datetime().meta(Unrestricted20),
   request_id: z24.string().min(1).meta(Unrestricted20),
@@ -7050,7 +8335,9 @@ var EventIngestBatchSchema = z24.array(
     event_type: z24.string().min(1).meta(Unrestricted20),
     occurred_at: z24.string().datetime().optional().meta(Unrestricted20),
     tenant_id: z24.string().min(1).optional().meta(Unrestricted20),
-    user_id: z24.string().min(1).optional().meta(Pii4),
+    // Identity key — `Unrestricted` on every lane (BL-0131, D-19); see
+    // `EventEnvelopeSchema.user_id`.
+    user_id: z24.string().min(1).optional().meta(Unrestricted20),
     session_id: z24.string().min(1).optional().meta(Pii4),
     attributes: z24.record(z24.string(), z24.unknown()).optional().meta(Unrestricted20),
     payload: z24.record(z24.string(), z24.unknown()).optional().meta(Unrestricted20),
@@ -7080,7 +8367,9 @@ var TreatmentInteractionTypeSchema = z24.enum([
   }
 );
 var TreatmentInteractionInputSchema = z24.object({
-  user_id: z24.string().min(1).meta(Pii4),
+  // Identity key — `Unrestricted` on every lane (BL-0131, D-19); see
+  // `EventEnvelopeSchema.user_id` for the full rationale.
+  user_id: z24.string().min(1).meta(Unrestricted20),
   /**
    * The account / organization the user acted on behalf of (plan 232 REQ-4).
    *
@@ -7095,8 +8384,13 @@ var TreatmentInteractionInputSchema = z24.object({
    * Optional, and the route keeps the `user_id` fallback when it is absent,
    * so pre-232 SDKs behave exactly as before rather than writing an empty
    * key that the `account_id != ''` predicates would silently drop.
+   *
+   * BL-0131 (D-19) aligned this to `Unrestricted`, matching the clickstream
+   * half (`TrackEvent.account_id`): an account id is a join key, not
+   * personal data, and a PII-shaped value is detected and consistently
+   * hashed at the ingest boundary instead of being re-labelled here.
    */
-  account_id: z24.string().min(1).optional().meta(Pii4),
+  account_id: z24.string().min(1).optional().meta(Unrestricted20),
   placement_id: z24.string().min(1).meta(Unrestricted20),
   treatment_id: z24.string().min(1).optional().meta(Unrestricted20),
   // Presentation context (plan 114) — carried so a treatment interaction can
@@ -7346,7 +8640,9 @@ var EventOriginSchema = z24.enum(["explicit", "automatic", "derived", "raw"]).me
 );
 var TrackEventSchema = z24.object({
   environment_id: z24.string().min(1).meta(Unrestricted20),
-  user_id: z24.string().min(1).meta(Pii4),
+  // Identity key — `Unrestricted` on every lane (BL-0131, D-19); see
+  // `EventEnvelopeSchema.user_id` for the full rationale.
+  user_id: z24.string().min(1).meta(Unrestricted20),
   /**
    * The account / organization the user acted on behalf of (BL-0117).
    *
@@ -8205,6 +9501,39 @@ var TrialInstanceSchema = IdField.merge(TimestampFields).merge(TenantIdField).ex
   usage_limit_value: z27.number().int().min(1).optional().meta(Unrestricted21),
   converted_at: NullableDatetimeField.meta(Unrestricted21),
   cancelled_at: NullableDatetimeField.meta(Unrestricted21),
+  /**
+   * Stable identity of the trial EPISODE this row represents
+   * (BL-0247 / plan 276 TASK-12). A customer can run more than one
+   * trial, and a subscription can re-enter `trialing`, so the
+   * (customer, subscription) pair does not name an occurrence. The
+   * billing lane already discriminates an episode by the Stripe
+   * subscription id plus its `trial_start`; this column persists
+   * that same discriminator so a fact about one episode can be
+   * written to exactly that episode's row.
+   *
+   * Nullable: rows created before the column existed, and rows
+   * created by paths that have no Stripe evidence to mint an id
+   * from, carry NULL. NULL means "this episode has no first-class
+   * identity", never "episode zero" — and Postgres treats NULLs as
+   * distinct, so the composite UNIQUE below does not collapse them.
+   */
+  trial_episode_id: z27.string().min(1).nullable().optional().meta(Unrestricted21),
+  /**
+   * The Stripe subscription this episode belongs to — the binding
+   * that lets a Stripe fact resolve one episode without guessing
+   * (BL-0245 carried this in `metadata.stripe_subscription_id`).
+   * Nullable because a trial need not originate from Stripe at all.
+   */
+  stripe_subscription_id: z27.string().min(1).nullable().optional().meta(Unrestricted21),
+  /**
+   * The EVIDENCED end of the episode: the moment a provider fact
+   * said the trial actually stopped. Distinct from `expires_at`,
+   * which is the SCHEDULED end and must stay distinguishable
+   * (plan 276 R-1 — no clock authority; an elapsed `expires_at`
+   * with no fact behind it is not an end). Null until a fact
+   * proves one.
+   */
+  actual_end_at: NullableDatetimeField.meta(Unrestricted21),
   metadata: MetadataField.meta(Unrestricted21)
 }).meta(
   { id: "TrialInstance", "x-revturbine-schema-persistence": Persisted13, "x-revturbine-schema-exposure": Internal17 }
@@ -8407,7 +9736,12 @@ var trialPaths = {
       summary: "List trial instances",
       tags: ["trials"],
       responses: { "200": { description: "Trial instance list", content: { "application/json": { schema: ListEnvelope(TrialInstanceSchema) } } } },
-      "x-revturbine-operation": { exposure: "internal", resource: "trial-instances", persistence: { table: "trialInstances", mode: "list" } }
+      // One row per trial EPISODE (BL-0247 / plan 276 TASK-12). This is the
+      // ON CONFLICT target the Stripe binding writer upserts against, so a
+      // re-delivered `customer.subscription.*` event updates the episode it
+      // already created instead of minting a duplicate. NULL episode ids are
+      // distinct in Postgres, so pre-existing and non-Stripe rows are unaffected.
+      "x-revturbine-operation": { exposure: "internal", resource: "trial-instances", persistence: { table: "trialInstances", mode: "list", uniqueBy: ["tenant_id", "customer_id", "trial_episode_id"] } }
     })
   },
   "/api/trials/instances/{instanceId}": {
@@ -8442,6 +9776,132 @@ var trialPaths = {
     })
   }
 };
+
+// scaffold/src/trials/models/trial-revision.ts
+var TRIAL_REVISION_KINDS = [
+  "started",
+  "extended",
+  "converted",
+  "reverted",
+  "expired",
+  "revoked"
+];
+var TRIAL_PENDING_UNKNOWN_REASONS = [
+  /** No authoritative fact of any kind about this episode. */
+  "no_authoritative_fact",
+  /** The scheduled end passed and nothing evidenced an end. The R-1(c) case. */
+  "elapsed_deadline_without_fact",
+  /** The episode is open and its scheduled end has not passed. */
+  "episode_open",
+  /** A usage-metered episode ended without exhaustion or end evidence. */
+  "usage_expiry_requires_exhaustion_evidence",
+  /** A commitment exists but began before the episode's evidenced end. */
+  "commitment_precedes_actual_end",
+  /** The evidence closing the episode carries no effective time. */
+  "end_evidence_without_effective_time"
+];
+function atOrAfter(a, b) {
+  return a >= b;
+}
+function pending(reason, facts) {
+  return { status: "pending_unknown", reason, grants_account_access: grantsAccount(facts) };
+}
+function grantsAccount(facts) {
+  return facts.subject_scope === "account";
+}
+function resolved(revision, effective_at, evidence, facts, commitment_ref = null) {
+  return {
+    status: "revision",
+    revision,
+    effective_at,
+    evidence,
+    grants_account_access: grantsAccount(facts),
+    commitment_ref
+  };
+}
+function classifyTrialRevision(facts) {
+  if (facts.revocation) {
+    return resolved("revoked", facts.revocation.occurred_at, facts.revocation, facts);
+  }
+  if (!facts.enrollment) return pending("no_authoritative_fact", facts);
+  const closed = facts.end_evidence !== null || facts.actual_end_at !== null;
+  if (!closed) {
+    if (facts.extension) {
+      return resolved("extended", facts.extension.occurred_at, facts.extension, facts);
+    }
+    const deadline = facts.scheduled_end_at;
+    const observed = facts.observed_through ?? null;
+    if (deadline && observed && atOrAfter(observed, deadline)) {
+      return pending("elapsed_deadline_without_fact", facts);
+    }
+    if (facts.started_at) {
+      return resolved("started", facts.started_at, facts.enrollment, facts);
+    }
+    return pending("episode_open", facts);
+  }
+  const end = facts.end_evidence;
+  if (!end) return pending("end_evidence_without_effective_time", facts);
+  const actualEnd = facts.actual_end_at ?? end.occurred_at;
+  const commitment = facts.commitment;
+  if (commitment && commitment.trial_episode_id === facts.trial_episode_id) {
+    if (atOrAfter(commitment.started_at, actualEnd)) {
+      return resolved("converted", commitment.started_at, end, facts, commitment.ref);
+    }
+    return pending("commitment_precedes_actual_end", facts);
+  }
+  if (facts.limit_type === "usage") {
+    const exhaustion = facts.exhaustion ?? (end.kind === "usage_exhaustion" ? end : null);
+    if (!exhaustion) return pending("usage_expiry_requires_exhaustion_evidence", facts);
+    return resolved("expired", facts.actual_end_at ?? exhaustion.occurred_at, exhaustion, facts);
+  }
+  if (facts.fallback) {
+    return resolved("reverted", facts.fallback.occurred_at, facts.fallback, facts);
+  }
+  return resolved("expired", actualEnd, end, facts);
+}
+
+// scaffold/src/customers/models/account-creation-evidence.ts
+var ACCOUNT_CREATION_SOURCES = [
+  /** Someone created the account themselves. */
+  "self_serve_signup",
+  /** The account came into existence when an invite was accepted into it. */
+  "invite_accepted",
+  /** An operator or automation provisioned it. */
+  "provisioned",
+  /** It arrived through a bulk import or migration. */
+  "import"
+];
+var USER_GRAIN_NON_CREATION_SOURCES = ["user_signup", "user_signed_up", "first_seen"];
+var ACCOUNT_CREATION_PENDING_REASONS = [
+  "no_evidence",
+  "no_account_grain",
+  "no_creation_time",
+  /** The claim rests on a user signup or a first observation (R-2). */
+  "user_grain_signup_is_not_account_creation",
+  "unrecognized_source"
+];
+function isAccountCreationSource(value) {
+  return ACCOUNT_CREATION_SOURCES.includes(value);
+}
+function classifyAccountCreation(facts) {
+  if (!facts.source) return { status: "pending_unknown", reason: "unrecognized_source" };
+  if (USER_GRAIN_NON_CREATION_SOURCES.includes(facts.source)) {
+    return { status: "pending_unknown", reason: "user_grain_signup_is_not_account_creation" };
+  }
+  if (!isAccountCreationSource(facts.source)) {
+    return { status: "pending_unknown", reason: "unrecognized_source" };
+  }
+  if (!facts.evidence) return { status: "pending_unknown", reason: "no_evidence" };
+  if (!facts.account_id) return { status: "pending_unknown", reason: "no_account_grain" };
+  if (!facts.created_at) return { status: "pending_unknown", reason: "no_creation_time" };
+  return {
+    status: "account_created",
+    account_id: facts.account_id,
+    created_at: facts.created_at,
+    source: facts.source,
+    evidence: facts.evidence
+  };
+}
 
 // scaffold/src/experiments/models/schema.ts
 import { z as z28 } from "zod";
@@ -9490,6 +10950,16 @@ var PersonalizationTokenSchema = IdField.merge(TimestampFields).merge(TenantIdFi
   { id: "PersonalizationToken", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal20, ...PENDING_PLAYBOOK_FACETS4, ...namedIdentity() }
 );
 var PersonalizationTokenAnchorSchema = makeAnchor("PersonalizationTokenAnchor");
+var ObjectiveSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
+  anchor_id: z30.string().min(1).meta({ ...Unrestricted24, readOnly: true }),
+  handle: HandleField.meta(Unrestricted24),
+  name: NameField.meta(Unrestricted24),
+  description: DescriptionField.meta(Unrestricted24),
+  metadata: MetadataField.meta(Unrestricted24)
+}).meta(
+  { id: "Objective", "x-revturbine-schema-persistence": Persisted16, "x-revturbine-schema-exposure": Internal20, ...PLAYBOOK_AUTHORING_FACETS2, ...namedIdentity() }
+);
+var ObjectiveAnchorSchema = makeAnchor("ObjectiveAnchor");
 var OnboardingStateSchema = z30.enum(["not_started", "started", "details_submitted", "charges_enabled", "activated", "deauthorized"]).meta({ id: "OnboardingState", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": Internal20 });
 var StripeIntegrationConfigSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
   handle: HandleField.meta({ ...Unrestricted24, readOnly: true }),
@@ -9807,7 +11277,9 @@ var RevTurbineConfigEntitlementRulesItemSchema = z30.object({
   }).shape,
   current_usage: z30.number().default(0).meta(Unrestricted24),
   /** How usage is partitioned across the identity hierarchy. */
-  allocation: UsageAllocationSchema.optional().meta(Unrestricted24)
+  allocation: UsageAllocationSchema.optional().meta(Unrestricted24),
+  /** Optional business objective, by `objectives[].handle` (VAL-OBJ-01). Config-only. */
+  objective: ObjectiveField.meta(Unrestricted24)
 }).meta(
   { id: "RevTurbineConfigEntitlementRulesItem", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": External12, ...PLAYBOOK_SDK_FACETS8 }
 );
@@ -9902,6 +11374,13 @@ var RevTurbineConfigPersonalizationTokensItemSchema = z30.object({
   format: z30.enum(["string", "number", "currency", "percentage", "date"]).optional().meta(Unrestricted24)
 }).meta(
   { id: "RevTurbineConfigPersonalizationTokensItem", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": External12, ...PLAYBOOK_SDK_FACETS8 }
+);
+var RevTurbineConfigObjectivesItemSchema = z30.object({
+  handle: HandleField.meta(Unrestricted24),
+  name: NameField.meta(Unrestricted24),
+  description: DescriptionField.meta(Unrestricted24)
+}).meta(
+  { id: "RevTurbineConfigObjectivesItem", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": External12, ...PLAYBOOK_AUTHORING_FACETS2 }
 );
 var MessageBlockContentSchema = z30.object({
   header: z30.string().optional().meta(Unrestricted24),
@@ -10006,7 +11485,9 @@ var RevTurbineConfigPlacementItemSchema = z30.object({
   category: RevTurbineConfigPlacementCategorySchema.meta(Unrestricted24),
   trigger: RevTurbineConfigPlacementTriggerSchema.meta(Unrestricted24),
   payloads: z30.array(RevTurbineConfigStudioPayloadSchema).meta(Unrestricted24),
-  order: z30.number().int().min(0).meta(Unrestricted24)
+  order: z30.number().int().min(0).meta(Unrestricted24),
+  /** Optional business objective, by `objectives[].handle` (VAL-OBJ-01). Config-only. */
+  objective: ObjectiveField.meta(Unrestricted24)
 }).meta(
   { id: "RevTurbineConfigPlacementItem", "x-revturbine-schema-persistence": Transient24, "x-revturbine-schema-exposure": External12, ...PLAYBOOK_SDK_FACETS8 }
 );
@@ -10100,6 +11581,14 @@ var PlaybookBodySchema = z30.object({
    */
   free_trial_rules: z30.array(RevTurbineConfigFreeTrialRuleItemSchema).optional().meta({ ...Unrestricted24, ...PLAYBOOK_AUTHORING_FACETS2 }),
   reverse_trial_rules: z30.array(RevTurbineConfigReverseTrialRuleItemSchema).optional().meta({ ...Unrestricted24, ...PLAYBOOK_AUTHORING_FACETS2 }),
+  /**
+   * Business objectives (BL-0176 / BL-0178, ruling D-15). Optional so every
+   * Playbook authored before objectives existed still parses. Placements and
+   * entitlement rules reference an entry by `handle` through their optional
+   * `objective` field. Authoring-only: no runtime decision reads it, so it is
+   * not an SDK input and never lowers into the IR.
+   */
+  objectives: z30.array(RevTurbineConfigObjectivesItemSchema).optional().meta({ ...Unrestricted24, ...PLAYBOOK_AUTHORING_FACETS2 }),
   // Plan / add-on variation prices carried by handle (plan 118 TASK-16). These
   // live on the legacy schema (not just the canonical Playbook body) so that a
   // legacy `version`-shaped config — the shape the demo-data configs and the
@@ -10373,6 +11862,56 @@ var configPaths = {
       tags: ["config"],
       responses: { "204": { description: "Deleted" } },
       "x-revturbine-operation": { exposure: "internal", resource: "personalization-tokens", persistence: { table: "personalizationTokenVersions", mode: "delete" } }
+    })
+  },
+  "/api/objective-anchors": {
+    get: operation({
+      operationId: "listObjectiveAnchors",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List objective anchors (identity registry)",
+      tags: ["config"],
+      responses: {
+        "200": { description: "Objective anchor list", content: { "application/json": { schema: ListEnvelope(ObjectiveAnchorSchema) } } },
+        default: { description: "Error response", content: { "application/json": { schema: ErrorEnvelope } } }
+      },
+      "x-revturbine-operation": { exposure: "internal", resource: "objective-anchors", persistence: { table: "objectives", mode: "list" } }
+    })
+  },
+  "/api/config/objectives": {
+    get: operation({
+      operationId: "listObjectives",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List objectives",
+      tags: ["config"],
+      responses: { "200": { description: "Objective list", content: { "application/json": { schema: ListEnvelope(ObjectiveSchema) } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "objectives", persistence: { table: "objectiveVersions", mode: "list" } }
+    }),
+    post: operation({
+      operationId: "createObjective",
+      summary: "Create objective",
+      tags: ["config"],
+      requestBody: { required: true, content: { "application/json": { schema: toCreateSchema(ObjectiveSchema) } } },
+      responses: { "201": { description: "Created", content: { "application/json": { schema: ObjectiveSchema } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "objectives", persistence: { table: "objectiveVersions", mode: "create" } }
+    })
+  },
+  "/api/config/objectives/{id}": {
+    patch: operation({
+      operationId: "updateObjective",
+      requestParams: { path: z30.object({ id: z30.string() }) },
+      summary: "Update objective",
+      tags: ["config"],
+      requestBody: { required: true, content: { "application/json": { schema: ObjectiveSchema.partial() } } },
+      responses: { "200": { description: "Updated", content: { "application/json": { schema: ObjectiveSchema } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "objectives", persistence: { table: "objectiveVersions", mode: "update" } }
+    }),
+    delete: operation({
+      operationId: "deleteObjective",
+      requestParams: { path: z30.object({ id: z30.string() }) },
+      summary: "Delete objective",
+      tags: ["config"],
+      responses: { "204": { description: "Deleted" } },
+      "x-revturbine-operation": { exposure: "internal", resource: "objectives", persistence: { table: "objectiveVersions", mode: "delete" } }
     })
   },
   "/api/config/stripe": {
@@ -11625,6 +13164,8 @@ var AuthSsoProviderSchema = IdField.extend({
   domain: z37.string().min(1).meta(Unrestricted31)
 }).meta({ id: "AuthSsoProvider", "x-revturbine-schema-persistence": Persisted23, "x-revturbine-schema-exposure": Internal26 });
 export {
+  ACCOUNT_CREATION_PENDING_REASONS,
+  ACCOUNT_CREATION_SOURCES,
   ANALYTICS_ANNOTATION_KINDS,
   ANALYTICS_DATE_RANGE_FILTER_VALUE_TYPE,
   ANALYTICS_VALIDATION_CODES,
@@ -11873,7 +13414,9 @@ export {
   NON_RETRYABLE_EVIDENCE_REASONS,
   NameField,
   NullableDatetimeField,
+  NullableObjectiveField,
   ObjectiveField,
+  ObjectiveSchema,
   ObservationMaturitySchema,
   OnboardingChecklistSchema,
   OnboardingStateSchema,
@@ -11944,6 +13487,7 @@ export {
   RevTurbineConfigEntitlementRulesItemSchema,
   RevTurbineConfigEntitlementsItemSchema,
   RevTurbineConfigMeterBindingsItemSchema,
+  RevTurbineConfigObjectivesItemSchema,
   RevTurbineConfigPeriodCapSchema,
   RevTurbineConfigPersonalizationTokensItemSchema,
   RevTurbineConfigPlacementCategorySchema,
@@ -12031,6 +13575,8 @@ export {
   SurfaceTypeCapRuleSchema,
   SurfaceTypeSchema,
   TERMINAL_SUBSCRIPTION_STATUSES,
+  TRIAL_PENDING_UNKNOWN_REASONS,
+  TRIAL_REVISION_KINDS,
   TemplateFieldTypeSchema,
   TenantConfigSchema,
   TenantIdField,
@@ -12051,11 +13597,13 @@ export {
   TrialStatusSchema,
   TrialTriggerPayloadSchema,
   TriggerEventTypeSchema,
+  USER_GRAIN_NON_CREATION_SOURCES,
   UiPreferenceSchema,
   UsageAllocationSchema,
   UsageEnforcementSettingsSchema,
   UsagePeriodScopeSchema,
   UsageTriggerPayloadSchema,
+  UserBuiltinDimensionsSchema,
   UserContextSchema,
   UserInstanceContextSchema,
   UserPlanContextSchema,
@@ -12085,7 +13633,9 @@ export {
   assertExperimentDecisionPolicyUpdateAllowed,
   buildAgentCatalogProjection,
   changelogPaths,
+  classifyAccountCreation,
   classifySubscriptionStatus,
+  classifyTrialRevision,
   collectPersistedSchemas,
   collectVersionedConfigEntities,
   compileAnalyticsDraft,
@@ -12113,6 +13663,7 @@ export {
   getSchemaIdentity,
   getSchemaPersistence,
   isAnalyticsDateRangeFilterValue,
+  isEvidencedAccountCreation,
   isLegacyDateRangeArray,
   isRetryableEvidenceReason,
   isVersionedConfigEntity,
