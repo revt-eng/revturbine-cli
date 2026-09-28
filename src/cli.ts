@@ -13,7 +13,8 @@
  * selectors (`<file>` / `--draft` / `--live` / `--release <id>`), the stable
  * exit-code classes in src/lib/output.ts, results on stdout with diagnostics
  * on stderr, and `--json` for machines. Auth uses a token from `login`
- * (RFC 8628 device flow), persisted at ~/.revturbine/credentials.json (0600).
+ * (RFC 8628 device flow), persisted at ~/.revturbine/credentials.json (0600),
+ * or, non-interactively for CI, REVTURBINE_TOKEN (plan 129 TASK-2).
  *
  *   revturbine <command> --help
  */
@@ -64,7 +65,9 @@ import { declaredSdk, detectPackageManager, detectStack, installArgs, integratio
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
 import { detectHarness, finalOutputLines, isAgentId, skillsAddArgs, SKILLS_SOURCE, SUPPORTED_AGENTS, type SkillsOutcome } from './lib/init-skills';
 import { generateHandleTypes } from './lib/handles-codegen';
-import { classFromStatus, diag, diagRaw, emit, EXIT, fail, isNetworkError } from './lib/output';
+import { classFromStatus, diag, diagRaw, DIFF_EXIT, diffExitCode, emit, EXIT, fail, isNetworkError, redact, registerSecrets } from './lib/output';
+import { DEFAULT_TENANT_ID, HEADERS_ENV, parseExtraHeaders, resolveAuth, TOKEN_ENV, withExtraHeaders, type TokenSource } from './lib/env-auth';
+import { type FetchLike } from './lib/device-auth';
 import { checkPinDrift } from './lib/pin-drift';
 import { latestStableSdk, sdkDeclaration, sdkPackageVersion, sdkVersionAdvice } from './lib/sdk-version';
 import { describeSelector, orderDiffSelectors, requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
@@ -191,25 +194,58 @@ function verifyConfig(file: string): unknown | null {
 
 interface Connection {
   url: string;
-  tenantId: string;
+  /** The `x-tenant-id` sent, or null when none is (env token: server-resolved). */
+  tenantId: string | null;
   tenantSource: string;
   credentialsDir: string;
   credentialsSource: string;
   hasToken: boolean;
+  tokenSource: TokenSource;
   headers: Record<string, string>;
+}
+
+let extraHeadersCache: Record<string, string> | undefined;
+
+/**
+ * REVTURBINE_HTTP_HEADERS, parsed once. A malformed value is a usage error
+ * whose message never contains a header value. Every value (and the env token)
+ * is registered so no stderr line can print it.
+ */
+function extraHeaders(): Record<string, string> {
+  if (extraHeadersCache) return extraHeadersCache;
+  const parsed = parseExtraHeaders(process.env[HEADERS_ENV]);
+  if (!parsed.ok) fail(EXIT.USAGE, parsed.error);
+  registerSecrets(Object.values(parsed.headers));
+  extraHeadersCache = parsed.headers;
+  return parsed.headers;
+}
+
+/** Global fetch carrying the extra headers, for login/signup's own requests. */
+function instanceFetch(): FetchLike {
+  return withExtraHeaders(fetch as unknown as FetchLike, extraHeaders());
 }
 
 /** Build the authenticated request context for an instance URL. */
 function connect(rawUrl: string, explicitTenantId?: string, diagnostic: (message: string) => void = diag): Connection {
   const url = normalizeBaseUrl(rawUrl);
   const { dir, source } = resolveConfigDir();
-  const cred = getCredential(url);
-  // Tenant precedence: explicit --tenant-id > the stored token's tenant > default.
-  const tenantId = explicitTenantId ?? cred?.tenant_id ?? 'dev-tenant-001';
-  const tenantSource = explicitTenantId ? '--tenant-id' : cred?.tenant_id ? 'stored token' : 'default';
-  // Legibility (plan 86): always show which tenant + which credentials dir we resolved.
-  diagnostic(`Tenant ${tenantId} (${tenantSource}); credentials: ${dir} [${source}].`);
-  if (source === 'global') {
+  const extra = extraHeaders();
+  const envToken = process.env[TOKEN_ENV];
+  if (envToken?.trim()) registerSecrets([envToken.trim()]);
+  // Token: REVTURBINE_TOKEN > stored credential. Tenant: -t > (env token: no
+  // header, the server resolves the token user's own tenant) > stored > default.
+  const auth = resolveAuth({ envToken, stored: getCredential(url), explicitTenantId });
+  const { tenantId, tenantSource } = auth;
+  const extraNote = Object.keys(extra).length
+    ? `; extra headers: ${Object.keys(extra).join(', ')} [${HEADERS_ENV}, values redacted]`
+    : '';
+  // Legibility (plan 86): always show which tenant + which credentials we resolved.
+  if (auth.tokenSource === 'env') {
+    diagnostic(`Tenant ${tenantId ?? "(the token user's own)"} (${tenantSource}); token: ${TOKEN_ENV}${extraNote}.`);
+  } else {
+    diagnostic(`Tenant ${tenantId} (${tenantSource}); credentials: ${dir} [${source}]${extraNote}.`);
+  }
+  if (source === 'global' && auth.tokenSource !== 'env') {
     diagnostic(
       `WARNING: using the global ${dir} - NOT worktree-scoped. ` +
         `If this session is for a specific customer, run from that customer's worktree ` +
@@ -222,11 +258,13 @@ function connect(rawUrl: string, explicitTenantId?: string, diagnostic: (message
     tenantSource,
     credentialsDir: dir,
     credentialsSource: source,
-    hasToken: Boolean(cred),
+    hasToken: auth.token !== null,
+    tokenSource: auth.tokenSource,
     headers: {
+      ...extra,
       'Content-Type': 'application/json',
-      'x-tenant-id': tenantId,
-      ...(cred ? { Authorization: `Bearer ${cred.token}` } : {}),
+      ...(tenantId ? { 'x-tenant-id': tenantId } : {}),
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
     },
   };
 }
@@ -237,12 +275,20 @@ function connect(rawUrl: string, explicitTenantId?: string, diagnostic: (message
  * where it came from, and an embedded tenant contradicting the session with
  * no explicit choice is refused before anything is sent.
  */
-function uploadTenantFor(rawUrl: string, config: unknown, explicit?: string): string {
+function uploadTenantFor(rawUrl: string, config: unknown, explicit?: string): string | undefined {
+  const embedded = (config as { tenant_id?: string })?.tenant_id;
+  if (process.env[TOKEN_ENV]?.trim()) {
+    // Env token: the session tenant is resolved server-side, so there is
+    // nothing to compare against. -t wins; else an embedded origin is sent
+    // (the server 403s it unless it is the token user's own); else no header.
+    if (!explicit && embedded) diag(`sending to the config's embedded tenant ${embedded} (pass -t to retarget).`);
+    return explicit ?? embedded ?? undefined;
+  }
   const cred = getCredential(normalizeBaseUrl(rawUrl));
   const target = resolveUploadTarget({
-    embedded: (config as { tenant_id?: string })?.tenant_id,
+    embedded,
     explicit,
-    session: cred?.tenant_id ?? 'dev-tenant-001',
+    session: cred?.tenant_id ?? DEFAULT_TENANT_ID,
   });
   if (!target.ok) fail(EXIT.VALIDATION, target.error);
   if (target.note) diag(target.note);
@@ -251,7 +297,11 @@ function uploadTenantFor(rawUrl: string, config: unknown, explicit?: string): st
 
 function authHint(url: string, status: number): void {
   if (status === 401 || status === 403) {
-    diag(`Authentication required for ${url}. Log in with:\n  revturbine login ${url}`);
+    diag(
+      process.env[TOKEN_ENV]?.trim()
+        ? `Authentication failed for ${url} with ${TOKEN_ENV}: check the token and its tenant membership.`
+        : `Authentication required for ${url}. Log in with:\n  revturbine login ${url}`,
+    );
   }
 }
 
@@ -543,6 +593,16 @@ Auth:
   ~/.revturbine/credentials.json (0600); the token's tenant is used by default,
   override with -t/--tenant-id. Mutating commands (discard, restore) prompt
   for confirmation unless --yes.
+
+CI / non-interactive:
+  REVTURBINE_TOKEN          bearer token; wins over the stored credential. Without
+                            -t no x-tenant-id is sent (the server resolves the
+                            token user's own tenant).
+  REVTURBINE_HTTP_HEADERS   JSON object of extra headers for every request, e.g.
+                            {"x-vercel-protection-bypass":"..."}.
+  Neither the token nor any header value is ever logged or echoed.
+  \`diff ... --exit-code\` exits 0 = no differences, 1 = differences, other = error
+  (an unexpected error exits 70 there).
   \`whoami\` leads with absent, accepted, rejected, or unverifiable credentials;
   a configured tenant alone does not prove login. Verification and subsequent
   telemetry each time out after 3 seconds. Status reports exit 0; --json keeps
@@ -558,6 +618,9 @@ Full reference: ${DOCS_URL}
 `;
 
 const program = new Command();
+
+/** Exit status for an uncaught error; `diff --exit-code` moves it off 1. */
+let unexpectedExit: number = EXIT.UNEXPECTED;
 
 // Dogfood each successful ONLINE command as a `cli_command_executed` control-
 // plane event (plan 112 TASK-6). Fires only after the action resolves (so a
@@ -803,7 +866,7 @@ program
   .action(async (url: string | undefined) => {
     try {
       const base = normalizeBaseUrl(url ?? DEFAULT_URL);
-      await deviceLogin(base);
+      await deviceLogin(base, console.log, instanceFetch());
       await trackEvent(base, undefined, 'cli_signed_in');
     } catch (err) {
       fail(EXIT.AUTH, `Login failed: ${(err as Error).message}`);
@@ -894,6 +957,7 @@ program
         password,
         promptOtp: (attempt) =>
           promptLine(attempt > 1 ? 'Verification code (try again): ' : 'Verification code: '),
+        fetchImpl: instanceFetch(),
       });
       if (result.status === 'awaiting_invitation') process.exit(0);
       await trackEvent(baseUrl, undefined, 'cli_signed_up');
@@ -951,8 +1015,10 @@ program
       [
         formatAuthentication(conn.hasToken, tokenValid),
         `instance:    ${data.instance}`,
-        `tenant:      ${data.tenant} (${data.tenant_source})`,
-        `credentials: ${data.credentials_dir} [${data.credentials_source}]`,
+        `tenant:      ${data.tenant ?? "(the token user's own)"} (${data.tenant_source})`,
+        conn.tokenSource === 'env'
+          ? `credentials: ${TOKEN_ENV} (env; stored credentials ignored)`
+          : `credentials: ${data.credentials_dir} [${data.credentials_source}]`,
       ].join('\n'),
     );
     for (const message of diagnostics) diag(message);
@@ -1107,7 +1173,10 @@ program
   .option('--release <id>', 'A specific playbook version / Release')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
-  .action(async (files: string[], opts: { draft?: boolean; live?: boolean; release?: string; url: string; tenantId?: string }) => {
+  .option('--exit-code', 'Exit 0 when there are no differences, 1 when there are (any other code is an error); for CI no-op detection')
+  .action(async (files: string[], opts: { draft?: boolean; live?: boolean; release?: string; url: string; tenantId?: string; exitCode?: boolean }) => {
+    // Set before anything can throw, so an unexpected error never exits 1 (= "differences").
+    if (opts.exitCode) unexpectedExit = DIFF_EXIT.UNEXPECTED;
     const sels = requireSelectors(opts, files, { count: 2, allowed: ['file', 'draft', 'live', 'release'], command: 'diff' });
     // Launch-preview polarity (plan 171 TASK-11): a file vs a server-side
     // version diffs FROM the server state TO the file, so +/− read as
@@ -1117,7 +1186,9 @@ program
     const conn = needsServer ? connect(opts.url, opts.tenantId) : (null as unknown as Connection);
     const [a, b] = await Promise.all(ordered.map((s) => loadVersion(conn, s)));
     diag(`Diff (${ordered.map((s) => (s.kind === 'file' ? s.path : s.kind === 'release' ? `--release ${s.id}` : `--${s.kind}`)).join(' → ')}):`);
-    process.stdout.write(`${formatDiff(diffExportedConfig(a, b))}\n`);
+    const diff = diffExportedConfig(a, b);
+    process.stdout.write(`${formatDiff(diff)}\n`);
+    if (opts.exitCode) process.exitCode = diffExitCode(diff);
   });
 
 program
@@ -2037,7 +2108,7 @@ if (process.argv.includes('-V') || process.argv.includes('--version')) {
       console.error(`[revturbine] ✗ ${err.message}`);
       process.exit(EXIT.USAGE);
     }
-    console.error(`[revturbine] ✗ ${(err as Error).message}`);
-    process.exit(EXIT.UNEXPECTED);
+    console.error(redact(`[revturbine] ✗ ${(err as Error).message}`));
+    process.exit(unexpectedExit);
   }
 }

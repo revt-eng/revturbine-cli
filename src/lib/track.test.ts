@@ -22,10 +22,14 @@ beforeEach(() => {
   getCredentialMock.mockReset();
   fetchMock = vi.fn(async () => new Response('{}', { status: 202 }));
   vi.stubGlobal('fetch', fetchMock);
+  // Isolate from a developer/CI shell that has CI mode configured.
+  vi.stubEnv('REVTURBINE_TOKEN', '');
+  vi.stubEnv('REVTURBINE_HTTP_HEADERS', '');
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe('shouldTrackCommandExecution', () => {
@@ -80,5 +84,28 @@ describe('trackEvent', () => {
     await expect(
       trackEvent('https://app.revturbine.com', undefined, 'cli_command_executed'),
     ).resolves.toBeUndefined();
+  });
+
+  it('CI mode: REVTURBINE_TOKEN wins, no default tenant header, extra headers ride along', async () => {
+    getCredentialMock.mockReturnValue({ token: 'tok_stored_fake', tenant_id: 'tn_acme' });
+    vi.stubEnv('REVTURBINE_TOKEN', 'rtk_fake_env_token_track');
+    vi.stubEnv('REVTURBINE_HTTP_HEADERS', JSON.stringify({ 'x-vercel-protection-bypass': 'fake-bypass-track' }));
+    await trackEvent('https://app.revturbine.com', undefined, 'cli_command_executed', { command: 'diff' });
+    const init = (fetchMock.mock.calls[0] as [string, RequestInit])[1];
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer rtk_fake_env_token_track');
+    expect(headers['x-tenant-id']).toBeUndefined();
+    expect(headers['x-vercel-protection-bypass']).toBe('fake-bypass-track');
+    // Header values never enter the telemetry payload.
+    expect(String(init.body)).not.toContain('fake-bypass-track');
+    expect(String(init.body)).not.toContain('rtk_fake_env_token_track');
+  });
+
+  it('CI mode: emits with the env token even when logged out', async () => {
+    getCredentialMock.mockReturnValue(undefined);
+    vi.stubEnv('REVTURBINE_TOKEN', 'rtk_fake_env_token_track');
+    await trackEvent('https://app.revturbine.com', 'tn_explicit', 'cli_command_executed');
+    const headers = (fetchMock.mock.calls[0] as [string, RequestInit])[1].headers as Record<string, string>;
+    expect(headers['x-tenant-id']).toBe('tn_explicit');
   });
 });

@@ -73,6 +73,8 @@ jobs:
         run: npm test -- tests/placement-validation-process.test.ts
       - name: latest SDK guidance preserves projects and bounds registry failures
         run: npm test -- tests/sdk-version-process.test.ts
+      - name: CI mode (env token, extra headers, diff --exit-code) never prints secrets
+        run: npm test -- tests/ci-mode-process.test.ts
       - name: validate a valid config (expect exit 0)
         run: '"$CLI_BIN" validate tests/fixtures/valid.export-config.json'
       - name: validate an invalid config (expect exit 4)

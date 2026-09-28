@@ -65,13 +65,13 @@ Commands that read a config name the version explicitly — there is no default:
 |---|---|
 | `init` (alias `create`) | Set up RevTurbine while preserving existing integrations: install missing packages, pin the CLI exactly, create a starter for a fresh integration, and install skills for one agent. Use `--scaffold` to create a missing root starter explicitly; existing files are never overwritten. `--agent claude-code\|cursor\|codex` overrides environment detection; an unknown agent skips skills and prints the selection command. Also supports `--dir`, `--dry-run`, `--no-skills`, `--json`. With no `package.json`, offers a new project (`--yes` for noninteractive creation). Runs the invoked CLI even inside a repo that pins a different one. |
 | `signup` | Create an account headlessly: email + password, then an emailed one-time code to verify, then a token is stored. |
-| `login` / `logout` | Device-flow auth; tokens stored at `~/.revturbine/credentials.json` (mode 0600). |
-| `whoami` | Authentication state first: not logged in, credentials accepted, credentials rejected for the selected instance/tenant, or verification unavailable. Then shows instance, tenant, and credentials source; configured tenant information alone does not prove login. Verification and subsequent telemetry each time out after 3 seconds. Status reports exit 0. `--json` retains its seven fields: `instance`, `tenant`, `tenant_source`, `credentials_dir`, `credentials_source`, `token_present` (boolean), and `token_valid` (`true` for 2xx, `false` for 401/403, `null` when absent or unverified, including redirects, other HTTP errors, timeouts and network failures). |
+| `login` / `logout` | Device-flow auth; tokens stored at `~/.revturbine/credentials.json` (mode 0600). For CI, skip login and set `REVTURBINE_TOKEN` (see [CI / non-interactive use](#ci--non-interactive-use)). |
+| `whoami` | Authentication state first: not logged in, credentials accepted, credentials rejected for the selected instance/tenant, or verification unavailable. Then shows instance, tenant, and credentials source; configured tenant information alone does not prove login. Verification and subsequent telemetry each time out after 3 seconds. Status reports exit 0. `--json` retains its seven fields: `instance`, `tenant` (`null` when `REVTURBINE_TOKEN` is set without `-t`: the server resolves the token user's own tenant, and `tenant_source` names the variable), `tenant_source`, `credentials_dir`, `credentials_source`, `token_present` (boolean), and `token_valid` (`true` for 2xx, `false` for 401/403, `null` when absent or unverified, including redirects, other HTTP errors, timeouts and network failures). |
 | `schema` | Emit the bundled `RevTurbineConfig` JSON schema (for agents to author against). |
 | `docs` | Print the canonical documentation URL. |
 | `download` | Fetch a config version (`--live` / `--draft` / `--release <id>`); `--save`. |
 | `validate` | Offline schema validation of a `<file>`, or the full server catalog against the open draft (`--draft`). |
-| `diff` | Compare any two versions (dry-run, no writes). A file vs `--draft`/`--live`/`--release` previews the launch — the server side is the base, so `+`/`-` read as created/pruned on launch. |
+| `diff` | Compare any two versions (dry-run, no writes). A file vs `--draft`/`--live`/`--release` previews the launch — the server side is the base, so `+`/`-` read as created/pruned on launch. `--exit-code` makes the status machine-readable: `0` no differences, `1` differences, anything else an error (an unexpected internal error exits `70` so `1` always means "differences"). Every top-level Playbook collection is compared. |
 | `show <kind>` | Summary tables: `plans` · `entitlements` · `segments` · `placements` · `trials` for any version. |
 | `upload` | Stage a Playbook file as the open draft. |
 | `launch` | Take a config live: validate (launch gate) → submit → approve → deploy. `launch <file>` or `launch --draft`. |
@@ -145,6 +145,33 @@ Public ingest tokens are intentionally embeddable but remain tenant-bound,
 origin-restricted, and optionally IP-restricted. They cannot mint other tokens
 or access private control-plane APIs.
 
+## CI / non-interactive use
+
+`login` and `signup` are interactive. In CI, supply the token through the
+environment instead:
+
+| Variable | Meaning |
+|---|---|
+| `REVTURBINE_TOKEN` | Bearer token for every request. Wins over any stored credential (which is then ignored). With it set and no `-t/--tenant-id`, **no `x-tenant-id` header is sent** and the server resolves the token user's own tenant; `-t` still sends one (it must be that tenant). |
+| `REVTURBINE_HTTP_HEADERS` | A JSON object of extra headers added to every request to the RevTurbine instance, e.g. `{"x-vercel-protection-bypass":"…"}` to reach a protection-gated preview/staging deployment. It may not set `Authorization`, `x-tenant-id`, `x-rt-tenant-id` or `Content-Type`. A malformed value exits `2`. |
+
+Neither the token nor any header value is ever logged, echoed in an error, or
+sent as telemetry: diagnostics name only the variable and the header names, and
+any stderr line that would contain a registered secret shows `<redacted>`.
+
+```bash
+export REVTURBINE_TOKEN="$RT_TOKEN"
+export REVTURBINE_HTTP_HEADERS="{\"x-vercel-protection-bypass\":\"$VERCEL_BYPASS\"}"
+URL=https://staging.example.com/app
+if revturbine diff ./seed.playbook.json --live --url "$URL" --exit-code; then
+  echo "no changes: skip launch"
+else
+  status=$?
+  [ "$status" -eq 1 ] || exit "$status"   # 2-7 / 70 = a real error
+  revturbine launch ./seed.playbook.json --url "$URL"
+fi
+```
+
 ## Exit-code classes
 
 ```
@@ -157,6 +184,9 @@ or access private control-plane APIs.
 6  network or transient failure
 7  server error
 ```
+
+`diff --exit-code` is the one exception: `1` means "differences" there, and an
+unexpected internal error exits `70` instead.
 
 ## Schema validation
 

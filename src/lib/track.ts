@@ -8,6 +8,7 @@
  * failures never fail the command; callers may bound the request with a signal.
  */
 import { getCredential, normalizeBaseUrl } from './credentials';
+import { HEADERS_ENV, parseExtraHeaders, resolveAuth, TOKEN_ENV } from './env-auth';
 
 /**
  * Commands that do NOT emit a `cli_command_executed` event: the auth commands
@@ -44,14 +45,19 @@ export async function trackEvent(
 ): Promise<void> {
   try {
     const url = normalizeBaseUrl(rawUrl);
-    const cred = getCredential(url);
-    if (!cred) return;
+    // Same precedence as every command (plan 129 TASK-2): REVTURBINE_TOKEN over
+    // the stored credential, extra headers on the request. Header values ride
+    // only in request headers, never in the event payload.
+    const auth = resolveAuth({ envToken: process.env[TOKEN_ENV], stored: getCredential(url), explicitTenantId });
+    if (!auth.token) return;
+    const extra = parseExtraHeaders(process.env[HEADERS_ENV]);
     await fetch(`${url}/api/events`, {
       method: 'POST',
       headers: {
+        ...(extra.ok ? extra.headers : {}),
         'Content-Type': 'application/json',
-        'x-tenant-id': explicitTenantId ?? cred.tenant_id ?? 'dev-tenant-001',
-        Authorization: `Bearer ${cred.token}`,
+        ...(auth.tenantId ? { 'x-tenant-id': auth.tenantId } : {}),
+        Authorization: `Bearer ${auth.token}`,
       },
       body: JSON.stringify({ event_type: eventType, payload }),
       ...(signal ? { signal } : {}),
