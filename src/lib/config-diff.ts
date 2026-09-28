@@ -20,6 +20,23 @@ const COLLECTIONS = [
   'objectives',
 ] as const;
 
+/**
+ * The named collections first (stable display order), then EVERY other
+ * top-level array on either side, sorted (plan 129 TASK-2): `diff --exit-code`
+ * must never report "no differences" while an add-on, variation or any
+ * other Playbook collection changed.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function collectionsOf(current: any, next: any): string[] {
+  const named = new Set<string>(COLLECTIONS);
+  const extra = new Set<string>();
+  for (const side of [current, next]) {
+    if (!side || typeof side !== 'object') continue;
+    for (const [k, v] of Object.entries(side)) if (Array.isArray(v) && !named.has(k)) extra.add(k);
+  }
+  return [...COLLECTIONS, ...[...extra].sort()];
+}
+
 // Handle-first: under the anchor+ledger identity model, `handle` is the sole
 // identity that is stable across databases — row ids are re-minted on import,
 // so keying by id reads a re-imported entity as add+remove instead of a change.
@@ -31,7 +48,7 @@ function keyOf(item: any): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function diffExportedConfig(current: any, next: any): ConfigDiff {
   const diff: ConfigDiff = {};
-  for (const coll of COLLECTIONS) {
+  for (const coll of collectionsOf(current, next)) {
     const cur = Array.isArray(current?.[coll]) ? current[coll] : [];
     const nxt = Array.isArray(next?.[coll]) ? next[coll] : [];
     if (cur.length === 0 && nxt.length === 0) continue;

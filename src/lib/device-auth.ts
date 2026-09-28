@@ -127,8 +127,9 @@ export function openBrowser(url: string): void {
 export async function deviceLogin(
   baseUrl: string,
   log: (msg: string) => void = console.log,
+  fetchImpl: FetchLike = fetch as unknown as FetchLike,
 ): Promise<DeviceToken> {
-  const start = await startDeviceAuth(baseUrl, os.hostname(), fetch as unknown as FetchLike);
+  const start = await startDeviceAuth(baseUrl, os.hostname(), fetchImpl);
 
   log('');
   log(`To authorize this device, visit:\n    ${start.verification_uri}`);
@@ -141,7 +142,7 @@ export async function deviceLogin(
     deviceCode: start.device_code,
     intervalSeconds: start.interval,
     expiresInSeconds: start.expires_in,
-    fetchImpl: fetch as unknown as FetchLike,
+    fetchImpl,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     onPending: () => process.stdout.write('.'),
   });
