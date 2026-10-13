@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.475
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.477
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -7546,7 +7546,13 @@ var AnalyticsRenderMetricSchema = z32.strictObject({
 }).meta(meta3("AnalyticsRenderMetric"));
 var AnalyticsRenderCartesianSchema = z32.strictObject({
   type: z32.literal("cartesian").meta(Unrestricted15),
-  mark: z32.enum(["line", "area", "bar", "stacked_bar", "scatter"]).meta(Unrestricted15),
+  /**
+   * `marimekko` (ST-430, Kent Q-3): a variable-width share-of-share bar. x is
+   * the column dimension (width = its share of the facet total), color the
+   * segment dimension (height = its share within the column), y one measure;
+   * breakdown queries only. Semantic validation holds those rules.
+   */
+  mark: z32.enum(["line", "area", "bar", "stacked_bar", "scatter", "marimekko"]).meta(Unrestricted15),
   encoding: z32.strictObject({
     x: SemanticIdField.meta(Unrestricted15),
     y: z32.union([SemanticIdField, z32.array(SemanticIdField).min(1).max(5)]).meta(Unrestricted15),
@@ -9443,6 +9449,7 @@ var accountStatusLabelMetric = {
 
 // scaffold/src/analytics/catalog/entries/concepts/revenue/stock.ts
 var SLICE_BLOCKER = "Current analytics_mrr_stock_v1/movements_v1/nrr_v1 endpoints accept only tenant, time and currency. Stored keys do not establish a slice carrier; RM-0269 TASK-35/43 requires registered bindings and conformance.";
+var PLAN_CUT_CARRIER = "Served for revenue.mrr by analytics_mrr_stock_by_plan (summarizeMrrStockByPlan); the movement and NRR carriers do not cut by it.";
 var revenueStockConcept = {
   id: "revenue.stock",
   version: 1,
@@ -9453,13 +9460,14 @@ var revenueStockConcept = {
   analytical_units: ["account"],
   primary_time_dimension: "time.occurred_at",
   historical_mode: "as_of_event",
-  dimensions: ["time.occurred_at", "revenue.currency", "customer.account", "commercial.plan", "commercial.variation", "commercial.billing_period", "commercial.reporting_currency"],
+  dimensions: ["time.occurred_at", "revenue.currency", "customer.account", "commercial.plan", "commercial.variation", "commercial.billing_period", "commercial.item_kind", "commercial.reporting_currency"],
   dimension_groundings: {
     "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time" },
     "customer.account": { kind: "stamped", source: "column:account_id", anchor: "fact_time", catalog_status: "unavailable", blocker: SLICE_BLOCKER, note: "account_resolved=1 distinguishes RT accounts from payer fallback keys. Historical mapping generations remain deferred; account denominators exclude unresolved keys." },
-    "commercial.plan": { kind: "stamped", source: "column:product_handle", anchor: "fact_time", catalog_status: "unavailable", blocker: SLICE_BLOCKER, note: "A plan handle only for item_kind=plan. Add-ons and unbound prices are not invented base plans. Distinct accounts may overlap across plans." },
-    "commercial.variation": { kind: "stamped", source: "column:variation_handle", anchor: "fact_time", catalog_status: "unavailable", blocker: SLICE_BLOCKER },
-    "commercial.billing_period": { kind: "derived", source: "derived:billing_interval_interval_count", anchor: "fact_time", catalog_status: "unavailable", blocker: SLICE_BLOCKER, note: "Both billing_interval and interval_count determine the recurrence; the interval name alone is insufficient." },
+    "commercial.plan": { kind: "stamped", source: "column:product_handle", anchor: "fact_time", note: `Item-based: the plan the item's price was bound to at replay time; the add-on handle for item_kind=addon, null for unbound prices (never an invented base plan). Distinct accounts may overlap across plans. ${PLAN_CUT_CARRIER}` },
+    "commercial.variation": { kind: "stamped", source: "column:variation_handle", anchor: "fact_time", note: `Null for unbound prices. ${PLAN_CUT_CARRIER}` },
+    "commercial.billing_period": { kind: "derived", source: "derived:mrrBillingPeriodOf(billing_interval, interval_count)", anchor: "fact_time", note: `monthly (month x 1), annual (year x 1), else custom: both columns decide, the interval name alone is insufficient. ${PLAN_CUT_CARRIER}` },
+    "commercial.item_kind": { kind: "stamped", source: "column:item_kind", anchor: "fact_time", note: `plan, addon or unbound: Add-ons and Unmapped price are buckets of their own, so the buckets sum to the stock. ${PLAN_CUT_CARRIER}` },
     "commercial.reporting_currency": { kind: "derived", source: "derived:fx_rates_daily", anchor: "fact_time", partitions: false, catalog_status: "unavailable", blocker: "RM-0269 TASK-33 (BL-0442): fx_rates_daily, converted stock columns and carrier bindings for REPORTING_CURRENCY_V1_POLICY remain unimplemented." }
   },
   metrics: [
@@ -9539,6 +9547,20 @@ var commercialVariationDimension = {
   operators: ["in", "not_in", "is_null", "is_not_null"],
   control: "multi_select",
   capabilities: ["filter", "group", "split", "sort"],
+  cardinality: "low",
+  classification: "unrestricted",
+  exclude_from_segment_picker: true
+};
+
+// scaffold/src/analytics/catalog/entries/dimensions/commercial/item_kind.ts
+var commercialItemKindDimension = {
+  id: "commercial.item_kind",
+  label: "Item kind",
+  type: "enum",
+  description: "What a subscription item's price was bound to at replay time: plan (a plan variation), addon (an add-on variation) or unbound (no variation binds the Stripe price). Add-ons and unbound prices are buckets of their own beside the plans; commercial.plan is null on unbound items.",
+  operators: ["in", "not_in"],
+  control: "multi_select",
+  capabilities: ["filter", "group", "split"],
   cardinality: "low",
   classification: "unrestricted",
   exclude_from_segment_picker: true
@@ -10765,7 +10787,7 @@ var revenueMrrMetric = {
   aggregation_semantics: "semi_additive",
   layer: "primitive",
   catalog_status: "tested",
-  derivation: { carried_by: ["analytics_mrr_stock_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 from subscription state (plan 282 TASK-11, D-51): \u03A3 over active and past_due items of quantity \xD7 unit_amount normalized to a month (year \xF7 12, week \xD7 52/12, day \xD7 365/12, \xF7 interval_count); every other status contributes 0. Web TASK-11b replays the customer.subscription.* payloads in events_billing.raw and the seeded opening position into subscription_stock_weekly through the oracle, reconciles against stripe_sub_item \xD7 stripe_prices, and is tested by simulation-mrr-v1-conformance. V1 exclusions: discounts, prorations, schedules, multi-plan items, tax, currency transfers." }
+  derivation: { carried_by: ["analytics_mrr_stock_v1", "analytics_mrr_stock_by_plan"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 from subscription state (plan 282 TASK-11, D-51): \u03A3 over active and past_due items of quantity \xD7 unit_amount normalized to a month (year \xF7 12, week \xD7 52/12, day \xD7 365/12, \xF7 interval_count); every other status contributes 0. Web TASK-11b replays the customer.subscription.* payloads in events_billing.raw and the seeded opening position into subscription_stock_weekly through the oracle, reconciles against stripe_sub_item \xD7 stripe_prices, and is tested by simulation-mrr-v1-conformance. V1 exclusions: discounts, prorations, schedules, multi-plan items, tax, currency transfers." }
 };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/new_mrr.ts
@@ -11491,7 +11513,8 @@ var revenueMovementConcept = {
   dimensions: ["time.occurred_at", "commercial.plan", "commercial.billing_period", "revenue.currency", "commercial.reporting_currency"],
   dimension_groundings: {
     "commercial.plan": { kind: "stamped", source: "payload:plan_handle", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: the legacy serving endpoint exposes no plan grouping even though retained facts may carry plan_handle. Plan cuts of revenue arrive with the billing-vocabulary datasource work (plan 252 TASK-9/TASK-31)." },
-    "commercial.billing_period": { kind: "stamped", source: "payload:billing_period", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: the legacy serving endpoint exposes no billing-period grouping; same billing-vocabulary datasource work as the plan slice (plan 252 TASK-9/TASK-31)." },
+    // ST-430: analytics_revenue_by_currency_v1 split = 'billing_period' serves it.
+    "commercial.billing_period": { kind: "stamped", source: "payload:billing_period", anchor: "fact_time", note: "Served for revenue.invoice_paid_amount_legacy by analytics_revenue_by_currency_v1 with split = billing_period: the invoice's recurrence classifies cash on its paid day (an annual prepayment posts in full); rows without one land in unknown. A paid-invoice proxy, not MRR." },
     "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time" },
     // Plan 282 TASK-32 (D-54): a derived selection, never a partition —
     // the pipe joins fx_rates_daily on the fact's date and emits the
@@ -12361,6 +12384,7 @@ var customerAccountProfileConcept = {
 var DIMENSION_ENTRIES = [
   timeOccurredAtDimension,
   commercialVariationDimension,
+  commercialItemKindDimension,
   revenueMovementDestinationDimension,
   commercialPlanDimension,
   commercialBillingPeriodDimension,
@@ -12897,7 +12921,8 @@ var ANALYTICS_VALIDATION_CODES = [
   "TEMPLATE_LOCKED_PROPERTY_CHANGED",
   "COMPARE_TARGET_MISSING",
   "COMPARE_TARGET_MISMATCH",
-  "LEGACY_STOCK_CONCEPT_NEEDS_ATTENTION"
+  "LEGACY_STOCK_CONCEPT_NEEDS_ATTENTION",
+  "RENDER_ENCODING_INVALID"
 ];
 var issue = (code, path, message, extra) => ({ code, path, message, ...extra });
 function queryFields(query) {
@@ -13196,6 +13221,7 @@ function validateRender(render, query, catalog, basePath) {
       }
       if (render.encoding.color) requireConceptDimension(render.encoding.color, `${basePath}/encoding/color`);
       if (render.encoding.facet) requireConceptDimension(render.encoding.facet, `${basePath}/encoding/facet`);
+      if (render.mark === "marimekko") issues.push(...validateMarimekko(render, query, catalog, basePath));
       break;
     }
     case "funnel":
@@ -13211,6 +13237,50 @@ function validateRender(render, query, catalog, basePath) {
       break;
     case "recommendations":
       break;
+  }
+  return issues;
+}
+function validateMarimekko(render, query, catalog, basePath) {
+  const issues = [];
+  if (query.family !== "breakdown") {
+    issues.push(issue(
+      "RENDERER_INCOMPATIBLE_WITH_QUERY",
+      `${basePath}/mark`,
+      `A marimekko mark presents only a breakdown query, not a ${query.family} query.`,
+      {
+        actual: query.family,
+        allowed: ["breakdown"],
+        suggested_patch: [{ op: "replace", path: `${basePath}/mark`, value: "stacked_bar" }]
+      }
+    ));
+  }
+  if (!render.encoding.color) {
+    issues.push(issue(
+      "RENDER_ENCODING_INVALID",
+      `${basePath}/encoding/color`,
+      "A marimekko mark needs encoding.color: the segment dimension whose shares stack within each column."
+    ));
+  }
+  const x = render.encoding.x;
+  const xType = catalog.getDimension(x)?.type;
+  if (x === query.time?.dimension || xType === "datetime" || xType === "date") {
+    issues.push(issue(
+      "RENDER_ENCODING_INVALID",
+      `${basePath}/encoding/x`,
+      `A marimekko mark needs a categorical column dimension on encoding.x, not the time dimension ${x}.`,
+      { actual: x }
+    ));
+  }
+  if (Array.isArray(render.encoding.y) && render.encoding.y.length > 1) {
+    issues.push(issue(
+      "RENDER_ENCODING_INVALID",
+      `${basePath}/encoding/y`,
+      "A marimekko mark draws one measure on one value axis.",
+      {
+        actual: render.encoding.y,
+        suggested_patch: [{ op: "replace", path: `${basePath}/encoding/y`, value: render.encoding.y[0] }]
+      }
+    ));
   }
   return issues;
 }
