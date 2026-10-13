@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.477
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.479
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -7041,6 +7041,18 @@ var AnalyticsDimensionGroundingSchema = z32.object({
    */
   catalog_status: AnalyticsCatalogStatusSchema.optional().meta(Unrestricted15),
   blocker: z32.string().max(400).optional().meta(Unrestricted15),
+  /**
+   * The metrics this slice is servable for (ST-430). A grounding is a
+   * property of the fact, but a cut is served by a CARRIER, and a concept's
+   * metrics need not share one: `revenue.mrr` has a plan-cut carrier while
+   * the movement and NRR metrics on the same fact do not. When present, only
+   * these metrics of the concept may be cut by the dimension; every other
+   * metric reads the slice as `unavailable` with {@link unserved_blocker}.
+   * Absent: the grounding's own status applies to every metric.
+   */
+  served_metrics: z32.array(SemanticIdField).min(1).max(50).optional().meta(Unrestricted15),
+  /** Why the concept's other metrics cannot be cut by this dimension: the carrier they lack. Required with `served_metrics`. */
+  unserved_blocker: z32.string().max(400).optional().meta(Unrestricted15),
   /** Part of the V1 slice set tested on every P0 metric whose fact carries the key. */
   v1: z32.boolean().optional().meta(Unrestricted15)
 }).meta(meta3("AnalyticsDimensionGrounding"));
@@ -7362,6 +7374,36 @@ var AnalyticsCatalogConceptValidatedSchema = AnalyticsCatalogConceptSchema.super
           "grounding_blocker_without_unavailable",
           `grounding for ${dimensionId} carries a blocker, so its catalog_status must be 'unavailable' (R11/G13)`
         );
+      }
+      if (grounding.served_metrics !== void 0 && !grounding.unserved_blocker?.trim()) {
+        problem(
+          ["dimension_groundings", dimensionId, "unserved_blocker"],
+          "served_metrics_without_unserved_blocker",
+          `grounding for ${dimensionId} limits served_metrics and must name the carrier the other metrics lack in unserved_blocker`
+        );
+      }
+      if (grounding.served_metrics === void 0 && grounding.unserved_blocker !== void 0) {
+        problem(
+          ["dimension_groundings", dimensionId, "unserved_blocker"],
+          "unserved_blocker_without_served_metrics",
+          `grounding for ${dimensionId} carries an unserved_blocker but no served_metrics allowlist`
+        );
+      }
+      if (grounding.served_metrics !== void 0 && grounding.catalog_status === "unavailable") {
+        problem(
+          ["dimension_groundings", dimensionId, "served_metrics"],
+          "served_metrics_on_unavailable_grounding",
+          `grounding for ${dimensionId} is unavailable for every metric; a served_metrics allowlist would claim otherwise`
+        );
+      }
+      for (const metricId of grounding.served_metrics ?? []) {
+        if (!concept.metrics.includes(metricId)) {
+          problem(
+            ["dimension_groundings", dimensionId, "served_metrics"],
+            "served_metric_not_in_concept",
+            `grounding for ${dimensionId} serves ${metricId}, which concept ${concept.id} does not carry`
+          );
+        }
       }
       if (grounding.kind !== "config_join" && grounding.kind !== "membership_join") continue;
       if (grounding.catalog_status === "unavailable") continue;
@@ -9449,7 +9491,11 @@ var accountStatusLabelMetric = {
 
 // scaffold/src/analytics/catalog/entries/concepts/revenue/stock.ts
 var SLICE_BLOCKER = "Current analytics_mrr_stock_v1/movements_v1/nrr_v1 endpoints accept only tenant, time and currency. Stored keys do not establish a slice carrier; RM-0269 TASK-35/43 requires registered bindings and conformance.";
-var PLAN_CUT_CARRIER = "Served for revenue.mrr by analytics_mrr_stock_by_plan (summarizeMrrStockByPlan); the movement and NRR carriers do not cut by it.";
+var PLAN_CUT_CARRIER = "Served for revenue.mrr by analytics_mrr_stock_by_plan (summarizeMrrStockByPlan).";
+var PLAN_CUT = {
+  served_metrics: ["revenue.mrr"],
+  unserved_blocker: "ST-430: only revenue.mrr has a plan-cut carrier (analytics_mrr_stock_by_plan). analytics_mrr_movements_v1, analytics_mrr_nrr_v1 and the stock-derived metrics accept only tenant, time and currency."
+};
 var revenueStockConcept = {
   id: "revenue.stock",
   version: 1,
@@ -9464,10 +9510,10 @@ var revenueStockConcept = {
   dimension_groundings: {
     "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time" },
     "customer.account": { kind: "stamped", source: "column:account_id", anchor: "fact_time", catalog_status: "unavailable", blocker: SLICE_BLOCKER, note: "account_resolved=1 distinguishes RT accounts from payer fallback keys. Historical mapping generations remain deferred; account denominators exclude unresolved keys." },
-    "commercial.plan": { kind: "stamped", source: "column:product_handle", anchor: "fact_time", note: `Item-based: the plan the item's price was bound to at replay time; the add-on handle for item_kind=addon, null for unbound prices (never an invented base plan). Distinct accounts may overlap across plans. ${PLAN_CUT_CARRIER}` },
-    "commercial.variation": { kind: "stamped", source: "column:variation_handle", anchor: "fact_time", note: `Null for unbound prices. ${PLAN_CUT_CARRIER}` },
-    "commercial.billing_period": { kind: "derived", source: "derived:mrrBillingPeriodOf(billing_interval, interval_count)", anchor: "fact_time", note: `monthly (month x 1), annual (year x 1), else custom: both columns decide, the interval name alone is insufficient. ${PLAN_CUT_CARRIER}` },
-    "commercial.item_kind": { kind: "stamped", source: "column:item_kind", anchor: "fact_time", note: `plan, addon or unbound: Add-ons and Unmapped price are buckets of their own, so the buckets sum to the stock. ${PLAN_CUT_CARRIER}` },
+    "commercial.plan": { kind: "stamped", source: "column:product_handle", anchor: "fact_time", note: `Item-based: the plan the item's price was bound to at replay time; the add-on handle for item_kind=addon, null for unbound prices (never an invented base plan). Distinct accounts may overlap across plans. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
+    "commercial.variation": { kind: "stamped", source: "column:variation_handle", anchor: "fact_time", note: `Null for unbound prices. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
+    "commercial.billing_period": { kind: "derived", source: "derived:mrrBillingPeriodOf(billing_interval, interval_count)", anchor: "fact_time", note: `monthly (month x 1), annual (year x 1), else custom: both columns decide, the interval name alone is insufficient. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
+    "commercial.item_kind": { kind: "stamped", source: "column:item_kind", anchor: "fact_time", note: `plan, addon or unbound: Add-ons and Unmapped price are buckets of their own, so the buckets sum to the stock. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
     "commercial.reporting_currency": { kind: "derived", source: "derived:fx_rates_daily", anchor: "fact_time", partitions: false, catalog_status: "unavailable", blocker: "RM-0269 TASK-33 (BL-0442): fx_rates_daily, converted stock columns and carrier bindings for REPORTING_CURRENCY_V1_POLICY remain unimplemented." }
   },
   metrics: [
@@ -11514,7 +11560,7 @@ var revenueMovementConcept = {
   dimension_groundings: {
     "commercial.plan": { kind: "stamped", source: "payload:plan_handle", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: the legacy serving endpoint exposes no plan grouping even though retained facts may carry plan_handle. Plan cuts of revenue arrive with the billing-vocabulary datasource work (plan 252 TASK-9/TASK-31)." },
     // ST-430: analytics_revenue_by_currency_v1 split = 'billing_period' serves it.
-    "commercial.billing_period": { kind: "stamped", source: "payload:billing_period", anchor: "fact_time", note: "Served for revenue.invoice_paid_amount_legacy by analytics_revenue_by_currency_v1 with split = billing_period: the invoice's recurrence classifies cash on its paid day (an annual prepayment posts in full); rows without one land in unknown. A paid-invoice proxy, not MRR." },
+    "commercial.billing_period": { kind: "stamped", source: "payload:billing_period", anchor: "fact_time", note: "Served for revenue.invoice_paid_amount_legacy by analytics_revenue_by_currency_v1 with split = billing_period: the invoice's recurrence classifies cash on its paid day (an annual prepayment posts in full); rows without one land in unknown. A paid-invoice proxy, not MRR.", served_metrics: ["revenue.invoice_paid_amount_legacy"], unserved_blocker: "ST-430: only revenue.invoice_paid_amount_legacy has a billing-period carrier (analytics_revenue_by_currency_v1 split = billing_period); conversion.paid_count and cash.to_mrr_ratio are served without the cut." },
     "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time" },
     // Plan 282 TASK-32 (D-54): a derived selection, never a partition —
     // the pipe joins fx_rates_daily on the fact's date and emits the
@@ -12686,6 +12732,17 @@ var FIXTURE_ANALYTICS_CATALOG = {
 };
 function createFixtureAnalyticsCatalog() {
   return createInMemoryAnalyticsCatalog(FIXTURE_ANALYTICS_CATALOG);
+}
+
+// scaffold/src/analytics/catalog/metric-slice-matrix.ts
+function metricSliceStatus(concept, metricId, dimensionId) {
+  const grounding = concept.dimension_groundings?.[dimensionId];
+  if (!grounding) return void 0;
+  if (grounding.catalog_status === "unavailable") return { status: "unavailable", blocker: grounding.blocker };
+  if (grounding.served_metrics !== void 0 && !grounding.served_metrics.includes(metricId)) {
+    return { status: "unavailable", blocker: grounding.unserved_blocker };
+  }
+  return { status: grounding.catalog_status ?? "inherited", blocker: void 0 };
 }
 
 // scaffold/src/analytics/catalog/metric-availability.ts
@@ -20930,6 +20987,7 @@ export {
   jsonPlainViolation,
   liftTrackEventToSegmentInput,
   makeAnchor,
+  metricSliceStatus,
   mintedIdentity,
   namedIdentity,
   namespacePlatformCollision,
