@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.479
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.494
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -200,6 +200,7 @@ var { Unrestricted } = DataClassification;
 var { Transient, Persisted } = SchemaPersistence;
 var { Internal, External } = SchemaExposure;
 var ANALYTICS_MIN_SAMPLE_DEFAULT = 30;
+var PAID_CONVERSION_WINDOW_DAYS_DEFAULT = 30;
 var PaginationParamsSchema = z2.object({
   page: z2.coerce.number().int().min(1).default(1).meta(Unrestricted),
   per_page: z2.coerce.number().int().min(1).max(100).default(25).meta(Unrestricted)
@@ -740,6 +741,11 @@ var TenantConfigSchema = IdField.merge(TimestampFields).merge(TenantIdField).ext
   reporting_day_boundary_hour: z6.number().int().min(0).max(23).default(0).meta(Unrestricted3),
   reporting_calendar_version: z6.string().min(1).max(512).nullable().default(null).meta({ ...Unrestricted3, readOnly: true }),
   analytics_min_sample: z6.number().int().min(1).max(2147483647).default(ANALYTICS_MIN_SAMPLE_DEFAULT).meta(Unrestricted3),
+  // ST-517 (DEC-522, 2026-10-14): the paid-conversion window, the one
+  // setting of the dashboard's paid conversion rate. The population is the
+  // accounts whose first app activity is (window + period) to (window) days
+  // before the period end, so every one has had its full window.
+  paid_conversion_window_days: z6.number().int().min(1).max(365).default(PAID_CONVERSION_WINDOW_DAYS_DEFAULT).meta(Unrestricted3),
   quiet_days: z6.number().int().min(1).max(2147483647).nullable().optional().meta(Unrestricted3),
   gate_follow_up_days: z6.number().int().min(1).max(2147483647).nullable().optional().meta(Unrestricted3),
   gate_window_days: GateWindowDaysSchema.nullable().optional().meta(Unrestricted3),
@@ -2342,14 +2348,14 @@ var IdentitySchema = z11.object({
 var BillingHealthStatusSchema = z11.enum(["payment_failed", "payment_method_missing"]);
 var CustomerSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
   external_id: z11.string().min(1).meta(Pii),
-  identity: IdentitySchema.meta(Pii),
-  stripe_customer_id: z11.string().optional().meta(Unrestricted8),
-  current_plan_id: z11.string().optional().meta(Unrestricted8),
+  identity: IdentitySchema.meta({ ...Pii, ...ServerOnly }),
+  stripe_customer_id: z11.string().nullable().optional().meta({ ...Unrestricted8, ...ServerOnly }),
+  current_plan_id: z11.string().nullable().optional().meta(Unrestricted8),
   subscription_status: z11.enum(["active", "past_due", "canceled", "trialing", "unpaid", "none"]).default("none").meta(Unrestricted8),
   status: z11.enum(["active", "churned", "trial", "suspended"]).default("active").meta(Unrestricted8),
   /** Active billing-health problems (plan 156); empty array = healthy. */
   billing_health_issues: z11.array(BillingHealthStatusSchema).default([]).meta(Unrestricted8),
-  metadata: MetadataField.meta(Unrestricted8)
+  metadata: MetadataField.meta({ ...Unrestricted8, ...ServerOnly })
 }).meta(
   {
     id: "Customer",
@@ -2357,6 +2363,23 @@ var CustomerSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend(
     "x-revturbine-schema-exposure": Internal6
   }
 );
+var CustomerSummarySchema = CustomerSchema.pick({
+  id: true,
+  external_id: true,
+  current_plan_id: true,
+  subscription_status: true,
+  status: true,
+  billing_health_issues: true,
+  created_at: true,
+  updated_at: true
+}).extend({
+  /** Derived: `stripe_customer_id` is set and non-empty. Never persisted. */
+  stripe_linked: z11.boolean().meta({ ...Unrestricted8, readOnly: true })
+}).meta({
+  id: "CustomerSummary",
+  "x-revturbine-schema-persistence": Transient6,
+  "x-revturbine-schema-exposure": Internal6
+});
 var CustomerOverrideDurationSchema = z11.enum([
   "permanent",
   "for_duration"
@@ -2406,8 +2429,8 @@ var customerPaths = {
       requestParams: { query: ListQueryParamsSchema },
       summary: "List customers",
       tags: ["customers"],
-      responses: { "200": { description: "Customer list", content: { "application/json": { schema: ListEnvelope(CustomerSchema) } } } },
-      "x-revturbine-operation": { exposure: "internal", resource: "customers", persistence: { table: "customers", mode: "list" } }
+      responses: { "200": { description: "Customer list", content: { "application/json": { schema: ListEnvelope(CustomerSummarySchema) } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "customers", persistence: { table: "customers", mode: "list", rowSchema: "Customer" } }
     })
   },
   "/api/customers/{customerId}": {
@@ -2416,8 +2439,8 @@ var customerPaths = {
       requestParams: { path: z11.object({ customerId: z11.string() }) },
       summary: "Get customer by ID",
       tags: ["customers"],
-      responses: { "200": { description: "Customer", content: { "application/json": { schema: CustomerSchema } } } },
-      "x-revturbine-operation": { exposure: "internal", resource: "customers", persistence: { table: "customers", mode: "get" } }
+      responses: { "200": { description: "Customer", content: { "application/json": { schema: CustomerSummarySchema } } } },
+      "x-revturbine-operation": { exposure: "internal", resource: "customers", persistence: { table: "customers", mode: "get", rowSchema: "Customer" } }
     })
   },
   "/api/customer-overrides": {
@@ -9407,24 +9430,19 @@ var revenueLogoRetentionMetric = declaredTarget(
 );
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/churned_share.ts
-var revenueChurnedShareMetric = declaredTarget(
-  "revenue.churned_share",
-  "Churned MRR",
-  "percent",
-  "Opening-cohort daily churn amounts divided by opening MRR. Repeated churn after reactivation counts each loss and may exceed 100%; joining-and-churning accounts excluded. Not endpoint revenue churn.",
-  "RM-0269 TASK-35/43 must publish daily movements and fixed opening-cohort share binding; weekly V1 is insufficient.",
-  "account_matched"
-);
+var revenueChurnedShareMetric = { id: "revenue.churned_share", label: "Churned MRR", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: ["subscription_canceled", "payment_failed", "payment_succeeded"], ingested_datasources: ["events_billing", "mrr_movements_weekly", "subscription_stock_weekly"], note: "Opening-cohort churn amounts \xF7 opening MRR (ST-525): weekly series-net churn (the account reaching zero, mrr-movement-classification-v1) of accounts paying at W0, over (W0, W1]. Each loss counts; after a reactivation it may exceed 100%. Split by revenue.churn_cause. Resolved accounts only. NULL on an empty cohort. Not endpoint revenue churn. Oracle: deriveMrrOpeningCohortShares." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/accounts/churned_share.ts
-var accountsChurnedShareMetric = declaredTarget(
-  "accounts.churned_share",
-  "Churned accounts",
-  "percent",
-  "Distinct opening matched accounts with at least one daily churn divided by opening paying accounts. Count each once; exclude joining-and-churning accounts. Not endpoint logo churn.",
-  "RM-0269 TASK-35/43 must publish daily churn observations and a matched fixed opening-account denominator.",
-  "account_matched"
-);
+var accountsChurnedShareMetric = { id: "accounts.churned_share", label: "Churned accounts", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: ["subscription_canceled", "payment_failed", "payment_succeeded"], ingested_datasources: ["events_billing", "mrr_movements_weekly", "subscription_stock_weekly"], note: "Distinct accounts paying at W0 that churned (reached zero, mrr-movement-classification-v1) at least once in (W0, W1], counted once, \xF7 opening paying accounts (ST-525). By revenue.churn_cause an account counts once, under its highest-precedence cause. Resolved accounts only. NULL on an empty cohort. Not endpoint logo churn. Oracle: deriveMrrOpeningCohortShares." } };
+
+// scaffold/src/analytics/catalog/entries/metrics/accounts/churned.ts
+var accountsChurnedMetric = { id: "accounts.churned", label: "Churned accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_classified"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "mrr_movements_weekly", "subscription_stock_seed", "subscription_stock_weekly"], note: "Distinct accounts whose total MRR reached zero in the week (kind churn, mrr-movement-classification-v1): the same customers as revenue.churned_mrr. Series-net: summed over a window each churn week counts, so an account that churns, returns and churns again counts twice, as its MRR does. Per currency. Absent under the amount policy. Not lifecycle.churned_accounts (interval-net endpoint, BL-0446) nor accounts.churned_share (opening-cohort share). Oracle: summarizeClassifiedMovements." } };
+
+// scaffold/src/analytics/catalog/entries/metrics/revenue/expansion_share.ts
+var revenueExpansionShareMetric = { id: "revenue.expansion_share", label: "Expansion share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: [], ingested_datasources: ["mrr_movements_weekly", "subscription_stock_weekly"], note: "Opening-cohort share (revenue-accounting; ST-525): \u03A3 expansion of accounts paying at the opening close W0, over (W0, W1], \xF7 their opening MRR, per currency. Weekly series-net movements under the policy the generation declares (mrr-movement-classification-v1); accounts new in the interval excluded. Resolved accounts only (Q-3 default). NULL on an empty cohort. Oracle: deriveMrrOpeningCohortShares." } };
+
+// scaffold/src/analytics/catalog/entries/metrics/revenue/contraction_share.ts
+var revenueContractionShareMetric = { id: "revenue.contraction_share", label: "Contraction share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: [], ingested_datasources: ["mrr_movements_weekly", "subscription_stock_weekly"], note: "Opening-cohort share (revenue-accounting; ST-525): \u03A3 contraction of accounts paying at the opening close W0, over (W0, W1], \xF7 their opening MRR, per currency. A partial subscription cancel is contraction. Weekly series-net movements under the declared policy (mrr-movement-classification-v1). Resolved accounts only (Q-3 default). NULL on an empty cohort. Oracle: deriveMrrOpeningCohortShares." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/cash/to_mrr_ratio.ts
 var cashToMrrRatioMetric = declaredTarget(
@@ -9506,7 +9524,7 @@ var revenueStockConcept = {
   analytical_units: ["account"],
   primary_time_dimension: "time.occurred_at",
   historical_mode: "as_of_event",
-  dimensions: ["time.occurred_at", "revenue.currency", "customer.account", "commercial.plan", "commercial.variation", "commercial.billing_period", "commercial.item_kind", "commercial.reporting_currency"],
+  dimensions: ["time.occurred_at", "revenue.currency", "customer.account", "commercial.plan", "commercial.variation", "commercial.billing_period", "commercial.item_kind", "commercial.reporting_currency", "revenue.churn_cause", "revenue.movement_reason"],
   dimension_groundings: {
     "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time" },
     "customer.account": { kind: "stamped", source: "column:account_id", anchor: "fact_time", catalog_status: "unavailable", blocker: SLICE_BLOCKER, note: "account_resolved=1 distinguishes RT accounts from payer fallback keys. Historical mapping generations remain deferred; account denominators exclude unresolved keys." },
@@ -9514,6 +9532,10 @@ var revenueStockConcept = {
     "commercial.variation": { kind: "stamped", source: "column:variation_handle", anchor: "fact_time", note: `Null for unbound prices. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
     "commercial.billing_period": { kind: "derived", source: "derived:mrrBillingPeriodOf(billing_interval, interval_count)", anchor: "fact_time", note: `monthly (month x 1), annual (year x 1), else custom: both columns decide, the interval name alone is insufficient. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
     "commercial.item_kind": { kind: "stamped", source: "column:item_kind", anchor: "fact_time", note: `plan, addon or unbound: Add-ons and Unmapped price are buckets of their own, so the buckets sum to the stock. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
+    // ST-525: the churn cause of an opening-cohort churn, decided once per account churn week (classifyChurnCause).
+    "revenue.churn_cause": { kind: "derived", source: "derived:classifyChurnCause(events_billing subscription_canceled, payment_failed, payment_succeeded by subscription_id)", anchor: "fact_time", note: "Served by analytics_mrr_opening_cohort (split=churn_cause): customer_cancelled, payment_failure, unknown; the cause rows sum to the unsplit row.", served_metrics: ["revenue.churned_share", "accounts.churned_share"], unserved_blocker: "ST-525: only the opening-cohort churn shares have a cause carrier (analytics_mrr_opening_cohort). revenue.churned_mrr and the other movement and stock metrics on this fact carry no cause." },
+    // ST-565: the reason label of each movement component row (mrr-movement-classification-v1), stored on mrr_movements_weekly.
+    "revenue.movement_reason": { kind: "stamped", source: "column:reason", anchor: "fact_time", note: "Served by analytics_mrr_movement_reasons (mrr_movements_weekly.reason, summarizeMovementReasons) for the five movement ids and revenue.neutral_event_count (ST-572): within a kind the reasons sum to that bucket; new, reactivation and churn rows carry their crossing as their single reason. Only under mrr-movement-classification-v1; the amount policy serves no reason rows.", served_metrics: ["revenue.new_mrr", "revenue.expansion_mrr", "revenue.reactivation_mrr", "revenue.contraction_mrr", "revenue.churned_mrr", "revenue.neutral_event_count"], unserved_blocker: "ST-565: only the five movement amounts and the neutral event count (ST-572) have a reason carrier (analytics_mrr_movement_reasons). revenue.net_new_mrr, accounts.churned, the stock, the rates and the shares are not summed by reason." },
     "commercial.reporting_currency": { kind: "derived", source: "derived:fx_rates_daily", anchor: "fact_time", partitions: false, catalog_status: "unavailable", blocker: "RM-0269 TASK-33 (BL-0442): fx_rates_daily, converted stock columns and carrier bindings for REPORTING_CURRENCY_V1_POLICY remain unimplemented." }
   },
   metrics: [
@@ -9526,6 +9548,7 @@ var revenueStockConcept = {
     "revenue.net_new_mrr",
     "revenue.nrr",
     "accounts.paying",
+    "accounts.churned",
     "revenue.arr",
     "revenue.arpa",
     "revenue.opening_mrr",
@@ -9533,7 +9556,10 @@ var revenueStockConcept = {
     "revenue.grr",
     "revenue.logo_retention",
     "revenue.churned_share",
-    "accounts.churned_share"
+    "accounts.churned_share",
+    "revenue.expansion_share",
+    "revenue.contraction_share",
+    "revenue.neutral_event_count"
   ],
   query_families: ["scalar", "timeseries", "breakdown"],
   source_scope: "total",
@@ -9698,6 +9724,9 @@ var revenueReactivationMrrExactMetric = exactRecurringMetric("revenue.reactivati
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/neutral_mrr_exact.ts
 var revenueNeutralMrrExactMetric = exactRecurringMetric("revenue.neutral_mrr_exact", "Exact neutral MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "amount_minor", "additive");
+
+// scaffold/src/analytics/catalog/entries/metrics/revenue/neutral_event_count.ts
+var revenueNeutralEventCountMetric = { id: "revenue.neutral_event_count", label: "Labelled events with no MRR change", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movement_reasons"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "mrr_movements_weekly", "subscription_stock_seed", "subscription_stock_weekly"], note: "row_count of analytics_mrr_movement_reasons where kind = neutral (mrr-movement-classification-v1): per week, currency and reason, the component rows recording a labelled event with no MRR change (a same-price plan switch, a same-MRR monthly/annual switch, offsetting components). Servable only cut by revenue.movement_reason. A classified week with no neutral row is a qualified 0; an unserved week is null. Absent under the amount policy. Not revenue.neutral_mrr_exact (an exact-ledger amount) and not a movement amount: moves no bucket. Oracle: summarizeMovementReasons." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/transfer_in_mrr_exact.ts
 var revenueTransferInMrrExactMetric = exactRecurringMetric("revenue.transfer_in_mrr_exact", "Exact transfer-in MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "transfer_in_minor", "additive");
@@ -9955,6 +9984,34 @@ var revenueCurrencyDimension = {
   operators: ["eq", "in", "not_in"],
   control: "multi_select",
   capabilities: ["filter", "group", "split", "sort"],
+  cardinality: "low",
+  classification: "unrestricted",
+  exclude_from_segment_picker: true
+};
+
+// scaffold/src/analytics/catalog/entries/dimensions/revenue/churn_cause.ts
+var revenueChurnCauseDimension = {
+  id: "revenue.churn_cause",
+  label: "Churn cause",
+  type: "enum",
+  description: "Why an account churned, decided once per account churn week from the cancellations of the subscriptions that reached zero, matched by subscription: payment_failure (reason payment_failed or payment_disputed, or no reason after an unrecovered failed payment), customer_cancelled (reason cancellation_requested), else unknown. Mixed causes: payment failure, then customer cancelled.",
+  operators: ["eq", "in", "not_in"],
+  control: "multi_select",
+  capabilities: ["filter", "group", "split"],
+  cardinality: "low",
+  classification: "unrestricted",
+  exclude_from_segment_picker: true
+};
+
+// scaffold/src/analytics/catalog/entries/dimensions/revenue/movement_reason.ts
+var revenueMovementReasonDimension = {
+  id: "revenue.movement_reason",
+  label: "Movement reason",
+  type: "enum",
+  description: "Why a weekly MRR movement bucket moved (mrr_movements_weekly.reason, mrr-movement-classification-v1); within a kind the reasons sum to that bucket. Plan upgrade, plan downgrade, plan switch, switched to annual, switched to monthly, add-on, quantity, quantity:<entitlement>, subscription added, subscription cancelled, unattributed; new, reactivation and churn rows carry their crossing as their one reason. unchanged is never served.",
+  operators: ["eq", "in", "not_in"],
+  control: "multi_select",
+  capabilities: ["filter", "group", "split"],
   cardinality: "low",
   classification: "unrestricted",
   exclude_from_segment_picker: true
@@ -10837,22 +10894,22 @@ var revenueMrrMetric = {
 };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/new_mrr.ts
-var revenueNewMrrMetric = { id: "revenue.new_mrr", label: "New MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 closing account MRR over accounts with MRR > 0 at the week end, 0 at the previous week end, and no MRR > 0 at any earlier week end in retained history. Classified from the atomic net change in account/currency stock, never from event names. Stock definition and V1 exclusions (discounts, prorations, schedules, multi-plan items, tax, currency transfers) as revenue.mrr. Oracle: deriveMrrMovements. Served by web TASK-11b's analytics_mrr_movements_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
+var revenueNewMrrMetric = { id: "revenue.new_mrr", label: "New MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1", "analytics_mrr_movements_classified", "analytics_mrr_movement_reasons"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 closing account MRR over accounts with MRR > 0 at the week end, 0 at the previous week end, and no MRR > 0 at any earlier week end in retained history. Classified from the atomic net change in account/currency stock, never from event names. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/expansion_mrr.ts
-var revenueExpansionMrrMetric = { id: "revenue.expansion_mrr", label: "Expansion MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 (closing \u2212 opening) over accounts with MRR > 0 at both week ends and closing > opening \u2014 plan upgrades, seats, add-ons. The stamped event vocabulary only ever derived quantity growth and mapped value-based upgrades to null (BL-0063); the stock delta catches them. Stock definition and V1 exclusions (discounts, prorations, schedules, multi-plan items, tax, currency transfers) as revenue.mrr. Oracle: deriveMrrMovements. Served by web TASK-11b's analytics_mrr_movements_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
+var revenueExpansionMrrMetric = { id: "revenue.expansion_mrr", label: "Expansion MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1", "analytics_mrr_movements_classified", "analytics_mrr_movement_reasons"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 (closing \u2212 opening) over accounts with MRR > 0 at both week ends and closing > opening \u2014 plan upgrades, seats, add-ons. The stamped event vocabulary only ever derived quantity growth and mapped value-based upgrades to null (BL-0063); the stock delta catches them. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/contraction_mrr.ts
-var revenueContractionMrrMetric = { id: "revenue.contraction_mrr", label: "Contraction MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 (opening \u2212 closing) over accounts with MRR > 0 at both week ends and closing < opening \u2014 downgrades, removed add-ons, and a monthly \u2192 annual switch whose normalized MRR falls (per the mock). Published as a positive magnitude. Stock definition and V1 exclusions (discounts, prorations, schedules, multi-plan items, tax, currency transfers) as revenue.mrr. Oracle: deriveMrrMovements. Served by web TASK-11b's analytics_mrr_movements_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
+var revenueContractionMrrMetric = { id: "revenue.contraction_mrr", label: "Contraction MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1", "analytics_mrr_movements_classified", "analytics_mrr_movement_reasons"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 (opening \u2212 closing) over accounts with MRR > 0 at both week ends and closing < opening \u2014 downgrades, removed add-ons, and a monthly \u2192 annual switch whose normalized MRR falls (per the mock). Published as a positive magnitude. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/churned_mrr.ts
-var revenueChurnedMrrMetric = { id: "revenue.churned_mrr", label: "Churned MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 opening account MRR over accounts with MRR > 0 at the previous week end and 0 at this one \u2014 canceled, unpaid, paused, or zero quantity while still subscribed (revenue-accounting \xA73: paid churn is not a contract cancellation). Published as a positive magnitude. Stock definition and V1 exclusions (discounts, prorations, schedules, multi-plan items, tax, currency transfers) as revenue.mrr. Oracle: deriveMrrMovements. Served by web TASK-11b's analytics_mrr_movements_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
+var revenueChurnedMrrMetric = { id: "revenue.churned_mrr", label: "Churned MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1", "analytics_mrr_movements_classified", "analytics_mrr_movement_reasons"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 opening account MRR over accounts with MRR > 0 at the previous week end and 0 at this one \u2014 canceled, unpaid, paused, or zero quantity while still subscribed (revenue-accounting \xA73: paid churn is not a contract cancellation). Published as a positive magnitude. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/reactivation_mrr.ts
-var revenueReactivationMrrMetric = { id: "revenue.reactivation_mrr", label: "Reactivation MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 closing account MRR over accounts with MRR > 0 at the week end, 0 at the previous week end, and MRR > 0 at some earlier week end in retained history. A seeded opening position is an opening balance, never a reactivation (revenue-accounting \xA74). Stock definition and V1 exclusions (discounts, prorations, schedules, multi-plan items, tax, currency transfers) as revenue.mrr. Oracle: deriveMrrMovements. Served by web TASK-11b's analytics_mrr_movements_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
+var revenueReactivationMrrMetric = { id: "revenue.reactivation_mrr", label: "Reactivation MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1", "analytics_mrr_movements_classified", "analytics_mrr_movement_reasons"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 closing account MRR over accounts with MRR > 0 at the week end, 0 at the previous week end, and MRR > 0 at some earlier week end in retained history. A seeded opening position is an opening balance, never a reactivation (revenue-accounting \xA74). Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/net_new_mrr.ts
-var revenueNetNewMrrMetric = { id: "revenue.net_new_mrr", label: "Net new MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): new + expansion + reactivation \u2212 contraction \u2212 churned, per currency and week; equals closing \u2212 opening (the roll-forward the oracle asserts and AC-12 tests). Replaces daily_revenue_rollup's net_new_revenue_cents, which was the invoice-paid proxy under a second name (BL-0063). V1 exclusions as revenue.mrr. Served by web TASK-11b's analytics_mrr_movements_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
+var revenueNetNewMrrMetric = { id: "revenue.net_new_mrr", label: "Net new MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1", "analytics_mrr_movements_classified"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): new + expansion + reactivation \u2212 contraction \u2212 churned, per currency and week; equals closing \u2212 opening (the roll-forward the oracle asserts and AC-12 tests). Replaces daily_revenue_rollup's net_new_revenue_cents, which was the invoice-paid proxy under a second name (BL-0063). V1 exclusions as revenue.mrr. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/nrr.ts
 var revenueNrrMetric = { id: "revenue.nrr", label: "Net revenue retention", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_nrr_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 endpoint NRR (plan 282 TASK-11; revenue-accounting \xA75): over the fixed cohort of accounts with MRR > 0 at the interval start, their MRR at the end \xF7 their MRR at the start, per currency. Accounts new in the interval are excluded from both sides; cohort members that churned and returned count at close. An empty cohort is unavailable, never 0%. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrNrr. Served by web TASK-11b's analytics_mrr_nrr_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
@@ -10925,6 +10982,15 @@ var cohortRetentionRateMetric = { id: "cohort.retention_rate", label: "Cohort re
 
 // scaffold/src/analytics/catalog/entries/metrics/cohort/ltv_cents.ts
 var cohortLtvCentsMetric = { id: "cohort.ltv_cents", label: "Cohort LTV", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["cohort_rollup"], input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "subscription_expanded", "subscription_renewed", "trial_converted"], ingested_datasources: ["events_billing"], note: "Cumulative gross billing revenue per cohort account through the given age. UNLIKE attribution (rules 15-17), LTV deliberately INCLUDES renewal cycles \u2014 it measures customer value, not placement credit. Grouped by currency; unlike currencies are never summed (rule 17 discipline)." } };
+
+// scaffold/src/analytics/catalog/entries/metrics/cohort/paid_within_30d_rate.ts
+var cohortPaidWithin30dRateMetric = { id: "cohort.paid_within_30d_rate", label: "Paid within the window of first activity", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "ratio", direction: "increase", preferred_analysis_unit: "account", numerator_metric: "cohort.converted_accounts_30d", denominator_metric: "cohort.eligible_accounts_30d", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["paid_conversion_window"], input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "trial_converted"], ingested_datasources: ["events_billing", "events_clickstream"], note: "ST-517 (DEC-522 v3): converted \xF7 eligible accounts. Eligible = accounts whose first app activity is in [start \u2212 window, end \u2212 window], excluding any whose first appearance is a billing fact; window = paid_conversion_window_days (default 30), so each has had its full window by end. Converted = eligible with a revenue-bearing paid fact at or before first activity + window. NULL when none is eligible." } };
+
+// scaffold/src/analytics/catalog/entries/metrics/cohort/eligible_accounts_30d.ts
+var cohortEligibleAccounts30dMetric = { id: "cohort.eligible_accounts_30d", label: "Accounts first active (window-mature)", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["paid_conversion_window"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_clickstream", "events_billing"], note: "ST-517 (DEC-522 v3): distinct accounts whose first events_clickstream activity is in [start - window, end - window] (window = paid_conversion_window_days, default 30) and precedes any events_billing fact of theirs. The denominator of cohort.paid_within_30d_rate and the population the min_sample floor reads." } };
+
+// scaffold/src/analytics/catalog/entries/metrics/cohort/converted_accounts_30d.ts
+var cohortConvertedAccounts30dMetric = { id: "cohort.converted_accounts_30d", label: "Accounts paid within the window", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["paid_conversion_window"], input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "trial_converted"], ingested_datasources: ["events_billing", "events_clickstream"], note: "ST-517 (DEC-522 v3): eligible accounts (cohort.eligible_accounts_30d) with at least one revenue-bearing payment_succeeded, subscription_started or trial_converted fact at or before first activity + window (paid_conversion_window_days, default 30). The numerator of cohort.paid_within_30d_rate." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/monetization/funnel_accounts.ts
 var monetizationFunnelAccountsMetric = { id: "monetization.funnel_accounts", label: "Funnel stage accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["monetization_funnel"], input_origin: "platform", ingested_events: ["payment_succeeded", "subscription_started", "subscription_expanded", "trial_converted"], ingested_datasources: ["events_clickstream", "placement_presentations", "events_billing"], note: "Distinct accounts that reached the stage in the window, per the catalog-owned six-stage definition on monetization.funnel_stage." } };
@@ -12091,6 +12157,84 @@ var customerCohortConcept = {
   ]
 };
 
+// scaffold/src/analytics/catalog/entries/concepts/customer/conversion_window.ts
+var customerConversionWindowConcept = {
+  // ST-517 (Kent 2026-10-14, option 1; ids accepted in DEC-522 Q-2, definition
+  // adjusted in DEC-522 v3): paid within the conversion window (the tenant
+  // setting paid_conversion_window_days, default 30; the `_30d` in the ids
+  // names that default) of first APP ACTIVITY, over a MATURE population. A
+  // definition fork of customer.cohort's age-0 conversion (a calendar-period
+  // window of 1 to 31 days over whole cohort periods), so it mints its own
+  // concept and metric ids (D-4) rather than slicing cohort.paid_conversion_rate.
+  id: "customer.conversion_window",
+  version: 1,
+  label: "Paid within the window of first activity",
+  description: "Of the accounts whose first app activity is in the dashboard period shifted back one conversion window (the tenant setting paid_conversion_window_days, default 30), the share with a qualifying paid fact within the window of that first activity. Every account in the population has had its full window by the period end. An account whose first appearance is a billing fact is excluded. Billing facts carry no environment scope, so this concept is tenant-global.",
+  when_to_use: "The dashboard paid-conversion rate: how many newly active accounts pay within their conversion window.",
+  do_not_use_for: "Cohort-age grids (use customer.cohort); placement conversion (use placement.presentation); billing-row counts (conversion.paid_count is not an account denominator).",
+  grain: ["tenant", "window"],
+  analytical_units: ["account"],
+  primary_time_dimension: "time.occurred_at",
+  historical_mode: "as_of_event",
+  dimensions: ["time.occurred_at"],
+  dimension_groundings: {},
+  metrics: ["cohort.paid_within_30d_rate", "cohort.eligible_accounts_30d", "cohort.converted_accounts_30d"],
+  query_families: ["scalar"],
+  source_scope: "total",
+  fact_kind: "accumulating_snapshot",
+  family: "billing",
+  primary_key: ["tenant_id", "cohort_start", "cohort_end"],
+  producer: "platform",
+  materialization: { mode: "logical" },
+  livemode_qualified: false,
+  record_contract: {
+    record_id: ["tenant_id", "cohort_start", "cohort_end"],
+    source_namespace: "revturbine_analytics_build",
+    occurred_time_field: "cohort_end",
+    dedup: "recomputed_at_query",
+    revision: "recomputed_from_source",
+    late_arrival: "accepted",
+    correlation_keys: ["account_id"],
+    note: "A LOGICAL snapshot: paid_conversion_window recomputes first_seen and conversion from events_clickstream and events_billing at query time, so nothing is stored and there is no received time. A late source row changes a published answer. events_billing carries no livemode column."
+  },
+  keys: [
+    { key: "tenant", path: "column:tenant_id", resolution: "source" },
+    { key: "account", path: "column:account_id", resolution: "enriched", note: "first_at is the first events_clickstream activity of the account; an account with an earlier events_billing fact (or billing and no activity) is excluded. A billing fact keys by its stamped account_id, else the user_account_map fold; an unresolved fact belongs to no account." },
+    { key: "environment", path: "-", resolution: "absent", note: "Billing facts are tenant-global, so the population and the conversions are too." }
+  ],
+  measures: [
+    { name: "eligible_accounts", source: "column:eligible_accounts", unit: "count", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Distinct mature accounts whose first activity is in [start - window, end - window], held at one window: summed across tenants for one window, never across windows." },
+    { name: "converted_accounts", source: "column:converted_accounts", unit: "count", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Eligible accounts with a qualifying paid fact at or before first activity + window, held at one window: never summed across windows." }
+  ],
+  event_attributes: [],
+  sources: [
+    { kind: "datasource", ref: "events_clickstream" },
+    { kind: "datasource", ref: "events_billing" },
+    { kind: "ingested_event", ref: "payment_succeeded" },
+    { kind: "ingested_event", ref: "subscription_started" },
+    { kind: "ingested_event", ref: "trial_converted" },
+    { kind: "build", ref: "paid_conversion_window" }
+  ],
+  build: {
+    kind: "query_time",
+    ref: "paid_conversion_window",
+    inputs: ["events_clickstream", "events_billing"]
+  },
+  maturity: {
+    // R5: the horizon is horizon_days (the window, default 30); observed_through
+    // is the request's end_date, never wall-clock now. The population is
+    // [start - window, end - window], so first_at + window <= end_date holds for every member by
+    // construction and no immature account is counted.
+    status: "declared",
+    horizon_field: "horizon_days",
+    observed_through_field: "end_date"
+  },
+  oracle_family: { family: "cohort" },
+  policy_dependencies: [
+    { kind: "lifecycle", stamped: false, blocker: "First activity is derived at read from the first observed clickstream fact (plan 230 R-2) rather than assigned under a versioned lifecycle policy, and the row carries no policy version (R2/R9)." }
+  ]
+};
+
 // scaffold/src/analytics/catalog/entries/concepts/monetization/funnel.ts
 var monetizationFunnelConcept = {
   // Plan 230 TASK-1: the six-stage platform monetization funnel
@@ -12435,6 +12579,8 @@ var DIMENSION_ENTRIES = [
   commercialPlanDimension,
   commercialBillingPeriodDimension,
   revenueCurrencyDimension,
+  revenueChurnCauseDimension,
+  revenueMovementReasonDimension,
   commercialReportingCurrencyDimension,
   lifecycleStateDimension,
   acquisitionSourceDimension,
@@ -12484,6 +12630,10 @@ var METRIC_ENTRIES = [
   revenueLogoRetentionMetric,
   revenueChurnedShareMetric,
   accountsChurnedShareMetric,
+  accountsChurnedMetric,
+  revenueNeutralEventCountMetric,
+  revenueExpansionShareMetric,
+  revenueContractionShareMetric,
   cashToMrrRatioMetric,
   placementOutcomeAccountsMetric,
   placementOutcomeRateMetric,
@@ -12619,6 +12769,9 @@ var METRIC_ENTRIES = [
   cohortExpansionRateMetric,
   cohortRetentionRateMetric,
   cohortLtvCentsMetric,
+  cohortPaidWithin30dRateMetric,
+  cohortEligibleAccounts30dMetric,
+  cohortConvertedAccounts30dMetric,
   monetizationFunnelAccountsMetric,
   monetizationFunnelStageConversionMetric,
   placementLastPresentedAtMetric,
@@ -12668,6 +12821,7 @@ var CONCEPT_ENTRIES = [
   experimentCausalResultConcept,
   customerTimelineConcept,
   customerCohortConcept,
+  customerConversionWindowConcept,
   monetizationFunnelConcept,
   optimizationOpportunityConcept,
   customerAccountStateConcept,
@@ -20497,6 +20651,7 @@ export {
   CustomerOverrideStatusSchema,
   CustomerOverrideTypeSchema,
   CustomerSchema,
+  CustomerSummarySchema,
   DEFAULT_ANALYTICS_RETENTION_DAYS,
   DEFAULT_TEMPLATE_COMPONENT_TYPES,
   DEPRECATED_EVENT_NAMES,
@@ -20644,6 +20799,7 @@ export {
   OpportunityInterpretationSchema,
   OptimizationSuggestionSchema,
   OrgMemberRoleSchema,
+  PAID_CONVERSION_WINDOW_DAYS_DEFAULT,
   PERSISTED_SCHEMA_FACET_EXEMPTIONS,
   PLATFORM_EMITTED_EVENT_NAMES,
   PLATFORM_EVENT_TAXONOMY,
