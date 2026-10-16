@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.494
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.498
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -10855,7 +10855,7 @@ var conversionRateMetric = {
 };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/attributed_mrr.ts
-var revenueAttributedMrrMetric = { id: "revenue.attributed_mrr", label: "Attributed revenue (last-touch)", value_type: "currency", source_scope: "revturbine_influenced", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing"], note: "Declared success conversions credited once each to their read-time last-touch exposure (optimization-contracts rules 15-17)." } };
+var revenueAttributedMrrMetric = { id: "revenue.attributed_mrr", label: "Attributed revenue (last-touch)", value_type: "currency", source_scope: "revturbine_influenced", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing"], note: "Declared success conversions credited once each to their read-time last-touch exposure (optimization-contracts rules 15-17). A conversion is new or reactivated paid (DEC-527, ST-644): an upgrade, cadence switch or renewal payment earns no credit." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/retention/retained_mrr_30d.ts
 var retentionRetainedMrr30dMetric = { id: "retention.retained_mrr_30d", label: "Retained MRR (30d)", value_type: "currency", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", catalog_status: "unavailable", derivation: { input_origin: "none", ingested_events: [], note: "Needs a join against billing data that no presentation-backed executor has access to." } };
@@ -10924,7 +10924,7 @@ var placementClicksMetric = { id: "placement.clicks", label: "Clicks", value_typ
 var placementConversionsMetric = { id: "placement.conversions", label: "Conversions", value_type: "number", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"] } };
 
 // scaffold/src/analytics/catalog/entries/metrics/conversion/paid_count.ts
-var conversionPaidCountMetric = { id: "conversion.paid_count", label: "Paid conversions", value_type: "number", when_to_use: "Billing-fact conversion events (subscription created), not distinct accounts.", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_revenue_timeseries"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "Counts customer.subscription.created rows from events_billing FINAL (BL-0014), not distinct customers or purchase clusters. Latest ingested_at replaces only the same tenant/occurred_at/stripe_event_id key. The insert-time daily_revenue_rollup remains diagnostic and can inflate under replay; admitted non-contributing events retain a zero day bucket." } };
+var conversionPaidCountMetric = { id: "conversion.paid_count", label: "Paid conversions", value_type: "number", when_to_use: "New or reactivated paid subscriptions (DEC-527), each counted once at its paid start; not distinct accounts.", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["analytics_revenue_timeseries"], input_origin: "platform", ingested_events: ["payment_succeeded", "trial_converted"], ingested_datasources: ["events_billing"], note: "DEC-527 A (ST-644): each subscription once, on the day of its earliest paid start over events_billing FINAL: a paid purchase fact (session, subscription_create invoice or intent, amount > 0) or trial_converted. Reactivation counts (new subscription); a trial counts only when it converts (BUG-541); upgrade, cadence-switch and renewal invoices never do. Replays collapse onto the one start. Was customer.subscription.created rows. The diagnostic daily_revenue_rollup keeps that legacy count." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/placement/ctr.ts
 var placementCtrMetric = { id: "placement.ctr", label: "Click-through rate", value_type: "percent", format: { type: "percent", decimals: 1 }, statistical_type: "ratio", direction: "increase", preferred_analysis_unit: "account", numerator_metric: "placement.clicks", denominator_metric: "placement.impressions", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "D-53 (plan 282 TASK-14): clicks \xF7 DISPLAYS \u2014 rows with outcome presented, i.e. the placement was shown \u2014 never clicks \xF7 every interaction row. Since web #965 (TASK-15) every carrier listed here divides by displays, and derivePresentationAggregate derives the same ratio (BL-0495)." } };
@@ -11021,7 +11021,7 @@ var revenueAttributedAmountMetric = {
   preferred_analysis_unit: "account",
   layer: "primitive",
   catalog_status: "tested",
-  derivation: { carried_by: ["growth_funnel_signals", "attributed_conversions"], input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing", "placement_presentations"], note: "Stripe conversions joined ASOF against the presentations that preceded them." }
+  derivation: { carried_by: ["growth_funnel_signals", "attributed_conversions"], input_origin: "platform", ingested_events: ["placement_exposed"], ingested_datasources: ["placement_exposure_attribution", "events_billing", "placement_presentations"], note: "Stripe conversions joined ASOF against the presentations that preceded them. A conversion is new or reactivated paid (DEC-527, ST-644): an upgrade, cadence switch or renewal payment is a revenue movement and earns no conversion credit." }
 };
 
 // scaffold/src/analytics/catalog/entries/metrics/experiment/absolute_effect.ts
@@ -19443,6 +19443,7 @@ var PermissionResourceSchema = z57.enum([
   "audit",
   "mcp",
   "api_tokens",
+  "ingest_keys",
   "settings"
 ]).meta({ id: "PermissionResource", "x-revturbine-schema-persistence": Transient31, "x-revturbine-schema-exposure": Internal28 });
 var PermissionActionSchema = z57.enum([
@@ -19468,6 +19469,7 @@ var VIEWER_RESOURCES = [
   "content",
   "experiments",
   "audit",
+  "ingest_keys",
   "settings"
 ];
 var COLLAB_WRITABLE = [
@@ -19476,7 +19478,8 @@ var COLLAB_WRITABLE = [
   "placements",
   "targeting",
   "content",
-  "experiments"
+  "experiments",
+  "ingest_keys"
 ];
 var APPROVER_PUBLISHABLE = [
   "plans",
@@ -19499,6 +19502,7 @@ var ADMIN_FULL = [
   "audit",
   "mcp",
   "api_tokens",
+  "ingest_keys",
   "settings"
 ];
 var ADMIN_ACTIONS = [
