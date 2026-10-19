@@ -111,6 +111,16 @@ describe('built customer CLI HTTP boundary', () => {
     expect(recovery.code, recovery.stderr).toBe(0);
     expect(JSON.parse(recovery.stdout).items[0].handle).toBe('var_a');
   });
+  it.each([false, true])('explains uncertain catalog creation after a 502 (HTML: %s)', async (html) => {
+    nonJson = html; status = 502; seen.length = 0;
+    try {
+      const result = await run(['plan-variations', 'create', 'variation.json', '--draft', '--environment', 'env_a']);
+      expect(result.code).toBe(7);
+      expect(result.stderr).toContain('reconcile');
+      expect(result.stderr).not.toContain(token);
+      expect(seen).toHaveLength(1);
+    } finally { nonJson = false; status = 200; }
+  });
   it('preserves the HTTP error class when a proxy returns a non-JSON body', async () => {
     nonJson = true; status = 401;
     try { const result = await run(['customer-users', 'get', 'x']); expect(result.code).toBe(3); }

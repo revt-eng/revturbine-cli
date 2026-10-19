@@ -1802,6 +1802,7 @@ async function provisioningRequest(conn: Connection, pathname: string, body?: un
   } catch {
     fail(EXIT.NETWORK, `Customer provisioning request or response failed.${recovery}`);
   }
+  if (response.status >= 500 && catalogCreate) diag(recovery.trim());
   try { result = await response.json(); } catch {
     if (!response.ok) httpFail(conn, 'customer provisioning', response.status);
     fail(EXIT.SERVER, `Malformed customer provisioning response.${recovery}`);
