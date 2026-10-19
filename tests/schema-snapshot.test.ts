@@ -55,7 +55,9 @@ describe('vendored ExportedConfigSchema snapshot', () => {
       segments: [], content_ui_paths: [], surface_templates: [], placements: [],
       plan_variations: variations,
     };
-    expect(JSON.parse(JSON.stringify(ExportedConfigSchema.parse(config))).plan_variations).toEqual(
+    const result = ExportedConfigSchema.safeParse(config);
+    if (!result.success) throw new Error(JSON.stringify(result.error.issues));
+    expect(JSON.parse(JSON.stringify(result.data)).plan_variations).toEqual(
       variations.map(variation => ({ ...variation, segment_handle: null, stripe_price_id: null, visibility: 'public' })),
     );
     expect(ExportedConfigSchema.safeParse({ ...config, plan_variations: [{ ...variations[0], stripe_price_id: 'price_incompatible' }] }).success).toBe(false);
