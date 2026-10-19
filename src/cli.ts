@@ -60,6 +60,7 @@ import {
 } from './lib/events-ingest';
 import { DELEGATION_ENV, NO_LOCAL_FLAG, planDelegation, skewNotice } from './lib/delegate';
 import { schemaForConfig } from './lib/offline-schema';
+import { CUSTOMER_RESOURCES, CUSTOMER_RESOURCE_TYPES, linkInput, listItems, objectInput, positivePage, provisioningPath, type CustomerResource } from './lib/customer-provisioning';
 import { checkOfflineConfig, offlineAdvisories } from './lib/offline-config-check';
 import { declaredSdk, detectPackageManager, detectStack, installArgs, integrationFileReason, newProjectManifest, planInstall, planStarter } from './lib/init';
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
@@ -544,6 +545,8 @@ Command groups:
   Analytics     analytics catalog|templates|views|view|create|preview|query
   Keys          ingest-keys create (alias: mint)|list|revoke
   Events        events track
+  Customers     customer-accounts, customer-users create|list|get|link|links
+  Catalog       plans, plan-variations create|list|get|link|links
 
 Version selectors (no defaults — a command that reads a config requires one):
   <file>            a local Playbook file (positional, or --file <path>)
@@ -587,6 +590,12 @@ Common workflows:
 
 Exit-code classes: 0 ok · 1 unexpected · 2 usage · 3 auth · 4 validation
 blocked · 5 conflict/stale · 6 network · 7 server error.
+
+Customer users are users of your application, not RevTurbine administrators.
+Clerk links require --environment and --provider-instance; catalog operations
+require an explicit --draft/--live/--release selector (create requires --draft).
+Catalog create is never retried automatically: after an uncertain response,
+list the selected draft and reconcile its handles before creating again.
 
 Auth:
   Most commands need a token — run \`login\` first. Credentials live at
@@ -1757,6 +1766,113 @@ analyticsConnectionOptions(
 });
 
 // ── Ingest keys ───────────────────────────────────────────────────────────────
+interface ProvisioningOptions {
+  url: string; tenantId?: string; json?: boolean; environment?: string;
+  providerInstance?: string; draft?: boolean; live?: boolean; release?: string;
+  page?: string; perPage?: string; all?: boolean;
+}
+
+function provisioningOptions(command: Command): Command {
+  return command.option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
+    .option('-t, --tenant-id <id>', 'Tenant selected by your operator credential')
+    .option('--json', 'Machine-readable output');
+}
+
+function provisioningSelector(command: Command): Command {
+  return command.option('--draft', 'The open draft').option('--live', 'The live Release')
+    .option('--release <id>', 'A specific Release');
+}
+
+function selectedLinkState(resource: CustomerResource, opts: ProvisioningOptions): Record<string, string> {
+  if (resource === 'customer-accounts' || resource === 'customer-users') return {};
+  const [selected] = requireSelectors(opts, [], { count: 1, allowed: ['draft', 'live', 'release'], command: `${resource} link` });
+  return selected.kind === 'release' ? { state: 'release', release_id: selected.id } : { state: selected.kind };
+}
+
+function provisioningInput<T>(parse: () => T): T {
+  try { return parse(); } catch (error) { fail(EXIT.USAGE, (error as Error).message); }
+}
+
+async function provisioningRequest(conn: Connection, pathname: string, body?: unknown, catalogCreate = false): Promise<unknown> {
+  let response: Response;
+  let result: unknown;
+  const recovery = catalogCreate ? ' Creation outcome may be unknown. List the selected draft and reconcile its handles before another create; no automatic retry was made.' : '';
+  try {
+    response = await fetch(`${conn.url}${pathname}`, { headers: conn.headers, method: body === undefined ? 'GET' : 'POST', ...(body === undefined ? {} : { body: JSON.stringify(body) }), redirect: 'error', signal: AbortSignal.timeout(30_000) });
+  } catch {
+    fail(EXIT.NETWORK, `Customer provisioning request or response failed.${recovery}`);
+  }
+  try { result = await response.json(); } catch {
+    if (!response.ok) httpFail(conn, 'customer provisioning', response.status);
+    fail(EXIT.SERVER, `Malformed customer provisioning response.${recovery}`);
+  }
+  if (!response.ok) httpFail(conn, 'customer provisioning', response.status, result);
+  return result;
+}
+
+for (const resource of CUSTOMER_RESOURCES) {
+  const catalog = resource === 'plans' || resource === 'plan-variations';
+  const group = program.command(resource).description(catalog ? `Author and inspect ${resource} in an explicit Playbook version; link Clerk Billing IDs.` : `Provision ${resource} in your application; never creates RevTurbine operators.`);
+  const create = provisioningOptions(group.command('create').description(catalog ? 'Create in the draft; never auto-retry an uncertain response. Reconcile with list first.' : 'Create a customer application record, or return an identical existing record.').argument('<file>', 'JSON request object'));
+  if (catalog) provisioningSelector(create).requiredOption('--environment <id>', 'RevTurbine environment ID');
+  create.action(async (file: string, opts: ProvisioningOptions) => {
+    const body = provisioningInput(() => objectInput(loadConfig(file)));
+    const conn = connect(opts.url, opts.tenantId);
+    let query: Record<string, string> = {};
+    if (catalog) {
+      requireSelectors(opts, [], { count: 1, allowed: ['draft'], command: `${resource} create` });
+      query = { environment_id: opts.environment! };
+    }
+    emit(await provisioningRequest(conn, provisioningPath(resource, query), body, catalog), Boolean(opts.json));
+  });
+  const list = provisioningOptions(group.command('list').description('List records; --all follows bounded pages.'))
+    .option('--page <number>', 'Page number', '1').option('--per-page <number>', 'Page size, maximum 100', '25').option('--all', 'Read all pages');
+  const get = provisioningOptions(group.command('get').description('Get by application ID or stable catalog handle.').argument('<key>', 'Application ID or catalog handle'));
+  if (catalog) {
+    provisioningSelector(list).requiredOption('--environment <id>', 'RevTurbine environment ID');
+    provisioningSelector(get).requiredOption('--environment <id>', 'RevTurbine environment ID');
+  }
+  const read = async (opts: ProvisioningOptions, key?: string) => {
+    const conn = connect(opts.url, opts.tenantId);
+    const selector = catalog ? selectedLinkState(resource, opts) : {};
+    if (key !== undefined && !catalog) { emit(await provisioningRequest(conn, provisioningInput(() => provisioningPath(resource, {}, key))), Boolean(opts.json)); return; }
+    let page = provisioningInput(() => positivePage(opts.page ?? '1'));
+    const perPage = provisioningInput(() => positivePage(opts.perPage ?? '25', 100));
+    const items: unknown[] = [];
+    do {
+      const result = await provisioningRequest(conn, provisioningPath(catalog ? `customer-catalog/${resource}` : resource, { page, per_page: perPage, ...(catalog ? { environment_id: opts.environment, ...selector, handle: key } : {}) }));
+      let batch: unknown[];
+      try { batch = listItems(result); } catch { fail(EXIT.SERVER, 'Malformed customer list response.'); }
+      items.push(...batch);
+      if (!opts.all || batch.length < perPage) break;
+      page++;
+    } while (opts.all);
+    if (key !== undefined) {
+      if (items.length === 0) fail(EXIT.VALIDATION, `No ${resource} record for handle ${key} in the selected config.`);
+      emit(items[0], Boolean(opts.json));
+    } else emit({ items }, Boolean(opts.json));
+  };
+  list.action(async (opts: ProvisioningOptions) => read(opts));
+  get.action(async (key: string, opts: ProvisioningOptions) => read(opts, key));
+  for (const action of ['link', 'links'] as const) {
+    const command = provisioningOptions(group.command(action).description(action === 'link' ? 'Attach an unverified Clerk reference; never grants access or changes a subscription.' : 'Read scoped Clerk references, revalidating the selected catalog target.').argument('<key>', 'Application ID or catalog handle'))
+      .requiredOption('--environment <id>', 'RevTurbine environment ID').requiredOption('--provider-instance <id>', 'Clerk instance ID');
+    if (action === 'link') command.argument('<file>', 'JSON with external_entity_type/external_id; variations also billing_period/currency');
+    if (catalog) provisioningSelector(command);
+    const run = async (key: string, file: string | undefined, opts: ProvisioningOptions) => {
+      const selector = selectedLinkState(resource, opts);
+      const scope = { environment: opts.environment!, providerInstance: opts.providerInstance! };
+      const conn = connect(opts.url, opts.tenantId);
+      const result = file === undefined
+        ? await provisioningRequest(conn, provisioningPath('customer-entity-links', { environment_id: scope.environment, provider: 'clerk', provider_instance_id: scope.providerInstance, resource_type: CUSTOMER_RESOURCE_TYPES[resource], resource_key: key, ...selector }))
+        : await provisioningRequest(conn, '/api/customer-entity-links', provisioningInput(() => linkInput(resource, key, loadConfig(file), scope, selector)));
+      emit(result, Boolean(opts.json));
+    };
+    if (action === 'link') command.action(async (key: string, file: string, opts: ProvisioningOptions) => run(key, file, opts));
+    else command.action(async (key: string, opts: ProvisioningOptions) => run(key, undefined, opts));
+  }
+}
+
 // Public ingest keys are the embeddable SDK telemetry credentials a tenant hands
 // to browser code. Minting/managing them was web-UI-only; plan 152 authorizes the
 // CLI's `client` token on the endpoints so the CLI can do it too.
