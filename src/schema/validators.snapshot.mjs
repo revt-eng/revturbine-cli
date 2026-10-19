@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.498
+// Vendored validation engine bundled from @revt-eng/schema@0.1.503
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -2535,13 +2535,16 @@ var PricingModelSchema = z8.enum(["flat", "per_unit", "tiered", "metered"]).meta
     "x-revturbine-schema-exposure": External3
   }
 );
-var PriceSourceSchema = z8.enum(["stripe", "static"]).meta(
+var PriceSourceSchema = z8.enum(["stripe", "static", "clerk"]).meta(
   {
     id: "PriceSource",
     "x-revturbine-schema-persistence": Transient4,
     "x-revturbine-schema-exposure": External3
   }
 );
+function isValidClerkPlanVariation(value) {
+  return value.price_source !== "clerk" || !value.stripe_price_id && (value.billing_period === "monthly" || value.billing_period === "annual");
+}
 var PlanSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
   anchor_id: z8.string().min(1).meta({ ...Unrestricted4, readOnly: true }),
   name: NameField.meta(Unrestricted4),
@@ -2579,7 +2582,7 @@ var PlanVariationSchema = IdField.merge(TimestampFields).merge(TenantIdField).me
   // a hard FK would block plan-122 price-deletion sync (plan 118 FK decision, devkit #472).
   stripe_price_id: z8.string().optional().meta(Unrestricted4),
   price_source: PriceSourceSchema.default("static").meta(Unrestricted4)
-}).meta(
+}).refine(isValidClerkPlanVariation, { message: "Clerk variations require monthly or annual billing and no Stripe price ID.", path: ["price_source"] }).meta(
   {
     id: "PlanVariation",
     "x-revturbine-schema-persistence": Persisted4,
@@ -2624,7 +2627,7 @@ var AddOnVariationSchema = IdField.merge(TimestampFields).merge(TenantIdField).m
   // No DB foreign key: stripe_price_id lives on the append-only version tables and
   // a hard FK would block plan-122 price-deletion sync (plan 118 FK decision, devkit #472).
   stripe_price_id: z8.string().optional().meta(Unrestricted4),
-  price_source: PriceSourceSchema.default("static").meta(Unrestricted4)
+  price_source: PriceSourceSchema.exclude(["clerk"]).default("static").meta(Unrestricted4)
 }).meta(
   {
     id: "AddOnVariation",
@@ -3239,7 +3242,7 @@ var RevTurbineConfigPlanVariationsItemSchema = z9.object({
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted5),
   stripe_price_id: z9.string().nullable().default(null).meta(Unrestricted5),
   price_source: PriceSourceSchema.meta(Unrestricted5)
-}).meta(
+}).refine(isValidClerkPlanVariation, { message: "Clerk variations require monthly or annual billing and no Stripe price ID.", path: ["price_source"] }).meta(
   { id: "RevTurbineConfigPlanVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
 var RevTurbineConfigAddonVariationsItemSchema = z9.object({
@@ -3252,7 +3255,7 @@ var RevTurbineConfigAddonVariationsItemSchema = z9.object({
   pricing_model: PricingModelSchema.meta(Unrestricted5),
   visibility: PlanVisibilitySchema.default("public").meta(Unrestricted5),
   stripe_price_id: z9.string().nullable().default(null).meta(Unrestricted5),
-  price_source: PriceSourceSchema.meta(Unrestricted5)
+  price_source: PriceSourceSchema.exclude(["clerk"]).meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigAddonVariationsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );

@@ -592,7 +592,7 @@ Exit-code classes: 0 ok · 1 unexpected · 2 usage · 3 auth · 4 validation
 blocked · 5 conflict/stale · 6 network · 7 server error.
 
 Customer users are users of your application, not RevTurbine administrators.
-Clerk links require --environment and --provider-instance; catalog operations
+Clerk links require --environment <handle> and --provider-instance; catalog operations
 require an explicit --draft/--live/--release selector (create requires --draft).
 Catalog create is never retried automatically: after an uncertain response,
 list the selected draft and reconcile its handles before creating again.
@@ -945,7 +945,7 @@ function promptHidden(question: string): Promise<string> {
 
 program
   .command('signup')
-  .description('Create a RevTurbine account and log in (email + password + emailed verification code).')
+  .description('Create a RevTurbine operator login (email + password + emailed verification code).')
   .argument('[url]', `RevTurbine instance URL (default: ${DEFAULT_URL})`)
   .option('--name <name>', 'Full name (prompted if omitted)')
   .option('--email <email>', 'Email address (prompted if omitted)')
@@ -1815,7 +1815,7 @@ for (const resource of CUSTOMER_RESOURCES) {
   const catalog = resource === 'plans' || resource === 'plan-variations';
   const group = program.command(resource).description(catalog ? `Author and inspect ${resource} in an explicit Playbook version; link Clerk Billing IDs.` : `Provision ${resource} in your application; never creates RevTurbine operators.`);
   const create = provisioningOptions(group.command('create').description(catalog ? 'Create in the draft; never auto-retry an uncertain response. Reconcile with list first.' : 'Create a customer application record, or return an identical existing record.').argument('<file>', 'JSON request object'));
-  if (catalog) provisioningSelector(create).requiredOption('--environment <id>', 'RevTurbine environment ID');
+  if (catalog) provisioningSelector(create).requiredOption('--environment <handle>', 'RevTurbine environment handle (for example production)');
   create.action(async (file: string, opts: ProvisioningOptions) => {
     const body = provisioningInput(() => objectInput(loadConfig(file)));
     const conn = connect(opts.url, opts.tenantId);
@@ -1830,8 +1830,8 @@ for (const resource of CUSTOMER_RESOURCES) {
     .option('--page <number>', 'Page number', '1').option('--per-page <number>', 'Page size, maximum 100', '25').option('--all', 'Read all pages');
   const get = provisioningOptions(group.command('get').description('Get by application ID or stable catalog handle.').argument('<key>', 'Application ID or catalog handle'));
   if (catalog) {
-    provisioningSelector(list).requiredOption('--environment <id>', 'RevTurbine environment ID');
-    provisioningSelector(get).requiredOption('--environment <id>', 'RevTurbine environment ID');
+    provisioningSelector(list).requiredOption('--environment <handle>', 'RevTurbine environment handle (for example production)');
+    provisioningSelector(get).requiredOption('--environment <handle>', 'RevTurbine environment handle (for example production)');
   }
   const read = async (opts: ProvisioningOptions, key?: string) => {
     const conn = connect(opts.url, opts.tenantId);
@@ -1857,7 +1857,7 @@ for (const resource of CUSTOMER_RESOURCES) {
   get.action(async (key: string, opts: ProvisioningOptions) => read(opts, key));
   for (const action of ['link', 'links'] as const) {
     const command = provisioningOptions(group.command(action).description(action === 'link' ? 'Attach an unverified Clerk reference; never grants access or changes a subscription.' : 'Read scoped Clerk references, revalidating the selected catalog target.').argument('<key>', 'Application ID or catalog handle'))
-      .requiredOption('--environment <id>', 'RevTurbine environment ID').requiredOption('--provider-instance <id>', 'Clerk instance ID');
+      .requiredOption('--environment <handle>', 'RevTurbine environment handle (for example production)').requiredOption('--provider-instance <id>', 'Clerk instance ID');
     if (action === 'link') command.argument('<file>', 'JSON with external_entity_type/external_id; variations also billing_period/currency');
     if (catalog) provisioningSelector(command);
     const run = async (key: string, file: string | undefined, opts: ProvisioningOptions) => {

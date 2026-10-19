@@ -37,7 +37,7 @@ Requires Node ≥ 22.13. Source builds use the npm 11.18.0 version declared in
 ## Quick start
 
 ```bash
-revturbine signup                             # create an account (email + password + emailed code)
+revturbine signup                             # create an operator login (email + password + emailed code)
 revturbine login                              # authorize this machine (device flow)
 revturbine download --live --save ./revturbine.playbook.json
 # …edit ./revturbine.playbook.json…
@@ -61,7 +61,7 @@ each provide `create <file>`, `list`, `get <key>`, `link <key> <file>`, and
 (`--page`, `--per-page`, maximum 100). Every command accepts `--url` and
 `--tenant-id` using the existing operator credentials.
 
-Catalog commands require `--environment <id>` and exactly one of `--draft`,
+Catalog commands require `--environment <handle>` (for example `production`, never the environment database row ID) and exactly one of `--draft`,
 `--live`, or `--release <id>`. Creates accept only `--draft` and do not launch.
 Links additionally require `--provider-instance <Clerk-instance-id>`; identity
 links have no Playbook selector. Keys are your application IDs or stable catalog
@@ -106,7 +106,7 @@ Commands that read a config name the version explicitly — there is no default:
 | Command | What it does |
 |---|---|
 | `init` (alias `create`) | Set up RevTurbine while preserving existing integrations: install missing packages, pin the CLI exactly, create a starter for a fresh integration, and install skills for one agent. Use `--scaffold` to create a missing root starter explicitly; existing files are never overwritten. `--agent claude-code\|cursor\|codex` overrides environment detection; an unknown agent skips skills and prints the selection command. Also supports `--dir`, `--dry-run`, `--no-skills`, `--json`. With no `package.json`, offers a new project (`--yes` for noninteractive creation). Runs the invoked CLI even inside a repo that pins a different one. |
-| `signup` | Create an account headlessly: email + password, then an emailed one-time code to verify, then a token is stored. |
+| `signup` | Create a RevTurbine operator login headlessly: email + password, then an emailed one-time code to verify, then a token is stored. |
 | `login` / `logout` | Device-flow auth; tokens stored at `~/.revturbine/credentials.json` (mode 0600). For CI, skip login and set `REVTURBINE_TOKEN` (see [CI / non-interactive use](#ci--non-interactive-use)). |
 | `whoami` | Authentication state first: not logged in, credentials accepted, credentials rejected for the selected instance/tenant, or verification unavailable. Then shows instance, tenant, and credentials source; configured tenant information alone does not prove login. Verification and subsequent telemetry each time out after 3 seconds. Status reports exit 0. `--json` retains its seven fields: `instance`, `tenant` (`null` when `REVTURBINE_TOKEN` is set without `-t`: the server resolves the token user's own tenant, and `tenant_source` names the variable), `tenant_source`, `credentials_dir`, `credentials_source`, `token_present` (boolean), and `token_valid` (`true` for 2xx, `false` for 401/403, `null` when absent or unverified, including redirects, other HTTP errors, timeouts and network failures). |
 | `schema` | Emit the bundled `RevTurbineConfig` JSON schema (for agents to author against). |

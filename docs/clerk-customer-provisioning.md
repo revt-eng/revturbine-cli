@@ -15,12 +15,12 @@ product or price IDs. Stripe CLI is unnecessary for this setup.
 Supply these values from your own Clerk instance and RevTurbine environment:
 
 ```powershell
-$environmentId = Read-Host 'RevTurbine environment ID'
+$environmentHandle = Read-Host 'RevTurbine environment handle (for example production)'
 $clerkInstanceId = Read-Host 'Clerk instance ID'
 $clerkUserId = Read-Host 'Existing Clerk user ID'
 $clerkPlanId = Read-Host 'Existing Clerk Billing plan ID'
 $clerkPriceId = Read-Host 'Existing Clerk Billing monthly USD price ID'
-$scope = @('--environment', $environmentId, '--provider-instance', $clerkInstanceId)
+$scope = @('--environment', $environmentHandle, '--provider-instance', $clerkInstanceId)
 
 # These are application IDs, not RevTurbine operator IDs.
 @{ account_id = 'app-personal-42'; name = 'Personal account' } | ConvertTo-Json | Set-Content account.json
@@ -37,15 +37,15 @@ revturbine customer-users links app-user-42 @scope --json
 # A named plan creates a draft if needed. Cross-entity references use handles,
 # including variation.plan_id; do not use the returned database row ID.
 @{ name = 'Pro'; handle = 'pro'; tier_position = 1 } | ConvertTo-Json | Set-Content plan.json
-revturbine plans create plan.json --environment $environmentId --draft --json
+revturbine plans create plan.json --environment $environmentHandle --draft --json
 $planHandle = Read-Host 'Stable plan handle returned by create (for example pro)'
 @{
   plan_id = $planHandle; billing_period = 'monthly'; currency = 'usd'
   price_amount = 1200; pricing_model = 'flat'; price_source = 'clerk'
 } | ConvertTo-Json | Set-Content variation.json
 # Match price_amount to your Clerk price in currency minor units.
-revturbine plan-variations create variation.json --environment $environmentId --draft --json
-revturbine plan-variations list --environment $environmentId --draft --all --json
+revturbine plan-variations create variation.json --environment $environmentHandle --draft --json
+revturbine plan-variations list --environment $environmentHandle --draft --all --json
 $variationHandle = Read-Host 'Stable variation handle returned by create/list'
 
 @{ external_entity_type = 'billing_plan'; external_id = $clerkPlanId } | ConvertTo-Json | Set-Content clerk-plan-link.json
