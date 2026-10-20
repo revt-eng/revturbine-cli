@@ -37,7 +37,7 @@ Requires Node ≥ 22.13. Source builds use the npm 11.18.0 version declared in
 ## Quick start
 
 ```bash
-revturbine signup                             # create an account (email + password + emailed code)
+revturbine signup                             # create an operator login (email + password + emailed code)
 revturbine login                              # authorize this machine (device flow)
 revturbine download --live --save ./revturbine.playbook.json
 # …edit ./revturbine.playbook.json…
@@ -47,6 +47,48 @@ revturbine launch ./revturbine.playbook.json               # upload, gate, and g
 ```
 
 `revturbine <command> --help` documents every flag.
+
+## Customer application provisioning with Clerk Billing
+
+`signup` creates a RevTurbine operator login. `customer-accounts` and
+`customer-users` create records for **your application's customers**. They never
+create operator logins. A customer account can represent a Clerk organization or
+a personal Clerk user; a customer user represents an application user.
+
+The `customer-accounts`, `customer-users`, `plans`, and `plan-variations` groups
+each provide `create <file>`, `list`, `get <key>`, `link <key> <file>`, and
+`links <key>`. Use `--json` for automation and `list --all` to follow all pages
+(`--page`, `--per-page`, maximum 100). Every command accepts `--url` and
+`--tenant-id` using the existing operator credentials.
+
+Catalog commands require `--environment <handle>` (for example `production`, never the environment database row ID) and exactly one of `--draft`,
+`--live`, or `--release <id>`. Creates accept only `--draft` and do not launch.
+Links additionally require `--provider-instance <Clerk-instance-id>`; identity
+links have no Playbook selector. Keys are your application IDs or stable catalog
+handles, never version-row IDs. Catalog reads use the selected environment's
+draft or frozen release and return 404 if that version is absent.
+Operators can disable this endpoint family with the `customer-provisioning`
+feature flag in the admin UI; disabled endpoints return 503. It defaults to enabled.
+
+Clerk Billing manages its plans, prices, and subscriptions; these are not Stripe
+Billing catalog records. Use Clerk's CLI/API or dashboard to provision those
+entities, then record their IDs in RevTurbine. Stripe CLI is optional for payment
+inspection. RevTurbine stores manually authored price snapshots with
+`price_source: "clerk"`, monthly/annual billing, and no `stripe_price_id`.
+See [Clerk Billing overview](https://clerk.com/docs/guides/billing/overview),
+[Clerk CLI](https://clerk.com/docs/cli), and the
+[PowerShell walkthrough](docs/clerk-customer-provisioning.md).
+
+Links are scoped to tenant, environment, and Clerk instance and are always
+`unverified`. Recording an ID does not contact Clerk, create a subscription,
+prove payment, or grant entitlements. Exact account/user/link retries return
+the existing record; conflicting associations return 409. Existing user context
+fields are preserved. Rebinding and unlinking are not supported.
+
+Catalog creates can mint handles. If a response is lost, the CLI does not retry:
+list the selected draft and reconcile the returned handles before another
+create. Links survive catalog version changes, but reads revalidate the selected
+target: missing/discarded targets return 404 and incompatible prices return 409.
 
 ## Version selectors
 
@@ -64,7 +106,7 @@ Commands that read a config name the version explicitly — there is no default:
 | Command | What it does |
 |---|---|
 | `init` (alias `create`) | Set up RevTurbine while preserving existing integrations: install missing packages, pin the CLI exactly, create a starter for a fresh integration, and install skills for one agent. Use `--scaffold` to create a missing root starter explicitly; existing files are never overwritten. `--agent claude-code\|cursor\|codex` overrides environment detection; an unknown agent skips skills and prints the selection command. Also supports `--dir`, `--dry-run`, `--no-skills`, `--json`. With no `package.json`, offers a new project (`--yes` for noninteractive creation). Runs the invoked CLI even inside a repo that pins a different one. |
-| `signup` | Create an account headlessly: email + password, then an emailed one-time code to verify, then a token is stored. |
+| `signup` | Create a RevTurbine operator login headlessly: email + password, then an emailed one-time code to verify, then a token is stored. |
 | `login` / `logout` | Device-flow auth; tokens stored at `~/.revturbine/credentials.json` (mode 0600). For CI, skip login and set `REVTURBINE_TOKEN` (see [CI / non-interactive use](#ci--non-interactive-use)). |
 | `whoami` | Authentication state first: not logged in, credentials accepted, credentials rejected for the selected instance/tenant, or verification unavailable. Then shows instance, tenant, and credentials source; configured tenant information alone does not prove login. Verification and subsequent telemetry each time out after 3 seconds. Status reports exit 0. `--json` retains its seven fields: `instance`, `tenant` (`null` when `REVTURBINE_TOKEN` is set without `-t`: the server resolves the token user's own tenant, and `tenant_source` names the variable), `tenant_source`, `credentials_dir`, `credentials_source`, `token_present` (boolean), and `token_valid` (`true` for 2xx, `false` for 401/403, `null` when absent or unverified, including redirects, other HTTP errors, timeouts and network failures). |
 | `schema` | Emit the bundled `RevTurbineConfig` JSON schema (for agents to author against). |

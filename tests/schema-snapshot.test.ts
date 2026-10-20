@@ -43,4 +43,24 @@ describe('vendored ExportedConfigSchema snapshot', () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.issues.length).toBeGreaterThan(0);
   });
+
+  it('retains monthly and annual Clerk prices through offline config validation', () => {
+    const variations = ['monthly', 'annual'].map(billing_period => ({
+      handle: `clerk_${billing_period}`, plan_handle: 'pro', billing_period,
+      currency: 'usd', price_amount: billing_period === 'monthly' ? 1200 : 12000,
+      pricing_model: 'flat', price_source: 'clerk',
+    }));
+    const config = {
+      version: '1.0.0', plans: [], entitlements: [], entitlement_rules: [],
+      segments: [], content_ui_paths: [], surface_templates: [], placements: [],
+      plan_variations: variations,
+    };
+    const result = ExportedConfigSchema.safeParse(config);
+    if (!result.success) throw new Error(JSON.stringify(result.error.issues));
+    expect(JSON.parse(JSON.stringify(result.data)).plan_variations).toEqual(
+      variations.map(variation => ({ ...variation, segment_handle: null, stripe_price_id: null, visibility: 'public' })),
+    );
+    expect(ExportedConfigSchema.safeParse({ ...config, plan_variations: [{ ...variations[0], stripe_price_id: 'price_incompatible' }] }).success).toBe(false);
+    expect(ExportedConfigSchema.safeParse({ ...config, plan_variations: [{ ...variations[0], billing_period: 'one_time' }] }).success).toBe(false);
+  });
 });
