@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.514
+// Vendored validation engine bundled from @revt-eng/schema@0.1.515
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
