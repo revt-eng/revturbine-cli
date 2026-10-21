@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.513
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.514
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -2389,13 +2389,15 @@ var IdentitySchema = z11.object({
   }
 );
 var BillingHealthStatusSchema = z11.enum(["payment_failed", "payment_method_missing"]);
-var CustomerSubscriptionStatusSchema = z11.enum(["active", "past_due", "canceled", "trialing", "unpaid", "none"]);
 var CustomerSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend({
   external_id: z11.string().min(1).meta(Pii),
   identity: IdentitySchema.meta({ ...Pii, ...ServerOnly }),
   stripe_customer_id: z11.string().nullable().optional().meta({ ...Unrestricted8, ...ServerOnly }),
   current_plan_id: z11.string().nullable().optional().meta(Unrestricted8),
+  subscription_status: z11.enum(["active", "past_due", "canceled", "trialing", "unpaid", "none"]).default("none").meta(Unrestricted8),
   status: z11.enum(["active", "churned", "trial", "suspended"]).default("active").meta(Unrestricted8),
+  /** Active billing-health problems (plan 156); empty array = healthy. */
+  billing_health_issues: z11.array(BillingHealthStatusSchema).default([]).meta(Unrestricted8),
   metadata: MetadataField.meta({ ...Unrestricted8, ...ServerOnly })
 }).meta(
   {
@@ -2408,16 +2410,14 @@ var CustomerSummarySchema = CustomerSchema.pick({
   id: true,
   external_id: true,
   current_plan_id: true,
+  subscription_status: true,
   status: true,
+  billing_health_issues: true,
   created_at: true,
   updated_at: true
 }).extend({
   /** Derived: `stripe_customer_id` is set and non-empty. Never persisted. */
-  stripe_linked: z11.boolean().meta({ ...Unrestricted8, readOnly: true }),
-  /** Derived from the billing mirror's subscriptions; `none` with no subscription. Never persisted. */
-  subscription_status: CustomerSubscriptionStatusSchema.default("none").meta({ ...Unrestricted8, readOnly: true }),
-  /** Derived from the billing mirror's payers and subscriptions; empty array = healthy. Never persisted. */
-  billing_health_issues: z11.array(BillingHealthStatusSchema).default([]).meta({ ...Unrestricted8, readOnly: true })
+  stripe_linked: z11.boolean().meta({ ...Unrestricted8, readOnly: true })
 }).meta({
   id: "CustomerSummary",
   "x-revturbine-schema-persistence": Transient6,
@@ -13191,7 +13191,7 @@ var accountAddonsMetric = { id: "account.addons", label: "Account add-ons", desc
 var accountPoolMetric = { id: "account.pool", label: "Account pool", value_type: "string", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: as the lifecycle.*_accounts stocks. Plan 282 A.7: paying, trialing, free or lapsed, the A.6 stock definitions at the instant in that precedence. Free (never paid) and lapsed (previously paid) are disjoint, so every account has one pool. ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/status.ts
-var accountStatusMetric = { id: "account.status", label: "Account billing status", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_billing_state"], input_origin: "none", ingested_events: [], note: `Inputs when served: customers and the billing mirror's subscriptions and payers (RM-846 D12; no customers column stores billing state), the identity map. Plan 282 A.7: the billing status label from the customer's subscription status (active, past_due, trialing, canceled, unpaid, none) plus its billing-health issues (payment_failed, payment_method_missing). ${ACCOUNT_BILLING_STATE_PENDING}` } };
+var accountStatusMetric = { id: "account.status", label: "Account billing status", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_billing_state"], input_origin: "none", ingested_events: [], note: `Inputs when served: customers (subscription_status, billing_health_issues), the identity map. Plan 282 A.7: the billing status label from subscription_status (active, past_due, trialing, canceled, unpaid, none) plus billing_health_issues (payment_failed, payment_method_missing). ${ACCOUNT_BILLING_STATE_PENDING}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/matched.ts
 var accountMatchedMetric = { id: "account.matched", label: "Matched to an app account", value_type: "boolean", source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: events_billing, the identity map. Plan 282 A.7: whether the payer resolves to an app account, its user_id in the identity map or events_billing.account_id stamped. A row for an unmatched payer carries the payer, never a pooled account. ${pendingPipe("account_profile")}` } };
