@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.514
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.515
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -12477,7 +12477,7 @@ var revenueMovementReasonDimension = {
   id: "revenue.movement_reason",
   label: "Movement reason",
   type: "enum",
-  description: "Why a weekly MRR movement bucket moved (mrr_movements_weekly.reason, mrr-movement-classification-v1); within a kind the reasons sum to that bucket. Plan upgrade, plan downgrade, plan switch, switched to annual, switched to monthly, add-on, quantity, quantity:<entitlement>, subscription added, subscription cancelled, unattributed; new, reactivation and churn rows carry their crossing as their one reason. unchanged is never served.",
+  description: "Why an MRR movement bucket moved (mrr-movement-classification-v1/v2); within a kind the reasons sum to that bucket. Plan upgrade, plan downgrade, plan switch, plan upgrade/downgrade/switch (new subscription) (v2: same-day cancel and start, net), switched to annual, switched to monthly, add-on, quantity, quantity:<entitlement>, subscription added, subscription cancelled, unattributed; new, reactivation and churn rows carry their crossing as their one reason. unchanged is never served.",
   operators: ["eq", "in", "not_in"],
   control: "multi_select",
   capabilities: ["filter", "group", "split"],
@@ -19458,6 +19458,9 @@ var MRR_MOVEMENT_REASONS = [
   "plan upgrade",
   "plan downgrade",
   "plan switch",
+  "plan upgrade (new subscription)",
+  "plan downgrade (new subscription)",
+  "plan switch (new subscription)",
   "switched to annual",
   "switched to monthly",
   "add-on",
