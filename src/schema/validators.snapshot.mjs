@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.503
+// Vendored validation engine bundled from @revt-eng/schema@0.1.513
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -203,6 +203,12 @@ var CATALOG = {
     message: "This entitlement rule links an entitlement that does not exist.",
     specRef: "config-validation.md \xA75.3 (BL-0164)"
   },
+  "VAL-ENT-02": {
+    id: "VAL-ENT-02",
+    severity: "error_draft",
+    message: "Additive purchased allowances require matching reset periods and allocation scopes.",
+    specRef: "plans-entitlements-studio-ui.md \xA72.6.5 (BUG-554)"
+  },
   // placement / entitlement rule → objective (BL-0176, ruling D-15): the
   // optional `objective` field references an `objectives[]` entity by handle.
   // Same §5.9 dangling-reference family and severity.
@@ -249,10 +255,12 @@ function disposition(finding2, callSite) {
   return "advise";
 }
 
-// scaffold/src/core/helpers.ts
+// scaffold/src/core/record.ts
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
+
+// scaffold/src/core/helpers.ts
 function categoryBucket(category) {
   const normalized = String(category || "").trim().toLowerCase();
   if (!normalized) return 99;
@@ -263,6 +271,30 @@ function categoryBucket(category) {
   if (normalized.includes("conversion") || normalized.includes("expansion") || normalized.includes("upsell")) return 4;
   if (normalized.includes("retention") || normalized.includes("winback") || normalized.includes("churn")) return 4;
   return 99;
+}
+
+// scaffold/src/entitlements/controllers/purchased-allowance.ts
+function hasCreditResetPeriod(fields) {
+  return fields.reset_period !== void 0 && fields.reset_period !== null;
+}
+function allowancePeriod(kind, fields, billingPeriod) {
+  if (kind === "seat") return "seat";
+  const raw = kind === "credits" ? fields.reset_period : fields.period_scope;
+  if (raw === "billing_period" || raw === "per_billing_period") {
+    if (billingPeriod === "monthly") return "month";
+    if (billingPeriod === "annual") return "year";
+    return void 0;
+  }
+  if (typeof raw !== "string" || raw === "") return void 0;
+  if (raw === "per_6_hours" || raw === "six_hours") return "six_hours";
+  return raw.startsWith("per_") ? raw.slice(4) : raw;
+}
+function assertCompatibleAllowances(a, b, aBillingPeriod, bBillingPeriod) {
+  const aPeriod = allowancePeriod(a.kind, a.fields, aBillingPeriod);
+  const bPeriod = allowancePeriod(b.kind, b.fields, bBillingPeriod);
+  if (a.kind !== b.kind || aPeriod === void 0 || aPeriod !== bPeriod || (a.fields.allocation ?? "account") !== (b.fields.allocation ?? "account") || (a.fields.instance ?? "") !== (b.fields.instance ?? "") || (a.fields.seat_type_id ?? "") !== (b.fields.seat_type_id ?? "")) {
+    throw new Error(`Incompatible purchased allowances: ${a.ruleId} and ${b.ruleId} require matching periods and scopes`);
+  }
 }
 
 // scaffold/src/core/handle-pattern.ts
@@ -431,6 +463,123 @@ var LEGACY_BY_ID = new Map(
   )
 );
 
+// scaffold/src/entitlements/controllers/purchased-configuration.ts
+function identity(row) {
+  return String(row.unique_handle ?? row.handle ?? row.id ?? "");
+}
+function matchesIdentity(row, key) {
+  return typeof key === "string" && [row.unique_handle, row.handle, row.id].includes(key);
+}
+function purchasedConfigurationIssues(graph) {
+  const candidates = [];
+  for (const row of graph.entitlement_rules ?? []) {
+    const entitlement = (graph.entitlements ?? []).find((e) => matchesIdentity(e, row.entitlement_id));
+    const kind = String(entitlement?.type ?? row.kind ?? "");
+    if (!["seat", "usage_limit", "credits"].includes(kind)) continue;
+    if (kind === "credits" && !hasCreditResetPeriod(row)) continue;
+    const rule = { ruleId: String(row.handle ?? row.id ?? ""), kind, fields: row };
+    const common = {
+      rule,
+      entitlement: String(row.entitlement_id ?? ""),
+      segments: Array.isArray(row.segment_ids) ? row.segment_ids.filter((s) => typeof s === "string") : []
+    };
+    for (const target of Array.isArray(row.targets) ? row.targets : []) {
+      if (!isRecord(target)) continue;
+      if (target.kind === "plan") candidates.push({ ...common, purchased: false });
+      if (target.kind === "plan_variation") {
+        const variation = (graph.plan_variations ?? []).find((v) => matchesIdentity(v, target.id));
+        candidates.push({
+          ...common,
+          purchased: false,
+          variationSegment: typeof variation?.segment_handle === "string" ? variation.segment_handle : void 0,
+          billingPeriod: typeof variation?.billing_period === "string" ? variation.billing_period : void 0
+        });
+      }
+      if (target.kind === "addon") {
+        const addon = (graph.addons ?? []).find((a) => matchesIdentity(a, target.id));
+        const handle = addon ? identity(addon) : String(target.id ?? "");
+        const variations = (graph.addon_variations ?? []).filter((v) => v.addon_handle === handle || v.addon_id === target.id || addon && typeof addon.id === "string" && v.addon_id === addon.id);
+        candidates.push({ ...common, purchased: true, addon: handle });
+        for (const variation of variations) candidates.push({
+          ...common,
+          purchased: true,
+          addon: handle,
+          variation: identity(variation),
+          billingPeriod: typeof variation.billing_period === "string" ? variation.billing_period : void 0
+        });
+      }
+      if (target.kind === "addon_variation") {
+        const variation = (graph.addon_variations ?? []).find((v) => matchesIdentity(v, target.id));
+        if (!variation) continue;
+        const addon = (graph.addons ?? []).find((a) => matchesIdentity(a, variation.addon_handle ?? variation.addon_id));
+        candidates.push({
+          ...common,
+          purchased: true,
+          addon: addon ? identity(addon) : String(variation.addon_handle ?? variation.addon_id ?? ""),
+          variation: identity(variation),
+          billingPeriod: typeof variation.billing_period === "string" ? variation.billing_period : void 0
+        });
+      }
+    }
+  }
+  const issues = /* @__PURE__ */ new Map();
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      const a = candidates[i];
+      const b = candidates[j];
+      if (a.entitlement !== b.entitlement || !a.purchased && !b.purchased) continue;
+      if (a.purchased && b.purchased && a.addon === b.addon && (a.variation === b.variation || a.variation === void 0 || b.variation === void 0)) continue;
+      const constraints = [
+        a.segments,
+        b.segments,
+        ...a.variationSegment ? [[a.variationSegment]] : [],
+        ...b.variationSegment ? [[b.variationSegment]] : []
+      ];
+      if (constraints.some((left, index) => constraints.slice(index + 1).some((right) => !segmentsCanCoapply(left, right, graph)))) continue;
+      try {
+        assertCompatibleAllowances(a.rule, b.rule, a.billingPeriod, b.billingPeriod);
+      } catch (error) {
+        const key = [a.rule.ruleId, b.rule.ruleId].sort().join(":");
+        issues.set(key, {
+          ruleId: a.rule.ruleId,
+          otherRuleId: b.rule.ruleId,
+          message: error instanceof Error ? error.message : "Incompatible purchased allowances"
+        });
+      }
+    }
+  }
+  return [...issues.values()];
+}
+function segmentsCanCoapply(a, b, graph) {
+  const byDimension = (handles) => {
+    const groups = /* @__PURE__ */ new Map();
+    const uncertain = /* @__PURE__ */ new Set();
+    for (const handle of handles) {
+      const segment = (graph.segments ?? []).find((s) => matchesIdentity(s, handle));
+      const dimension2 = typeof segment?.dimension_id === "string" ? segment.dimension_id : "";
+      const builtin = BUILTIN_DIMENSIONS.find((d) => d.dimensionId === dimension2);
+      const predicates = Array.isArray(segment?.predicates) ? segment.predicates : [];
+      const predicate = predicates.length === 1 && isRecord(predicates[0]) ? predicates[0] : void 0;
+      if (!builtin || predicate?.operator !== "eq" || predicate.field !== builtin.traitKey || typeof predicate.value !== "string" || handle !== builtinSegmentHandle(builtin.key, predicate.value)) {
+        uncertain.add(dimension2);
+        continue;
+      }
+      const group = groups.get(dimension2) ?? /* @__PURE__ */ new Set();
+      group.add(handle);
+      groups.set(dimension2, group);
+    }
+    for (const dimension2 of uncertain) groups.delete(dimension2);
+    return groups;
+  };
+  const left = byDimension(a);
+  const right = byDimension(b);
+  for (const [dimension2, values] of left) {
+    const others = right.get(dimension2);
+    if (others && ![...values].some((value) => others.has(value))) return false;
+  }
+  return true;
+}
+
 // scaffold/src/core/validation/rules.ts
 var SEMANTIC_RULE_CODES = [
   "VAL-PLN-05",
@@ -452,11 +601,17 @@ var SEMANTIC_RULE_CODES = [
   "VAL-UNI-01",
   "VAL-EXP-01",
   "VAL-ENT-01",
+  "VAL-ENT-02",
   "VAL-OBJ-01"
 ];
 function runSemanticRules(graph, opts = {}) {
   return [
     ...checkRuleOverlaps(graph),
+    ...purchasedConfigurationIssues(graph).map((issue) => finding("VAL-ENT-02", {
+      object_type: "entitlement_rule",
+      object_id: issue.ruleId,
+      studio: "plans-entitlements"
+    }, { message: issue.message, detail: `Conflicting rule: ${issue.otherRuleId}` })),
     ...checkLimitRuleEnforcement(graph),
     ...checkPublicVariationCollisions(graph),
     ...checkPayloadCtaOverflow(graph),
@@ -1192,7 +1347,7 @@ function checkRuleOverlaps(graph) {
         },
         {
           message: `Entitlement rule '${name}' overlaps another rule for the same entitlement on a shared target and segment \u2014 only one will apply.`,
-          detail: "Where rules overlap, the most permissive value applies (plans-entitlements-studio-ui.md \xA72.3.2). Adjust the segment selection if this is unintended."
+          detail: "Ordinary overlapping grants use the most permissive value; purchased seat, usage and recurring credit allowances add to it (plans-entitlements-studio-ui.md \xA72.3.2). Adjust the segment selection if this is unintended."
         }
       )
     );
@@ -3841,13 +3996,23 @@ function normalizeConfigHeaderInput(input) {
   }
   return next;
 }
-var PlaybookSchema = z9.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema).meta({
+function validatePurchasedConfiguration(config, ctx) {
+  for (const issue of purchasedConfigurationIssues({
+    entitlements: config.entitlements,
+    entitlement_rules: config.entitlement_rules,
+    addons: config.addons ?? [],
+    addon_variations: config.addon_variations ?? [],
+    plan_variations: config.plan_variations ?? [],
+    segments: config.segments
+  })) ctx.addIssue({ code: "custom", path: ["entitlement_rules"], message: issue.message });
+}
+var PlaybookSchema = z9.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema).superRefine(validatePurchasedConfiguration).meta({
   id: "Playbook",
   "x-revturbine-schema-persistence": Transient5,
   "x-revturbine-schema-exposure": External4,
   ...PLAYBOOK_SDK_FACETS4
 });
-var PlaybookStrictSchema = z9.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema.strict()).meta({
+var PlaybookStrictSchema = z9.preprocess(normalizeConfigHeaderInput, PlaybookObjectSchema.strict()).superRefine(validatePurchasedConfiguration).meta({
   id: "PlaybookStrict",
   "x-revturbine-schema-persistence": Transient5,
   "x-revturbine-schema-exposure": External4,
