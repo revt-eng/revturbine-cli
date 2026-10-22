@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.518
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.519
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -2518,7 +2518,19 @@ var CustomerSchema = IdField.merge(TimestampFields).merge(TenantIdField).extend(
   status: z12.enum(["active", "churned", "trial", "suspended"]).default("active").meta(Unrestricted9),
   /** Active billing-health problems (plan 156); empty array = healthy. */
   billing_health_issues: z12.array(BillingHealthStatusSchema).default([]).meta(Unrestricted9),
-  metadata: MetadataField.meta({ ...Unrestricted9, ...ServerOnly })
+  metadata: MetadataField.meta({ ...Unrestricted9, ...ServerOnly }),
+  /**
+   * ST-935 (Kent, 2026-10-21): a customer RevTurbine created for an unlinked
+   * billing payer, keyed by the payer's raw DEC-778 `user_id` or provider
+   * customer id. Shown with a "Provisional" badge; client context, billing
+   * health, entitlements and targeting skip it. Cleared when the tenant's SDK
+   * identifies the same `external_id` (promotion).
+   */
+  provisional: z12.boolean().default(false).meta(Unrestricted9),
+  /** ST-935: the customer a provisional customer was merged into when its payer was linked elsewhere; null otherwise. */
+  merged_into: z12.string().min(1).nullable().optional().meta({ ...Pii, ...ServerOnly }),
+  /** ST-935: when a provisional customer was retired (merged); null while live. */
+  retired_at: NullableDatetimeField.meta({ ...Unrestricted9, ...ServerOnly })
 }).meta(
   {
     id: "Customer",
@@ -2533,6 +2545,7 @@ var CustomerSummarySchema = CustomerSchema.pick({
   subscription_status: true,
   status: true,
   billing_health_issues: true,
+  provisional: true,
   created_at: true,
   updated_at: true
 }).extend({
@@ -2543,6 +2556,9 @@ var CustomerSummarySchema = CustomerSchema.pick({
   "x-revturbine-schema-persistence": Transient6,
   "x-revturbine-schema-exposure": Internal6
 });
+var CustomerListQuerySchema = ListQueryParamsSchema.extend({
+  provisional: z12.enum(["true", "false"]).optional()
+}).meta({ id: "CustomerListQuery", "x-revturbine-schema-persistence": Transient6, "x-revturbine-schema-exposure": Internal6 });
 var CustomerOverrideDurationSchema = z12.enum([
   "permanent",
   "for_duration"
@@ -2589,7 +2605,7 @@ var customerPaths = {
   "/api/customers": {
     get: operation({
       operationId: "listCustomers",
-      requestParams: { query: ListQueryParamsSchema },
+      requestParams: { query: CustomerListQuerySchema },
       summary: "List customers",
       tags: ["customers"],
       responses: { "200": { description: "Customer list", content: { "application/json": { schema: ListEnvelope(CustomerSummarySchema) } } } },
@@ -2844,6 +2860,18 @@ var UserInstanceContextSchema = z13.object({
 var UserContextSchema = IdField.merge(TenantIdField).merge(TimestampFields).extend({
   user_id: z13.string().min(1).meta(Pii2),
   account_id: z13.string().min(1).nullable().optional().meta(Pii2),
+  /**
+   * ST-935 (Kent, 2026-10-21): a user RevTurbine created for an unlinked
+   * billing payer, keyed by the payer's raw DEC-778 `user_id` or provider
+   * customer id. Server-only: while true the row gets no entitlements,
+   * targeting or client context. The tenant's SDK identifying the same
+   * `user_id` promotes it (clears the flag) and keeps its revenue history.
+   */
+  provisional: z13.boolean().optional().meta({ ...Unrestricted10, ...ServerOnly }),
+  /** ST-935: the user a provisional user was merged into when its payer was linked elsewhere; null otherwise. */
+  merged_into: z13.string().min(1).nullable().optional().meta({ ...Pii2, ...ServerOnly }),
+  /** ST-935: when a provisional user was retired (merged); null while live. */
+  retired_at: NullableDatetimeField.meta({ ...Unrestricted10, ...ServerOnly }),
   email: z13.string().email().nullable().optional().meta(Pii2),
   /** Optional email classification (e.g. `business`, `personal`). */
   email_type: z13.string().optional().meta(Unrestricted10),
@@ -5087,9 +5115,25 @@ var CustomerAccountCreateSchema = z16.strictObject({
   account_id: logicalKey(),
   name: z16.string().min(1).max(255).optional().meta(privateField)
 }).meta(transient("CustomerAccountCreate"));
+var provisionalAccountFields = {
+  /**
+   * Created by RevTurbine for an unlinked billing payer (Kent, 2026-10-21):
+   * `account_id` is the payer's raw DEC-778 `user_id`, else its provider
+   * customer id. Counted in revenue and cohorts as an account; cleared when the
+   * tenant's SDK identifies that id (promotion).
+   */
+  provisional: z16.boolean().default(false),
+  /** An operator decided the payer has no app account (ST-710 `no_account`): it stays provisional and counted, and is never merged. */
+  no_app_account: z16.boolean().default(false),
+  /** The account a provisional account was merged into when its payer was linked elsewhere; null otherwise. */
+  merged_into: logicalKey().nullable().optional(),
+  /** When a provisional account was retired (merged); null while live. */
+  retired_at: NullableDatetimeField
+};
 var CustomerAccountSchema = IdField.merge(TenantIdField).merge(TimestampFields).extend({
   ...CustomerAccountCreateSchema.shape,
-  name: z16.string().nullable().optional().meta(privateField)
+  name: z16.string().nullable().optional().meta(privateField),
+  ...provisionalAccountFields
 }).meta(persisted("CustomerAccount", "customerAccounts", ["tenant_id", "account_id"]));
 var CustomerUserCreateSchema = z16.strictObject({
   user_id: logicalKey(),
@@ -6752,6 +6796,13 @@ var mintedRefSchema = (max) => z24.string().min(1).max(max).refine(
 );
 var tenantSuppliedIdSchema = (max) => z24.string().min(1).max(max).refine((value) => !EXACT_PROVIDER_ID.test(normalizeBrowserText(value)), {
   message: "A provider id is never an RT user or account id."
+});
+var EXACT_STRIPE_CUSTOMER_ID = /^cus_[A-Za-z0-9]{10,64}$/;
+var tenantAccountIdSchema = (max) => z24.string().min(1).max(max).refine((value) => {
+  const normalized = normalizeBrowserText(value);
+  return !EXACT_PROVIDER_ID.test(normalized) || value === normalized && EXACT_STRIPE_CUSTOMER_ID.test(normalized);
+}, {
+  message: "A provider id is never an RT account id, except a Stripe customer id keying a provisional account."
 });
 var browserSafeTextSchema = (max) => z24.string().max(max).refine(
   (value) => {
@@ -11896,19 +11947,19 @@ var revenueLogoRetentionMetric = declaredTarget(
 );
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/churned_share.ts
-var revenueChurnedShareMetric = { id: "revenue.churned_share", label: "Churned MRR", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: ["subscription_canceled", "payment_failed", "payment_succeeded"], ingested_datasources: ["events_billing", "mrr_movements_weekly", "subscription_stock_weekly"], note: "Opening-cohort churn amounts \xF7 opening MRR (ST-525): weekly series-net churn (the account reaching zero, mrr-movement-classification-v1) of accounts paying at W0, over (W0, W1]. Each loss counts; after a reactivation it may exceed 100%. Split by revenue.churn_cause. Resolved accounts only. NULL on an empty cohort. Not endpoint revenue churn. Oracle: deriveMrrOpeningCohortShares." } };
+var revenueChurnedShareMetric = { id: "revenue.churned_share", label: "Churned MRR", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: ["subscription_canceled", "payment_failed", "payment_succeeded"], ingested_datasources: ["events_billing", "mrr_movements_weekly", "subscription_stock_weekly"], note: "Opening-cohort churn amounts \xF7 opening MRR (ST-525): weekly series-net churn (the account reaching zero, mrr-movement-classification-v1) of accounts paying at W0, over (W0, W1]. Each loss counts; after a reactivation it may exceed 100%. Split by revenue.churn_cause. Unlinked payers count as provisional accounts until linked (ST-935); user-fallback keys are coverage. NULL on an empty cohort. Not endpoint revenue churn. Oracle: deriveMrrOpeningCohortShares." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/accounts/churned_share.ts
-var accountsChurnedShareMetric = { id: "accounts.churned_share", label: "Churned accounts", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: ["subscription_canceled", "payment_failed", "payment_succeeded"], ingested_datasources: ["events_billing", "mrr_movements_weekly", "subscription_stock_weekly"], note: "Distinct accounts paying at W0 that churned (reached zero, mrr-movement-classification-v1) at least once in (W0, W1], counted once, \xF7 opening paying accounts (ST-525). By revenue.churn_cause an account counts once, under its highest-precedence cause. Resolved accounts only. NULL on an empty cohort. Not endpoint logo churn. Oracle: deriveMrrOpeningCohortShares." } };
+var accountsChurnedShareMetric = { id: "accounts.churned_share", label: "Churned accounts", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: ["subscription_canceled", "payment_failed", "payment_succeeded"], ingested_datasources: ["events_billing", "mrr_movements_weekly", "subscription_stock_weekly"], note: "Distinct accounts paying at W0 that churned (reached zero, mrr-movement-classification-v1) at least once in (W0, W1], counted once, \xF7 opening paying accounts (ST-525). By revenue.churn_cause an account counts once, under its highest-precedence cause. Unlinked payers count as provisional accounts until linked (ST-935); user-fallback keys are coverage. NULL on an empty cohort. Not endpoint logo churn. Oracle: deriveMrrOpeningCohortShares." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/accounts/churned.ts
 var accountsChurnedMetric = { id: "accounts.churned", label: "Churned accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_classified"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "mrr_movements_weekly", "subscription_stock_seed", "subscription_stock_weekly"], note: "Distinct accounts whose total MRR reached zero in the week (kind churn, mrr-movement-classification-v1): the same customers as revenue.churned_mrr. Series-net: summed over a window each churn week counts, so an account that churns, returns and churns again counts twice, as its MRR does. Per currency. Absent under the amount policy. Not lifecycle.churned_accounts (interval-net endpoint, BL-0446) nor accounts.churned_share (opening-cohort share). Oracle: summarizeClassifiedMovements." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/expansion_share.ts
-var revenueExpansionShareMetric = { id: "revenue.expansion_share", label: "Expansion share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: [], ingested_datasources: ["mrr_movements_weekly", "subscription_stock_weekly"], note: "Opening-cohort share (revenue-accounting; ST-525): \u03A3 expansion of accounts paying at the opening close W0, over (W0, W1], \xF7 their opening MRR, per currency. Weekly series-net movements under the policy the generation declares (mrr-movement-classification-v1); accounts new in the interval excluded. Resolved accounts only (Q-3 default). NULL on an empty cohort. Oracle: deriveMrrOpeningCohortShares." } };
+var revenueExpansionShareMetric = { id: "revenue.expansion_share", label: "Expansion share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: [], ingested_datasources: ["mrr_movements_weekly", "subscription_stock_weekly"], note: "Opening-cohort share (revenue-accounting; ST-525): \u03A3 expansion of accounts paying at the opening close W0, over (W0, W1], \xF7 their opening MRR, per currency. Weekly series-net movements under the policy the generation declares (mrr-movement-classification-v1); accounts new in the interval excluded. Unlinked payers count as provisional accounts until linked (ST-935); user-fallback keys are coverage. NULL on an empty cohort. Oracle: deriveMrrOpeningCohortShares." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/contraction_share.ts
-var revenueContractionShareMetric = { id: "revenue.contraction_share", label: "Contraction share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: [], ingested_datasources: ["mrr_movements_weekly", "subscription_stock_weekly"], note: "Opening-cohort share (revenue-accounting; ST-525): \u03A3 contraction of accounts paying at the opening close W0, over (W0, W1], \xF7 their opening MRR, per currency. A partial subscription cancel is contraction. Weekly series-net movements under the declared policy (mrr-movement-classification-v1). Resolved accounts only (Q-3 default). NULL on an empty cohort. Oracle: deriveMrrOpeningCohortShares." } };
+var revenueContractionShareMetric = { id: "revenue.contraction_share", label: "Contraction share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "account_matched", statistical_type: "continuous", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_opening_cohort"], input_origin: "platform", ingested_events: [], ingested_datasources: ["mrr_movements_weekly", "subscription_stock_weekly"], note: "Opening-cohort share (revenue-accounting; ST-525): \u03A3 contraction of accounts paying at the opening close W0, over (W0, W1], \xF7 their opening MRR, per currency. A partial subscription cancel is contraction. Weekly series-net movements under the declared policy (mrr-movement-classification-v1). Unlinked payers count as provisional accounts until linked (ST-935); user-fallback keys are coverage. NULL on an empty cohort. Oracle: deriveMrrOpeningCohortShares." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/cash/to_mrr_ratio.ts
 var cashToMrrRatioMetric = declaredTarget(
@@ -12052,7 +12103,7 @@ var revenueStockConcept = {
     { key: "subscription", path: "column:subscription_id", resolution: "source" },
     { key: "item", path: "column:item_id", resolution: "source" },
     { key: "payer", path: "column:customer_id", resolution: "source" },
-    { key: "account", path: "column:account_id", resolution: "enriched", note: "Only account_resolved=1 is an account. Payer keys retain money in total scope, never in account denominators." },
+    { key: "account", path: "column:account_id", resolution: "enriched", note: "An unlinked payer is a provisional account (ST-935): a customer_accounts row flagged provisional, keyed by its DEC-778 metadata user_id, else its provider customer id; account_resolved=0 on its revenue rows. It counts in the opening-cohort measures (cohort shares, churned accounts, NRR) until linked. Other account denominators still exclude unresolved keys." },
     { key: "environment", path: "-", resolution: "absent", note: "The stored production placeholder is not authoritative billing environment identity." }
   ],
   measures: [
@@ -13672,7 +13723,7 @@ var revenueReactivationMrrMetric = { id: "revenue.reactivation_mrr", label: "Rea
 var revenueNetNewMrrMetric = { id: "revenue.net_new_mrr", label: "Net new MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_movements_v1", "analytics_mrr_movements_classified"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): new + expansion + reactivation \u2212 contraction \u2212 churned, per currency and week; equals closing \u2212 opening (the roll-forward the oracle asserts and AC-12 tests). Replaces daily_revenue_rollup's net_new_revenue_cents, which was the invoice-paid proxy under a second name (BL-0063). V1 exclusions as revenue.mrr. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/nrr.ts
-var revenueNrrMetric = { id: "revenue.nrr", label: "Net revenue retention", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_nrr_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 endpoint NRR (plan 282 TASK-11; revenue-accounting \xA75): over the fixed cohort of accounts with MRR > 0 at the interval start, their MRR at the end \xF7 their MRR at the start, per currency. Accounts new in the interval are excluded from both sides; cohort members that churned and returned count at close. An empty cohort is unavailable, never 0%. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrNrr. Served by web TASK-11b's analytics_mrr_nrr_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
+var revenueNrrMetric = { id: "revenue.nrr", label: "Net revenue retention", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["analytics_mrr_nrr_v1"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing", "subscription_stock_seed", "subscription_stock_weekly"], note: "MRR V1 endpoint NRR (plan 282 TASK-11; revenue-accounting \xA75): over the fixed cohort of accounts with MRR > 0 at the interval start, their MRR at the end \xF7 their MRR at the start, per currency. Accounts new in the interval are excluded from both sides; cohort members that churned and returned count at close. An empty cohort is unavailable, never 0%. Unlinked payers count as provisional accounts (ST-935). Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrNrr. Served by analytics_mrr_nrr_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/placement/impressions.ts
 var placementImpressionsMetric = { id: "placement.impressions", label: "Impressions", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "D-53 (plan 282 TASK-14): the base is DISPLAYS \u2014 rows with outcome presented, i.e. the placement was shown \u2014 never every interaction row. Since web #965 (TASK-15) the presentation pipes count countIf(outcome = presented), growth_funnel_signals' rule slice counts the impression interaction, exposure_breakdown counts exposures (one per display), and derivePresentationAggregate derives the same base (BL-0495)." } };
@@ -18718,7 +18769,7 @@ var PAYER_ACCOUNT_CHANGED_BY = ["automatic_matching", "workspace_member", "unkno
 var PayerAccountLinkItemSchema = z51.strictObject({
   payer_key: PayerKeySchema.meta(safe2),
   state: PayerAccountLinkStateSchema.meta(safe2),
-  rt_account_id: tenantSuppliedIdSchema(255).nullable().meta(safe2),
+  rt_account_id: tenantAccountIdSchema(255).nullable().meta(safe2),
   evidence_kind: z51.enum(BILLING_ACCOUNT_BINDING_EVIDENCE_KINDS).nullable().meta(safe2),
   confidence: z51.enum(BILLING_ACCOUNT_BINDING_CONFIDENCE).nullable().meta(safe2),
   /** The latest binding revision (0 with none): an operator's change names it. */
@@ -18775,7 +18826,7 @@ var PayerAccountLinkListSchema = z51.strictObject({
 var PayerAccountLinkHistoryEntrySchema = z51.strictObject({
   mapping_revision: z51.number().int().min(1).meta(safe2),
   state: PayerAccountLinkStateSchema.meta(safe2),
-  rt_account_id: tenantSuppliedIdSchema(255).nullable().meta(safe2),
+  rt_account_id: tenantAccountIdSchema(255).nullable().meta(safe2),
   evidence_kind: z51.enum(BILLING_ACCOUNT_BINDING_EVIDENCE_KINDS).nullable().meta(safe2),
   confidence: z51.enum(BILLING_ACCOUNT_BINDING_CONFIDENCE).nullable().meta(safe2),
   changed_by: z51.enum(PAYER_ACCOUNT_CHANGED_BY).meta(safe2),
@@ -18796,7 +18847,7 @@ var changeCommon = {
   reason: browserSafeTextSchema(500).optional().meta(safe2)
 };
 var PayerAccountLinkRequestSchema = z51.discriminatedUnion("action", [
-  z51.strictObject({ ...changeCommon, action: z51.literal("link").meta(safe2), rt_account_id: tenantSuppliedIdSchema(255).meta(safe2) }),
+  z51.strictObject({ ...changeCommon, action: z51.literal("link").meta(safe2), rt_account_id: tenantAccountIdSchema(255).meta(safe2) }),
   z51.strictObject({ ...changeCommon, action: z51.literal("no_account").meta(safe2) }),
   z51.strictObject({ ...changeCommon, action: z51.literal("unlink").meta(safe2) })
 ]).meta(transient13("PayerAccountLinkRequest"));
@@ -19959,8 +20010,10 @@ var MrrDailyRowSchema = z55.strictObject({
   /**
    * The account is a member of the opening cohort of any period whose opening
    * close is this day (ST-859): it closes the day paying in this currency and
-   * its key may join a cohort (`isOpeningCohortMemberKey`; false for `payer:`
-   * and `user-fallback:` keys). A period's opening cohort and NRR are read from
+   * its key may join a cohort (`isOpeningCohortMemberKey`; false for
+   * `user-fallback:` keys). An unresolved `payer:` key is a provisional
+   * account and a member (ST-935): `opening_cohort_member` true with
+   * `account_resolved` false. A period's opening cohort and NRR are read from
    * these rows at the period's opening close.
    */
   opening_cohort_member: z55.boolean().meta(ops13),
