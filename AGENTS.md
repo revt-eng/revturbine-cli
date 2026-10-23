@@ -99,3 +99,14 @@ is the symbol, so reformatting and moving code cannot break it.
 Renaming or deleting an annotated symbol *does* change the graph, so say so in
 the PR body. It will not fail this repository's gate; devkit's scheduled run
 catches it afterwards and names the commit.
+
+## Iteration delivery
+
+For stories assigned to a hosted iteration, branch from and target its registered
+`iteration/IT-*` branch. Promotion PRs target `main`. Both PR boundaries use
+`node scripts/iteration-targeted.mjs <PR-base-SHA>`; keep typecheck, lint,
+schema consistency, build and packed-consumer checks. Missing targeted mappings
+block the PR rather than running the full suite. `npm test` remains the
+exhaustive post-promotion integration check and the legacy unassigned-work path.
+The push-only `Iteration exhaustive` job is the release evidence for that exact
+integration merge SHA. A feature merge does not complete release verification.

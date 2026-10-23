@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -20,11 +22,30 @@ jobs:
           npm install --global "npm@$NPM_VERSION"
           npm --version
       - run: npm ci
+      - name: Iteration selector regression checks
+        run: node --test scripts/iteration-targeted.check.mjs
+
       - name: Line-ending check (BL-0216)
         run: node scripts/check-line-endings.mjs --all
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm run test
+      - run: npm run check:schema
+      - name: Targeted iteration tests
+        if: github.event_name == 'pull_request' && (startsWith(github.base_ref, 'iteration/') || startsWith(github.head_ref, 'iteration/'))
+        env:
+          ITERATION_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ITERATION_BASE_REF: ${{ github.base_ref }}
+          ITERATION_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ ! "$ITERATION_BASE_REF" =~ ^iteration/(IT|it)-[0-9]+([/-][a-zA-Z0-9_/-]+)?$ && ! "$ITERATION_HEAD_REF" =~ ^iteration/(IT|it)-[0-9]+([/-][a-zA-Z0-9_/-]+)?$ ]]; then
+            echo "::error::Iteration branch must use iteration/it-<number> with an optional slug"
+            exit 1
+          fi
+          git show "${ITERATION_BASE_SHA}:scripts/iteration-targeted.mjs" > "$RUNNER_TEMP/iteration-targeted.mjs"
+          node "$RUNNER_TEMP/iteration-targeted.mjs" "$ITERATION_BASE_SHA"
+      - name: Exhaustive tests
+        if: github.event_name != 'pull_request' || (!startsWith(github.base_ref, 'iteration/') && !startsWith(github.head_ref, 'iteration/'))
+        run: npm run test
       - run: npm run build
 
   package-smoke:
@@ -104,3 +125,15 @@ jobs:
             fi
           done
           echo "help surface matches the 0.5.x spec"
+
+  iteration-exhaustive:
+    name: Iteration exhaustive
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [verify, package-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every exhaustive job
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          SMOKE_RESULT: ${{ needs.package-smoke.result }}
+        run: test "$VERIFY_RESULT" = success && test "$SMOKE_RESULT" = success
