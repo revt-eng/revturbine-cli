@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.519
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.520
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -2696,6 +2696,8 @@ var { Persisted: Persisted7, Transient: Transient7 } = SchemaPersistence;
 var { External: External5, Internal: Internal7 } = SchemaExposure;
 var UserTrialStatusSchema = z13.object({
   in_trial: z13.boolean().meta(Unrestricted10),
+  instance_id: z13.string().optional().meta(Unrestricted10),
+  started_at: z13.string().datetime().optional().meta(Unrestricted10),
   trial_type: z13.string().optional().meta(Unrestricted10),
   plan_handle: z13.string().optional().meta(Unrestricted10),
   // 'converted' reflects a server-side analytic-event transition
@@ -3030,6 +3032,8 @@ var ServerUserBuiltinDimensionsSchema = UserContextSchema.pick({ tenant_id: true
   { id: "ServerUserBuiltinDimensions", "x-revturbine-schema-persistence": Transient7, "x-revturbine-schema-exposure": External5 }
 );
 var ClientContextTrialSchema = z13.object({
+  instance_id: UserTrialStatusSchema.shape.instance_id.meta({ ...Unrestricted10, ...ClientSafe }),
+  started_at: UserTrialStatusSchema.shape.started_at.meta({ ...Unrestricted10, ...ClientSafe }),
   status: z13.enum(["active", "running_out", "expired", "converted", "none"]).meta({ ...Unrestricted10, ...ClientSafe }),
   days_remaining: z13.number().int().min(0).optional().meta({ ...Unrestricted10, ...ClientSafe }),
   ends_at: z13.string().optional().meta({ ...Unrestricted10, ...ClientSafe })
@@ -4551,6 +4555,7 @@ var RevTurbineConfigPlacementPayloadItemSchema = z15.object({
 );
 var RevTurbineConfigExtensionRulesItemSchema = z15.object({
   kind: z15.string().min(1).meta(Unrestricted12),
+  must_understand: z15.boolean().optional().meta(Unrestricted12),
   schema_version: z15.number().int().nonnegative().meta(Unrestricted12),
   config: z15.unknown().meta(Unrestricted12)
 }).meta(

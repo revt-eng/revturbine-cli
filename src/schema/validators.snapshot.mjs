@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.519
+// Vendored validation engine bundled from @revt-eng/schema@0.1.520
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -54,6 +54,12 @@ var ValidationFindingSchema = z.object({
 
 // scaffold/src/core/validation/catalog.ts
 var CATALOG = {
+  "VAL-UIP-01": {
+    id: "VAL-UIP-01",
+    severity: "error_launch",
+    message: "A content UI path plan reference names an add-on instead of a plan.",
+    specRef: "BL-0426 point 5; ST-1125 REQ-6"
+  },
   // entitlement-rule overlap. Origin: the `rule.overlap` check (plan 40);
   // scoped to same-entitlement pairs per §5.8 (plan 179 / devkit #597).
   "VAL-PLN-05": {
@@ -582,6 +588,7 @@ function segmentsCanCoapply(a, b, graph) {
 
 // scaffold/src/core/validation/rules.ts
 var SEMANTIC_RULE_CODES = [
+  "VAL-UIP-01",
   "VAL-PLN-05",
   "VAL-PLN-06",
   "VAL-PLN-07",
@@ -606,6 +613,7 @@ var SEMANTIC_RULE_CODES = [
 ];
 function runSemanticRules(graph, opts = {}) {
   return [
+    ...checkContentUiPlanRefs(graph),
     ...checkRuleOverlaps(graph),
     ...purchasedConfigurationIssues(graph).map((issue) => finding("VAL-ENT-02", {
       object_type: "entitlement_rule",
@@ -623,6 +631,25 @@ function runSemanticRules(graph, opts = {}) {
     ...checkExperimentMetricRefs(graph, opts.knownMetricIds),
     ...checkDanglingReferences(graph)
   ];
+}
+function checkContentUiPlanRefs(graph) {
+  const addons = referenceNamespace(graph, "addons", "unique_handle");
+  if (!addons) return [];
+  const plans = referenceNamespace(graph, "plans", "unique_handle");
+  return (graph.content_ui_paths ?? []).flatMap((row, index) => {
+    const handle = row.plan_handle;
+    if (typeof handle !== "string" || !handle || !addons.has(handle) || plans?.has(handle)) return [];
+    return [finding("VAL-UIP-01", {
+      object_type: "content_ui_path",
+      object_id: String(row.handle ?? row.id ?? ""),
+      field: "plan_handle",
+      path: ["content_ui_paths", index, "plan_handle"],
+      studio: "content"
+    }, {
+      message: `Content UI path '${String(row.handle ?? row.id ?? "unnamed")}' uses add-on '${handle}' as its plan.`,
+      detail: "Set plan_handle to an ordinary plan handle; add-on handles cannot select a plan checkout path."
+    })];
+  });
 }
 function referenceNamespace(graph, table, handleField) {
   const rows = graph[table];
@@ -3770,6 +3797,7 @@ var RevTurbineConfigPlacementPayloadItemSchema = z9.object({
 );
 var RevTurbineConfigExtensionRulesItemSchema = z9.object({
   kind: z9.string().min(1).meta(Unrestricted5),
+  must_understand: z9.boolean().optional().meta(Unrestricted5),
   schema_version: z9.number().int().nonnegative().meta(Unrestricted5),
   config: z9.unknown().meta(Unrestricted5)
 }).meta(
