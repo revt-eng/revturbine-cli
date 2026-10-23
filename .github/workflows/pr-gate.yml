@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -24,7 +26,15 @@ jobs:
         run: node scripts/check-line-endings.mjs --all
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm run test
+      - run: npm run check:schema
+      - name: Targeted iteration tests
+        if: github.event_name == 'pull_request' && (startsWith(github.base_ref, 'iteration/') || startsWith(github.head_ref, 'iteration/'))
+        env:
+          ITERATION_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/iteration-targeted.mjs "$ITERATION_BASE_SHA"
+      - name: Exhaustive tests
+        if: github.event_name != 'pull_request' || (!startsWith(github.base_ref, 'iteration/') && !startsWith(github.head_ref, 'iteration/'))
+        run: npm run test
       - run: npm run build
 
   package-smoke:
@@ -104,3 +114,15 @@ jobs:
             fi
           done
           echo "help surface matches the 0.5.x spec"
+
+  iteration-exhaustive:
+    name: Iteration exhaustive
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [verify, package-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every exhaustive job
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          SMOKE_RESULT: ${{ needs.package-smoke.result }}
+        run: test "$VERIFY_RESULT" = success && test "$SMOKE_RESULT" = success
