@@ -37,7 +37,7 @@ jobs:
           ITERATION_BASE_REF: ${{ github.base_ref }}
           ITERATION_HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [[ ! "$ITERATION_BASE_REF" =~ ^iteration/(IT|it)-[0-9]+([/-][a-zA-Z0-9_-]+)*$ && ! "$ITERATION_HEAD_REF" =~ ^iteration/(IT|it)-[0-9]+([/-][a-zA-Z0-9_-]+)*$ ]]; then
+          if [[ ! "$ITERATION_BASE_REF" =~ ^iteration/(IT|it)-[0-9]+([/-][a-zA-Z0-9_/-]+)?$ && ! "$ITERATION_HEAD_REF" =~ ^iteration/(IT|it)-[0-9]+([/-][a-zA-Z0-9_/-]+)?$ ]]; then
             echo "::error::Iteration branch must use iteration/it-<number> with an optional slug"
             exit 1
           fi
