@@ -10,7 +10,7 @@ export function selectTargets(files) {
   const unsupported = [];
   let policy = false;
   for (const file of files) {
-    if (file === 'scripts/iteration-targeted.mjs' || file === 'scripts/iteration-targeted.test.mjs' || file === '.github/workflows/pr-gate.yml') {
+    if (file === 'scripts/iteration-targeted.mjs' || file === 'scripts/iteration-targeted.check.mjs' || file === '.github/workflows/pr-gate.yml') {
       policy = true;
     } else if (/^tests\/.*\.test\.ts$/.test(file)) {
       tests.add(file);
@@ -33,14 +33,14 @@ export function run(base, runCommand = execFileSync) {
   const files = runCommand('git', ['diff', '--name-only', '-z', `${base}...HEAD`], { encoding: 'utf8' }).split('\0').filter(Boolean);
   const selection = selectTargets(files);
   const execute = args => runCommand(process.execPath, args, { stdio: 'inherit' });
-  if (selection.policy) execute(['--test', 'scripts/iteration-targeted.test.mjs']);
+  if (selection.policy) execute(['--test', 'scripts/iteration-targeted.check.mjs']);
   for (const file of selection.tests) {
     if (!existsSync(file)) throw new Error(`Deleted test requires an explicit replacement mapping: ${file}`);
-    execute(['node_modules/vitest/vitest.mjs', 'run', file, '--maxWorkers=1']);
+    execute(['node_modules/vitest/vitest.mjs', 'run', file, '--maxWorkers=1', '--passWithNoTests=false']);
   }
   // Run each changed source separately: one well-covered file must not hide
   // another file with no dependency-selected tests. Vitest fails on no tests.
-  for (const file of selection.related) execute(['node_modules/vitest/vitest.mjs', 'related', file, '--run', '--maxWorkers=1']);
+  for (const file of selection.related) execute(['node_modules/vitest/vitest.mjs', 'related', file, '--run', '--maxWorkers=1', '--passWithNoTests=false']);
   console.log(JSON.stringify({ changed: files, selection }));
   return selection;
 }

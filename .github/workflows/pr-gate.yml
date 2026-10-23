@@ -22,6 +22,9 @@ jobs:
           npm install --global "npm@$NPM_VERSION"
           npm --version
       - run: npm ci
+      - name: Iteration selector regression checks
+        run: node --test scripts/iteration-targeted.check.mjs
+
       - name: Line-ending check (BL-0216)
         run: node scripts/check-line-endings.mjs --all
       - run: npm run typecheck
@@ -31,7 +34,15 @@ jobs:
         if: github.event_name == 'pull_request' && (startsWith(github.base_ref, 'iteration/') || startsWith(github.head_ref, 'iteration/'))
         env:
           ITERATION_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/iteration-targeted.mjs "$ITERATION_BASE_SHA"
+          ITERATION_BASE_REF: ${{ github.base_ref }}
+          ITERATION_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ ! "$ITERATION_BASE_REF" =~ ^iteration/IT-[0-9]+$ && ! "$ITERATION_HEAD_REF" =~ ^iteration/IT-[0-9]+$ ]]; then
+            echo "::error::Iteration branch must use iteration/IT-<number>"
+            exit 1
+          fi
+          git show "${ITERATION_BASE_SHA}:scripts/iteration-targeted.mjs" > "$RUNNER_TEMP/iteration-targeted.mjs"
+          node "$RUNNER_TEMP/iteration-targeted.mjs" "$ITERATION_BASE_SHA"
       - name: Exhaustive tests
         if: github.event_name != 'pull_request' || (!startsWith(github.base_ref, 'iteration/') && !startsWith(github.head_ref, 'iteration/'))
         run: npm run test
