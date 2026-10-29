@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.522
+// Vendored validation engine bundled from @revt-eng/schema@0.1.523
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -183,6 +183,15 @@ var CATALOG = {
     message: "This payload names a placement that does not exist.",
     specRef: "config-validation.md \xA75.9 (BL-0180, D-31)"
   },
+  // payload surface → template (BUG-1345): a template id that is neither
+  // built-in (incl. legacy aliases) nor authored in `surface_templates` has no
+  // rendering type, so every SDK skips that payload at load.
+  "VAL-PLC-11": {
+    id: "VAL-PLC-11",
+    severity: "error_launch",
+    message: "This payload uses a surface template that does not exist.",
+    specRef: "config-validation.md \xA75.2 (BUG-1345)"
+  },
   "VAL-PLN-08": {
     id: "VAL-PLN-08",
     severity: "error_launch",
@@ -279,6 +288,291 @@ function categoryBucket(category) {
   return 99;
 }
 
+// scaffold/src/core/common.ts
+import { z as z3 } from "zod";
+
+// scaffold/src/core/classification.ts
+import { z as z2 } from "zod";
+
+// scaffold/src/core/handle-pattern.ts
+var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
+
+// scaffold/src/core/classification.ts
+var SchemaPersistence = {
+  Persisted: "persisted",
+  Transient: "transient"
+};
+var SchemaExposure = {
+  Internal: "internal",
+  External: "external"
+};
+var DataClassification = {
+  Pii: { "x-revturbine-data-classification": "pii" },
+  Financial: { "x-revturbine-data-classification": "financial" },
+  Unrestricted: { "x-revturbine-data-classification": "unrestricted" },
+  /**
+   * Machine-generated evaluation exhaust — supersession records, entitlement
+   * grants, placement decision traces. Carries no personal or financial data
+   * itself, but describes what the engine decided about a user, so it is not
+   * `Unrestricted` either. Applied at the MODEL level (plan 182 REQ-7); it was
+   * already in use as a raw string literal on four schemas before being
+   * declared here, which left `DataClassificationValue` unable to represent it.
+   */
+  Operational: { "x-revturbine-data-classification": "operational" }
+};
+var SCHEMA_EXPOSURE_META_KEY = "x-revturbine-schema-exposure";
+var READ_ONLY_META_KEY = "readOnly";
+var DECISION_ONLY_META_KEY = "x-revturbine-decision-only";
+var DecisionOnly = { [DECISION_ONLY_META_KEY]: true };
+var ClientSafe = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.External };
+var ServerOnly = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.Internal };
+function toWritableSchema(schema) {
+  const writableShape = {};
+  for (const [fieldName, fieldSchema] of Object.entries(schema.shape)) {
+    if (typeof fieldSchema !== "object" || fieldSchema === null) {
+      continue;
+    }
+    const isReadOnly = fieldSchema.meta()?.[READ_ONLY_META_KEY] === true;
+    if (!isReadOnly) {
+      writableShape[fieldName] = fieldSchema;
+    }
+  }
+  return z2.object(writableShape);
+}
+function toCreateSchema(schema) {
+  const writable = toWritableSchema(schema);
+  const handleField = writable.shape["handle"];
+  if (handleField && typeof handleField.regex === "function") {
+    return writable.extend({ handle: handleField.regex(HANDLE_PATTERN) });
+  }
+  return writable;
+}
+
+// scaffold/src/core/common.ts
+var { Unrestricted } = DataClassification;
+var { Transient, Persisted } = SchemaPersistence;
+var { Internal, External } = SchemaExposure;
+var PaginationParamsSchema = z3.object({
+  page: z3.coerce.number().int().min(1).default(1).meta(Unrestricted),
+  per_page: z3.coerce.number().int().min(1).max(100).default(25).meta(Unrestricted)
+}).meta(
+  {
+    id: "PaginationParams",
+    "x-revturbine-schema-persistence": Transient,
+    "x-revturbine-schema-exposure": External
+  }
+);
+var TimestampFields = z3.object({
+  created_at: z3.string().datetime().meta({ ...Unrestricted, readOnly: true }),
+  updated_at: z3.string().datetime().meta({ ...Unrestricted, readOnly: true })
+}).meta(
+  {
+    id: "null",
+    "x-revturbine-schema-persistence": Transient,
+    "x-revturbine-schema-exposure": External
+  }
+);
+var IdField = z3.object({
+  id: z3.string().min(1).meta({ ...Unrestricted, readOnly: true })
+}).meta(
+  {
+    id: "null",
+    "x-revturbine-schema-persistence": Transient,
+    "x-revturbine-schema-exposure": External
+  }
+);
+var TenantIdField = z3.object({
+  tenant_id: z3.string().min(1, "tenant_id is required").meta({ ...Unrestricted, readOnly: true })
+}).meta(
+  {
+    id: "null",
+    "x-revturbine-schema-persistence": Transient,
+    "x-revturbine-schema-exposure": Internal
+  }
+);
+var BillingCadenceSchema = z3.enum([
+  "monthly",
+  "annual",
+  "quarterly",
+  "one_time",
+  "usage_based"
+]).meta(
+  {
+    id: "BillingCadence",
+    "x-revturbine-schema-persistence": Transient,
+    "x-revturbine-schema-exposure": External
+  }
+);
+var COMPONENT_TYPE_VALUES = [
+  "banner",
+  "modal",
+  "tooltip",
+  "sidebar",
+  "inline",
+  "toast",
+  "fullscreen",
+  "email",
+  "sms",
+  "push",
+  "in_page",
+  "button",
+  "full_page",
+  "agent",
+  "cli",
+  "custom"
+];
+var ComponentTypeSchema = z3.enum(COMPONENT_TYPE_VALUES).meta({ id: "ComponentType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var DEFAULT_TEMPLATE_IDS = [
+  "button",
+  "plans_page_ctas",
+  "plans_page_full",
+  "inline_gate_message",
+  "tooltip",
+  "in_page_card",
+  "usage_counter",
+  "credit_counter",
+  "trial_counter",
+  "banner",
+  "modal_optional",
+  "modal_blocking",
+  "toast",
+  "email",
+  "sms",
+  "push",
+  "cli",
+  "agent_connector",
+  "custom_in_app"
+];
+var DefaultTemplateIdsSchema = z3.enum(DEFAULT_TEMPLATE_IDS).meta({ id: "DefaultTemplateIds", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
+var DEFAULT_TEMPLATE_COMPONENT_TYPES = {
+  button: "button",
+  plans_page_ctas: "in_page",
+  plans_page_full: "full_page",
+  inline_gate_message: "inline",
+  tooltip: "tooltip",
+  in_page_card: "in_page",
+  usage_counter: "in_page",
+  credit_counter: "in_page",
+  trial_counter: "in_page",
+  banner: "banner",
+  modal_optional: "modal",
+  modal_blocking: "modal",
+  toast: "toast",
+  email: "email",
+  sms: "sms",
+  push: "push",
+  cli: "cli",
+  agent_connector: "agent",
+  custom_in_app: "custom"
+};
+var LEGACY_TEMPLATE_ALIASES = Object.freeze({
+  plans_pricing_ctas: "plans_page_ctas",
+  plans_pricing_full: "plans_page_full",
+  credit_balance_counter: "credit_counter",
+  banner_placement: "banner",
+  modal_overlay: "modal_optional",
+  toast_message: "toast",
+  push_notification: "push"
+});
+var BUILT_IN_TEMPLATE_COMPONENT_TYPES = Object.freeze({
+  ...DEFAULT_TEMPLATE_COMPONENT_TYPES,
+  ...Object.fromEntries(
+    Object.entries(LEGACY_TEMPLATE_ALIASES).map(([legacy, id]) => [legacy, DEFAULT_TEMPLATE_COMPONENT_TYPES[id]])
+  ),
+  full_page: "full_page"
+});
+var ENTITLEMENT_STATUS_VALUES = ["allowed", "limited", "denied"];
+var PresentationOutcomeSchema = z3.enum(["presented", "clicked", "converted", "dismissed", "reminded", "suppressed"]).meta(
+  { id: "PresentationOutcome", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External }
+);
+var EntitlementTypeSchema = z3.enum([
+  "feature",
+  "capability_tier",
+  "usage_limit",
+  "price_per_unit",
+  "rate_limit",
+  "credits",
+  "seat"
+]).meta(
+  {
+    id: "EntitlementType",
+    "x-revturbine-schema-persistence": Transient,
+    "x-revturbine-schema-exposure": External
+  }
+);
+var CurrencySchema = z3.string().regex(/^[a-z]{3}$/, "Currency must be a lowercase ISO 4217 code").default("usd").meta(
+  {
+    id: "Currency",
+    "x-revturbine-schema-persistence": Transient,
+    "x-revturbine-schema-exposure": External
+  }
+);
+var FeatureFlagValueSchema = z3.union([
+  z3.boolean(),
+  z3.number(),
+  z3.string()
+]).meta(
+  {
+    id: "FeatureFlagValue",
+    "x-revturbine-schema-persistence": Transient,
+    "x-revturbine-schema-exposure": Internal
+  }
+);
+var NameField = z3.string().min(1).max(200);
+var HandleField = z3.string().min(1).max(100);
+var DescriptionField = z3.string().max(500).optional();
+var MetadataField = z3.record(z3.string(), z3.unknown()).default({});
+var ThresholdPercentField = z3.number().int().min(10).max(100).multipleOf(10);
+var NullableDatetimeField = z3.string().datetime().nullable().default(null);
+var AnchorFields = z3.object({
+  environment_id: z3.string().min(1).default("production").meta({ ...Unrestricted, readOnly: true })
+}).meta({ id: "null", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
+var VersionFields = z3.object({
+  // Which playbook version (the review/deploy unit — was `change_set_id`) staged
+  // this ledger row; null once it is the deployed live row.
+  playbook_version_id: z3.string().nullable().default(null).meta(Unrestricted),
+  is_current: z3.boolean().default(true).meta({ ...Unrestricted, readOnly: true }),
+  is_deleted: z3.boolean().default(false).meta({ ...Unrestricted, readOnly: true }),
+  delete_date: z3.string().datetime().nullable().default(null).meta({ ...Unrestricted, readOnly: true }),
+  // Monotonic version number within a lineage (v1, v2, v3 …); `base_sequence` is
+  // the live sequence this version was forked from (null for the first version),
+  // so a stale draft is detected when live has moved past it.
+  sequence: z3.number().int().min(1).default(1).meta({ ...Unrestricted, readOnly: true }),
+  base_sequence: z3.number().int().nullable().default(null).meta({ ...Unrestricted, readOnly: true })
+}).meta({ id: "null", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
+var AnchorBaseSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).extend({
+  handle: HandleField.meta({ ...Unrestricted, readOnly: true }),
+  active: z3.boolean().default(true).meta({ ...Unrestricted, readOnly: true })
+});
+function makeAnchor(id) {
+  return AnchorBaseSchema.meta({
+    id,
+    "x-revturbine-schema-persistence": Persisted,
+    "x-revturbine-schema-exposure": Internal
+  });
+}
+var SeveritySchema2 = z3.enum(["info", "warning", "critical"]).meta({ id: "Severity", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
+var CtaActionTypeSchema = z3.enum([
+  "open_checkout",
+  "view_plans",
+  "book_demo",
+  "contact_sales",
+  "complete_onboarding",
+  "invite_teammate",
+  "refer_friend",
+  "verify_work_email",
+  "update_payment_method",
+  "enable_auto_renewal",
+  "manage_subscription",
+  "switch_billing_period",
+  "extend_trial",
+  "open_rt_placement",
+  "dismiss",
+  "snooze",
+  "custom"
+]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var ObjectiveField = HandleField.optional();
+
 // scaffold/src/entitlements/controllers/purchased-allowance.ts
 function hasCreditResetPeriod(fields) {
   return fields.reset_period !== void 0 && fields.reset_period !== null;
@@ -302,9 +596,6 @@ function assertCompatibleAllowances(a, b, aBillingPeriod, bBillingPeriod) {
     throw new Error(`Incompatible purchased allowances: ${a.ruleId} and ${b.ruleId} require matching periods and scopes`);
   }
 }
-
-// scaffold/src/core/handle-pattern.ts
-var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
 
 // scaffold/src/segments/controllers/builtin-dimensions.ts
 var BUILTIN_SEGMENT_HANDLE_PREFIX = "rt.";
@@ -600,6 +891,7 @@ var SEMANTIC_RULE_CODES = [
   "VAL-PLC-08",
   "VAL-PLC-09",
   "VAL-PLC-10",
+  "VAL-PLC-11",
   "VAL-PLN-08",
   "VAL-TRL-04",
   "VAL-TRL-05",
@@ -623,6 +915,7 @@ function runSemanticRules(graph, opts = {}) {
     ...checkLimitRuleEnforcement(graph),
     ...checkPublicVariationCollisions(graph),
     ...checkPayloadCtaOverflow(graph),
+    ...checkPayloadTemplateRefs(graph),
     ...checkPlacementAuthoring(graph),
     ...checkTrialRuleWidestAudience(graph),
     ...checkSegmentExperimentRefs(graph),
@@ -1086,6 +1379,42 @@ function checkPayloadCtaOverflow(graph) {
   }
   return findings;
 }
+function checkPayloadTemplateRefs(graph) {
+  const known = new Set(Object.keys(BUILT_IN_TEMPLATE_COMPONENT_TYPES));
+  for (const template of graph.surface_templates ?? []) {
+    if (typeof template.id !== "string" || !template.id) return [];
+    known.add(template.id);
+  }
+  const findings = [];
+  const check = (payloadId, surfaces, path) => {
+    if (!Array.isArray(surfaces)) return;
+    surfaces.forEach((surface, index) => {
+      if (!isRecord(surface) || typeof surface.template_id !== "string") return;
+      if (known.has(surface.template_id)) return;
+      findings.push(finding("VAL-PLC-11", {
+        object_type: "placement_payload",
+        object_id: payloadId,
+        field: "template_id",
+        path: [...path, "surfaces", index, "template_id"],
+        studio: "placements"
+      }, {
+        message: `Payload '${payloadId}' uses surface template '${surface.template_id}', which is neither built in nor defined in surface_templates. SDKs skip this payload.`,
+        detail: "Use a built-in template id, or add a surface_templates entry with this id and a surface_type."
+      }));
+    });
+  };
+  (graph.placements ?? []).forEach((placement, placementIndex) => {
+    const payloads = Array.isArray(placement.payloads) ? placement.payloads : [];
+    payloads.forEach((payload, payloadIndex) => {
+      if (!isRecord(payload)) return;
+      check(String(payload.id ?? placement.id ?? ""), payload.surfaces, ["placements", placementIndex, "payloads", payloadIndex]);
+    });
+  });
+  (graph.placement_payloads ?? []).forEach((payload, index) => {
+    check(String(payload.payload_id ?? payload.id ?? ""), payload.surfaces, ["placement_payloads", index]);
+  });
+  return findings;
+}
 function checkTrialRuleWidestAudience(graph) {
   const findings = [];
   for (const rule of graph.free_trial_rules ?? []) {
@@ -1500,276 +1829,6 @@ function evaluate(graph, opts = {}) {
 
 // scaffold/src/config/models/schema.ts
 import { z as z9 } from "zod";
-
-// scaffold/src/core/common.ts
-import { z as z3 } from "zod";
-
-// scaffold/src/core/classification.ts
-import { z as z2 } from "zod";
-var SchemaPersistence = {
-  Persisted: "persisted",
-  Transient: "transient"
-};
-var SchemaExposure = {
-  Internal: "internal",
-  External: "external"
-};
-var DataClassification = {
-  Pii: { "x-revturbine-data-classification": "pii" },
-  Financial: { "x-revturbine-data-classification": "financial" },
-  Unrestricted: { "x-revturbine-data-classification": "unrestricted" },
-  /**
-   * Machine-generated evaluation exhaust — supersession records, entitlement
-   * grants, placement decision traces. Carries no personal or financial data
-   * itself, but describes what the engine decided about a user, so it is not
-   * `Unrestricted` either. Applied at the MODEL level (plan 182 REQ-7); it was
-   * already in use as a raw string literal on four schemas before being
-   * declared here, which left `DataClassificationValue` unable to represent it.
-   */
-  Operational: { "x-revturbine-data-classification": "operational" }
-};
-var SCHEMA_EXPOSURE_META_KEY = "x-revturbine-schema-exposure";
-var READ_ONLY_META_KEY = "readOnly";
-var DECISION_ONLY_META_KEY = "x-revturbine-decision-only";
-var DecisionOnly = { [DECISION_ONLY_META_KEY]: true };
-var ClientSafe = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.External };
-var ServerOnly = { [SCHEMA_EXPOSURE_META_KEY]: SchemaExposure.Internal };
-function toWritableSchema(schema) {
-  const writableShape = {};
-  for (const [fieldName, fieldSchema] of Object.entries(schema.shape)) {
-    if (typeof fieldSchema !== "object" || fieldSchema === null) {
-      continue;
-    }
-    const isReadOnly = fieldSchema.meta()?.[READ_ONLY_META_KEY] === true;
-    if (!isReadOnly) {
-      writableShape[fieldName] = fieldSchema;
-    }
-  }
-  return z2.object(writableShape);
-}
-function toCreateSchema(schema) {
-  const writable = toWritableSchema(schema);
-  const handleField = writable.shape["handle"];
-  if (handleField && typeof handleField.regex === "function") {
-    return writable.extend({ handle: handleField.regex(HANDLE_PATTERN) });
-  }
-  return writable;
-}
-
-// scaffold/src/core/common.ts
-var { Unrestricted } = DataClassification;
-var { Transient, Persisted } = SchemaPersistence;
-var { Internal, External } = SchemaExposure;
-var PaginationParamsSchema = z3.object({
-  page: z3.coerce.number().int().min(1).default(1).meta(Unrestricted),
-  per_page: z3.coerce.number().int().min(1).max(100).default(25).meta(Unrestricted)
-}).meta(
-  {
-    id: "PaginationParams",
-    "x-revturbine-schema-persistence": Transient,
-    "x-revturbine-schema-exposure": External
-  }
-);
-var TimestampFields = z3.object({
-  created_at: z3.string().datetime().meta({ ...Unrestricted, readOnly: true }),
-  updated_at: z3.string().datetime().meta({ ...Unrestricted, readOnly: true })
-}).meta(
-  {
-    id: "null",
-    "x-revturbine-schema-persistence": Transient,
-    "x-revturbine-schema-exposure": External
-  }
-);
-var IdField = z3.object({
-  id: z3.string().min(1).meta({ ...Unrestricted, readOnly: true })
-}).meta(
-  {
-    id: "null",
-    "x-revturbine-schema-persistence": Transient,
-    "x-revturbine-schema-exposure": External
-  }
-);
-var TenantIdField = z3.object({
-  tenant_id: z3.string().min(1, "tenant_id is required").meta({ ...Unrestricted, readOnly: true })
-}).meta(
-  {
-    id: "null",
-    "x-revturbine-schema-persistence": Transient,
-    "x-revturbine-schema-exposure": Internal
-  }
-);
-var BillingCadenceSchema = z3.enum([
-  "monthly",
-  "annual",
-  "quarterly",
-  "one_time",
-  "usage_based"
-]).meta(
-  {
-    id: "BillingCadence",
-    "x-revturbine-schema-persistence": Transient,
-    "x-revturbine-schema-exposure": External
-  }
-);
-var COMPONENT_TYPE_VALUES = [
-  "banner",
-  "modal",
-  "tooltip",
-  "sidebar",
-  "inline",
-  "toast",
-  "fullscreen",
-  "email",
-  "sms",
-  "push",
-  "in_page",
-  "button",
-  "full_page",
-  "agent",
-  "cli",
-  "custom"
-];
-var ComponentTypeSchema = z3.enum(COMPONENT_TYPE_VALUES).meta({ id: "ComponentType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
-var DEFAULT_TEMPLATE_IDS = [
-  "button",
-  "plans_page_ctas",
-  "plans_page_full",
-  "inline_gate_message",
-  "tooltip",
-  "in_page_card",
-  "usage_counter",
-  "credit_counter",
-  "trial_counter",
-  "banner",
-  "modal_optional",
-  "modal_blocking",
-  "toast",
-  "email",
-  "sms",
-  "push",
-  "cli",
-  "agent_connector",
-  "custom_in_app"
-];
-var DefaultTemplateIdsSchema = z3.enum(DEFAULT_TEMPLATE_IDS).meta({ id: "DefaultTemplateIds", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
-var DEFAULT_TEMPLATE_COMPONENT_TYPES = {
-  button: "button",
-  plans_page_ctas: "in_page",
-  plans_page_full: "full_page",
-  inline_gate_message: "inline",
-  tooltip: "tooltip",
-  in_page_card: "in_page",
-  usage_counter: "in_page",
-  credit_counter: "in_page",
-  trial_counter: "in_page",
-  banner: "banner",
-  modal_optional: "modal",
-  modal_blocking: "modal",
-  toast: "toast",
-  email: "email",
-  sms: "sms",
-  push: "push",
-  cli: "cli",
-  agent_connector: "agent",
-  custom_in_app: "custom"
-};
-var BUILT_IN_TEMPLATE_COMPONENT_TYPES = Object.freeze({
-  ...DEFAULT_TEMPLATE_COMPONENT_TYPES,
-  modal_overlay: "modal",
-  banner_placement: "banner",
-  full_page: "full_page"
-});
-var ENTITLEMENT_STATUS_VALUES = ["allowed", "limited", "denied"];
-var PresentationOutcomeSchema = z3.enum(["presented", "clicked", "converted", "dismissed", "reminded", "suppressed"]).meta(
-  { id: "PresentationOutcome", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External }
-);
-var EntitlementTypeSchema = z3.enum([
-  "feature",
-  "capability_tier",
-  "usage_limit",
-  "price_per_unit",
-  "rate_limit",
-  "credits",
-  "seat"
-]).meta(
-  {
-    id: "EntitlementType",
-    "x-revturbine-schema-persistence": Transient,
-    "x-revturbine-schema-exposure": External
-  }
-);
-var CurrencySchema = z3.string().regex(/^[a-z]{3}$/, "Currency must be a lowercase ISO 4217 code").default("usd").meta(
-  {
-    id: "Currency",
-    "x-revturbine-schema-persistence": Transient,
-    "x-revturbine-schema-exposure": External
-  }
-);
-var FeatureFlagValueSchema = z3.union([
-  z3.boolean(),
-  z3.number(),
-  z3.string()
-]).meta(
-  {
-    id: "FeatureFlagValue",
-    "x-revturbine-schema-persistence": Transient,
-    "x-revturbine-schema-exposure": Internal
-  }
-);
-var NameField = z3.string().min(1).max(200);
-var HandleField = z3.string().min(1).max(100);
-var DescriptionField = z3.string().max(500).optional();
-var MetadataField = z3.record(z3.string(), z3.unknown()).default({});
-var ThresholdPercentField = z3.number().int().min(10).max(100).multipleOf(10);
-var NullableDatetimeField = z3.string().datetime().nullable().default(null);
-var AnchorFields = z3.object({
-  environment_id: z3.string().min(1).default("production").meta({ ...Unrestricted, readOnly: true })
-}).meta({ id: "null", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
-var VersionFields = z3.object({
-  // Which playbook version (the review/deploy unit — was `change_set_id`) staged
-  // this ledger row; null once it is the deployed live row.
-  playbook_version_id: z3.string().nullable().default(null).meta(Unrestricted),
-  is_current: z3.boolean().default(true).meta({ ...Unrestricted, readOnly: true }),
-  is_deleted: z3.boolean().default(false).meta({ ...Unrestricted, readOnly: true }),
-  delete_date: z3.string().datetime().nullable().default(null).meta({ ...Unrestricted, readOnly: true }),
-  // Monotonic version number within a lineage (v1, v2, v3 …); `base_sequence` is
-  // the live sequence this version was forked from (null for the first version),
-  // so a stale draft is detected when live has moved past it.
-  sequence: z3.number().int().min(1).default(1).meta({ ...Unrestricted, readOnly: true }),
-  base_sequence: z3.number().int().nullable().default(null).meta({ ...Unrestricted, readOnly: true })
-}).meta({ id: "null", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
-var AnchorBaseSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).extend({
-  handle: HandleField.meta({ ...Unrestricted, readOnly: true }),
-  active: z3.boolean().default(true).meta({ ...Unrestricted, readOnly: true })
-});
-function makeAnchor(id) {
-  return AnchorBaseSchema.meta({
-    id,
-    "x-revturbine-schema-persistence": Persisted,
-    "x-revturbine-schema-exposure": Internal
-  });
-}
-var SeveritySchema2 = z3.enum(["info", "warning", "critical"]).meta({ id: "Severity", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": Internal });
-var CtaActionTypeSchema = z3.enum([
-  "open_checkout",
-  "view_plans",
-  "book_demo",
-  "contact_sales",
-  "complete_onboarding",
-  "invite_teammate",
-  "refer_friend",
-  "verify_work_email",
-  "update_payment_method",
-  "enable_auto_renewal",
-  "manage_subscription",
-  "switch_billing_period",
-  "extend_trial",
-  "open_rt_placement",
-  "dismiss",
-  "snooze",
-  "custom"
-]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
-var ObjectiveField = HandleField.optional();
 
 // scaffold/src/core/identity.ts
 import { z as z4 } from "zod";
