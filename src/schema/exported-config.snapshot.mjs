@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.522
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.523
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -335,10 +335,20 @@ var DEFAULT_TEMPLATE_COMPONENT_TYPES = {
   agent_connector: "agent",
   custom_in_app: "custom"
 };
+var LEGACY_TEMPLATE_ALIASES = Object.freeze({
+  plans_pricing_ctas: "plans_page_ctas",
+  plans_pricing_full: "plans_page_full",
+  credit_balance_counter: "credit_counter",
+  banner_placement: "banner",
+  modal_overlay: "modal_optional",
+  toast_message: "toast",
+  push_notification: "push"
+});
 var BUILT_IN_TEMPLATE_COMPONENT_TYPES = Object.freeze({
   ...DEFAULT_TEMPLATE_COMPONENT_TYPES,
-  modal_overlay: "modal",
-  banner_placement: "banner",
+  ...Object.fromEntries(
+    Object.entries(LEGACY_TEMPLATE_ALIASES).map(([legacy, id11]) => [legacy, DEFAULT_TEMPLATE_COMPONENT_TYPES[id11]])
+  ),
   full_page: "full_page"
 });
 function resolveComponentType(value) {
