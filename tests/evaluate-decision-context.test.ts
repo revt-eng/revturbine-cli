@@ -116,12 +116,11 @@ describe('evaluate decision context (BL-0123)', () => {
 
     expect(decisionOf(result).visible).toBe(true);
     expect(result.payloadIds.pl_trial_ending).toBe('pl_trial_ending_p0');
-    // The number the gate used is reported, because the shipped resolver
-    // interpolates usage tokens into decision content but not trial ones —
-    // `{{trial_days_remaining}}` survives verbatim. Reported upstream; the CLI
-    // does not interpolate on the engine's behalf.
+    // The number the gate used is reported, and since SDK 0.12 the shipped
+    // resolver interpolates trial tokens as well as usage ones (parity scenario
+    // `trial_tokens_in_content`). The CLI still does no interpolation itself.
     expect(result.trialStatus).toMatchObject({ in_trial: true, days_remaining: 3 });
-    expect(decisionOf(result).content?.body).toBe('Only {{trial_days_remaining}} days left.');
+    expect(decisionOf(result).content?.body).toBe('Only 3 days left.');
   });
 
   it('(b2) leaves it hidden with no trial context at all', async () => {
