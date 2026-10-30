@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.526
+// Vendored validation engine bundled from @revt-eng/schema@0.1.527
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -760,6 +760,59 @@ var LEGACY_BY_ID = new Map(
   )
 );
 
+// scaffold/src/segments/controllers/segment-mode.ts
+var SEGMENT_MODES = ["basic", "advanced"];
+var BUILTIN_TRAIT_PREFIX = "rt_";
+var BUILTIN_DIMENSION_PREFIX = "rt.";
+function isBasicSegmentOperator(operator) {
+  return operator === "eq" || operator === "in";
+}
+function isSegmentMode(value) {
+  return value === "basic" || value === "advanced";
+}
+function dimensionKeyForField(field) {
+  return field.startsWith(BUILTIN_TRAIT_PREFIX) && field.length > BUILTIN_TRAIT_PREFIX.length ? BUILTIN_DIMENSION_PREFIX + field.slice(BUILTIN_TRAIT_PREFIX.length) : field;
+}
+function predicatesOf(segment) {
+  const raw = segment.predicates;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((p) => typeof p === "object" && p !== null);
+}
+function inferSegmentMode(segment) {
+  return predicatesOf(segment).every((p) => isBasicSegmentOperator(p.operator)) ? "basic" : "advanced";
+}
+function classifySegment(segment) {
+  const predicates = predicatesOf(segment);
+  const fields = [];
+  for (const p of predicates) {
+    if (typeof p.field === "string" && !fields.includes(p.field)) fields.push(p.field);
+  }
+  const explicit = isSegmentMode(segment.mode) ? segment.mode : void 0;
+  const mode = explicit ?? inferSegmentMode(segment);
+  const declaredDimensionId = typeof segment.dimension_id === "string" && segment.dimension_id.length > 0 ? segment.dimension_id : void 0;
+  const dimensionDerived = mode === "basic" && fields.length === 1;
+  const dimensionKey = dimensionDerived ? dimensionKeyForField(fields[0]) : declaredDimensionId;
+  return {
+    mode,
+    modeInferred: explicit === void 0,
+    dimensionKey,
+    dimensionDerived,
+    fields,
+    declaredDimensionId,
+    dimensionMismatch: dimensionDerived && declaredDimensionId !== void 0 && declaredDimensionId !== dimensionKey
+  };
+}
+function basicModeViolations(segment) {
+  if (segment.mode !== "basic") return [];
+  const raw = Array.isArray(segment.predicates) ? segment.predicates : [];
+  const out = [];
+  raw.forEach((p, index) => {
+    const operator = typeof p === "object" && p !== null ? p.operator : void 0;
+    if (!isBasicSegmentOperator(operator)) out.push({ index, operator: String(operator) });
+  });
+  return out;
+}
+
 // scaffold/src/entitlements/controllers/purchased-configuration.ts
 function identity(row) {
   return String(row.unique_handle ?? row.handle ?? row.id ?? "");
@@ -853,7 +906,7 @@ function segmentsCanCoapply(a, b, graph) {
     const uncertain = /* @__PURE__ */ new Set();
     for (const handle of handles) {
       const segment = (graph.segments ?? []).find((s) => matchesIdentity(s, handle));
-      const dimension2 = typeof segment?.dimension_id === "string" ? segment.dimension_id : "";
+      const dimension2 = (segment ? classifySegment(segment).dimensionKey : void 0) ?? "";
       const builtin = BUILTIN_DIMENSIONS.find((d) => d.dimensionId === dimension2);
       const predicates = Array.isArray(segment?.predicates) ? segment.predicates : [];
       const predicate = predicates.length === 1 && isRecord(predicates[0]) ? predicates[0] : void 0;
@@ -1618,8 +1671,7 @@ function checkRuleOverlaps(graph) {
   const segmentDimensions = /* @__PURE__ */ new Map();
   for (const seg of graph.segments ?? []) {
     const segId = String(seg.handle ?? seg.id ?? "");
-    const dim = typeof seg.dimension_id === "string" ? seg.dimension_id : "";
-    if (segId) segmentDimensions.set(segId, dim);
+    if (segId) segmentDimensions.set(segId, classifySegment(seg).dimensionKey);
   }
   const sigs = [];
   for (const rule of rules) {
@@ -3419,6 +3471,9 @@ var PlacementSettingsSchema = IdField.merge(TimestampFields).merge(TenantIdField
   { id: "PlacementSettings", "x-revturbine-schema-persistence": Persisted5, "x-revturbine-schema-exposure": Internal4, ...PENDING_PLAYBOOK_SDK_FACETS2, ...mintedIdentity() }
 );
 var PlacementSettingsAnchorSchema = makeAnchor("PlacementSettingsAnchor");
+var SegmentModeSchema = z9.enum(SEGMENT_MODES).meta(
+  { id: "SegmentMode", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4 }
+);
 var RevTurbineConfigSegmentsItemPredicatesItemSchema = z9.object({
   field: z9.string().min(1).meta(Unrestricted5),
   operator: z9.enum(["eq", "neq", "gt", "lt", "gte", "lte", "contains", "in"]).meta(Unrestricted5),
@@ -3439,9 +3494,26 @@ var RevTurbineConfigSegmentsItemSchema = z9.object({
   // apply intra-dimension OR + cross-dimension AND per spec §2.5; when
   // missing across all of a rule's segment_ids, the evaluator falls
   // back to flat-OR (legacy single-segment behaviour).
+  // ST-1391: for a single-field basic segment the evaluator derives the
+  // dimension from the predicate field and this stored id is ignored (the
+  // payload producer rewrites it to the derived key); it is read only for
+  // multi-field or advanced segments.
   dimension_id: z9.string().optional().meta(Unrestricted5),
   // Experiment enrollment carries the canonical, version-stable handle.
-  experiment_handle: z9.string().min(1).optional().meta(Unrestricted5)
+  experiment_handle: z9.string().min(1).optional().meta(Unrestricted5),
+  // ST-1391: `basic` (eq/in only; same-field predicates OR, fields AND; the
+  // dimension is the single predicate field) or `advanced` (flat AND).
+  // Optional for now — absent infers from the operators (see
+  // `classifySegment`); a follow-up makes it required.
+  mode: SegmentModeSchema.optional().meta(Unrestricted5)
+}).superRefine((segment, ctx) => {
+  for (const violation of basicModeViolations(segment)) {
+    ctx.addIssue({
+      code: "custom",
+      message: `A basic segment may only use the eq and in operators; predicate ${violation.index} uses "${violation.operator}". Set mode to "advanced" or change the operator.`,
+      path: ["predicates", violation.index, "operator"]
+    });
+  }
 }).meta(
   { id: "RevTurbineConfigSegmentsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
