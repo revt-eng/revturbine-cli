@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.526
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.527
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -3388,6 +3388,121 @@ var LEGACY_BY_ID = new Map(
   )
 );
 
+// scaffold/src/segments/controllers/segment-mode.ts
+var SEGMENT_MODES = ["basic", "advanced"];
+var BASIC_SEGMENT_OPERATORS = ["eq", "in"];
+var BUILTIN_TRAIT_PREFIX = "rt_";
+var BUILTIN_DIMENSION_PREFIX = "rt.";
+function isBasicSegmentOperator(operator) {
+  return operator === "eq" || operator === "in";
+}
+function isSegmentMode(value) {
+  return value === "basic" || value === "advanced";
+}
+function dimensionKeyForField(field2) {
+  return field2.startsWith(BUILTIN_TRAIT_PREFIX) && field2.length > BUILTIN_TRAIT_PREFIX.length ? BUILTIN_DIMENSION_PREFIX + field2.slice(BUILTIN_TRAIT_PREFIX.length) : field2;
+}
+function predicatesOf(segment) {
+  const raw = segment.predicates;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((p) => typeof p === "object" && p !== null);
+}
+function inferSegmentMode(segment) {
+  return predicatesOf(segment).every((p) => isBasicSegmentOperator(p.operator)) ? "basic" : "advanced";
+}
+function classifySegment(segment) {
+  const predicates = predicatesOf(segment);
+  const fields = [];
+  for (const p of predicates) {
+    if (typeof p.field === "string" && !fields.includes(p.field)) fields.push(p.field);
+  }
+  const explicit = isSegmentMode(segment.mode) ? segment.mode : void 0;
+  const mode = explicit ?? inferSegmentMode(segment);
+  const declaredDimensionId = typeof segment.dimension_id === "string" && segment.dimension_id.length > 0 ? segment.dimension_id : void 0;
+  const dimensionDerived = mode === "basic" && fields.length === 1;
+  const dimensionKey = dimensionDerived ? dimensionKeyForField(fields[0]) : declaredDimensionId;
+  return {
+    mode,
+    modeInferred: explicit === void 0,
+    dimensionKey,
+    dimensionDerived,
+    fields,
+    declaredDimensionId,
+    dimensionMismatch: dimensionDerived && declaredDimensionId !== void 0 && declaredDimensionId !== dimensionKey
+  };
+}
+function segmentDimensionKeys(segments) {
+  const out = {};
+  for (const segment of segments) {
+    if (typeof segment.handle !== "string") continue;
+    const key3 = classifySegment(segment).dimensionKey;
+    if (key3 !== void 0) out[segment.handle] = key3;
+  }
+  return out;
+}
+function basicModeViolations(segment) {
+  if (segment.mode !== "basic") return [];
+  const raw = Array.isArray(segment.predicates) ? segment.predicates : [];
+  const out = [];
+  raw.forEach((p, index) => {
+    const operator = typeof p === "object" && p !== null ? p.operator : void 0;
+    if (!isBasicSegmentOperator(operator)) out.push({ index, operator: String(operator) });
+  });
+  return out;
+}
+function canonicalizeSegmentPredicates(segment) {
+  if (classifySegment(segment).mode !== "basic") return { ok: true, segment };
+  const predicates = Array.isArray(segment.predicates) ? segment.predicates : [];
+  const countByField = /* @__PURE__ */ new Map();
+  for (const p of predicates) {
+    const field2 = typeof p === "object" && p !== null ? p.field : void 0;
+    if (typeof field2 === "string") countByField.set(field2, (countByField.get(field2) ?? 0) + 1);
+  }
+  if (![...countByField.values()].some((n) => n > 1)) return { ok: true, segment };
+  const valuesByField = /* @__PURE__ */ new Map();
+  for (const p of predicates) {
+    const { field: field2, operator, value } = p;
+    if (typeof field2 !== "string" || (countByField.get(field2) ?? 0) < 2) continue;
+    if (typeof value !== "string") {
+      return { ok: false, reason: `predicate on field "${field2}" has a non-string value` };
+    }
+    const values = valuesByField.get(field2) ?? [];
+    if (operator === "in") {
+      for (const item of value.split(",").map((s) => s.trim())) {
+        if (!values.includes(item)) values.push(item);
+      }
+    } else {
+      if (value.includes(",")) {
+        return {
+          ok: false,
+          reason: `basic segment repeats field "${field2}" and its value "${value}" contains a comma, so the predicates cannot be merged into one "in" list`
+        };
+      }
+      if (value !== value.trim()) {
+        return {
+          ok: false,
+          reason: `basic segment repeats field "${field2}" and its value "${value}" has surrounding whitespace, which an "in" list would trim`
+        };
+      }
+      if (!values.includes(value)) values.push(value);
+    }
+    valuesByField.set(field2, values);
+  }
+  const emitted = /* @__PURE__ */ new Set();
+  const merged = [];
+  for (const p of predicates) {
+    const field2 = p.field;
+    if (typeof field2 !== "string" || (countByField.get(field2) ?? 0) < 2) {
+      merged.push(p);
+      continue;
+    }
+    if (emitted.has(field2)) continue;
+    emitted.add(field2);
+    merged.push({ field: field2, operator: "in", value: (valuesByField.get(field2) ?? []).join(",") });
+  }
+  return { ok: true, segment: { ...segment, predicates: merged } };
+}
+
 // scaffold/src/entitlements/controllers/purchased-configuration.ts
 function identity(row) {
   return String(row.unique_handle ?? row.handle ?? row.id ?? "");
@@ -3481,7 +3596,7 @@ function segmentsCanCoapply(a, b, graph) {
     const uncertain = /* @__PURE__ */ new Set();
     for (const handle2 of handles) {
       const segment = (graph.segments ?? []).find((s) => matchesIdentity(s, handle2));
-      const dimension2 = typeof segment?.dimension_id === "string" ? segment.dimension_id : "";
+      const dimension2 = (segment ? classifySegment(segment).dimensionKey : void 0) ?? "";
       const builtin = BUILTIN_DIMENSIONS.find((d) => d.dimensionId === dimension2);
       const predicates = Array.isArray(segment?.predicates) ? segment.predicates : [];
       const predicate = predicates.length === 1 && isRecord(predicates[0]) ? predicates[0] : void 0;
@@ -4128,6 +4243,9 @@ var PlacementSettingsSchema = IdField.merge(TimestampFields).merge(TenantIdField
   { id: "PlacementSettings", "x-revturbine-schema-persistence": Persisted9, "x-revturbine-schema-exposure": Internal9, ...PENDING_PLAYBOOK_SDK_FACETS2, ...mintedIdentity() }
 );
 var PlacementSettingsAnchorSchema = makeAnchor("PlacementSettingsAnchor");
+var SegmentModeSchema = z15.enum(SEGMENT_MODES).meta(
+  { id: "SegmentMode", "x-revturbine-schema-persistence": Transient9, "x-revturbine-schema-exposure": External6 }
+);
 var RevTurbineConfigSegmentsItemPredicatesItemSchema = z15.object({
   field: z15.string().min(1).meta(Unrestricted12),
   operator: z15.enum(["eq", "neq", "gt", "lt", "gte", "lte", "contains", "in"]).meta(Unrestricted12),
@@ -4148,9 +4266,26 @@ var RevTurbineConfigSegmentsItemSchema = z15.object({
   // apply intra-dimension OR + cross-dimension AND per spec §2.5; when
   // missing across all of a rule's segment_ids, the evaluator falls
   // back to flat-OR (legacy single-segment behaviour).
+  // ST-1391: for a single-field basic segment the evaluator derives the
+  // dimension from the predicate field and this stored id is ignored (the
+  // payload producer rewrites it to the derived key); it is read only for
+  // multi-field or advanced segments.
   dimension_id: z15.string().optional().meta(Unrestricted12),
   // Experiment enrollment carries the canonical, version-stable handle.
-  experiment_handle: z15.string().min(1).optional().meta(Unrestricted12)
+  experiment_handle: z15.string().min(1).optional().meta(Unrestricted12),
+  // ST-1391: `basic` (eq/in only; same-field predicates OR, fields AND; the
+  // dimension is the single predicate field) or `advanced` (flat AND).
+  // Optional for now — absent infers from the operators (see
+  // `classifySegment`); a follow-up makes it required.
+  mode: SegmentModeSchema.optional().meta(Unrestricted12)
+}).superRefine((segment, ctx) => {
+  for (const violation of basicModeViolations(segment)) {
+    ctx.addIssue({
+      code: "custom",
+      message: `A basic segment may only use the eq and in operators; predicate ${violation.index} uses "${violation.operator}". Set mode to "advanced" or change the operator.`,
+      path: ["predicates", violation.index, "operator"]
+    });
+  }
 }).meta(
   { id: "RevTurbineConfigSegmentsItem", "x-revturbine-schema-persistence": Transient9, "x-revturbine-schema-exposure": External6, ...PLAYBOOK_SDK_FACETS5 }
 );
@@ -23886,6 +24021,7 @@ export {
   B2B_SEMANTIC_MAP_VERSION,
   B2B_SOURCE_MAPPINGS,
   B2B_TRIAL_OUTCOMES,
+  BASIC_SEGMENT_OPERATORS,
   BILLING_ACCOUNTING_CONTRACT_VERSION,
   BILLING_ACCOUNT_BINDING_AUTO_KINDS,
   BILLING_ACCOUNT_BINDING_CONFIDENCE,
@@ -24389,6 +24525,7 @@ export {
   SEGMENT_MAX_BATCH_BYTES,
   SEGMENT_MAX_MESSAGE_BYTES,
   SEGMENT_MAX_MESSAGE_ID_LENGTH,
+  SEGMENT_MODES,
   SEMANTIC_ID_PATTERN,
   SIMULATION_RESET_PREDICATE,
   SIMULATION_RESET_PREDICATE_DIGEST,
@@ -24437,6 +24574,7 @@ export {
   SegmentIdentifyInputSchema,
   SegmentIngestBatchSchema,
   SegmentLibraryContextSchema,
+  SegmentModeSchema,
   SegmentPageContextSchema,
   SegmentPageInputSchema,
   SegmentSchema,
@@ -24580,6 +24718,7 @@ export {
   assertExperimentDecisionPolicyUpdateAllowed,
   attributionTargetKey,
   automaticBindingMaySupersede,
+  basicModeViolations,
   billingAccountBindingConfidenceOf,
   billingAccountingRevisionOf,
   billingCoverageAccountKey,
@@ -24606,10 +24745,12 @@ export {
   buildB2BMappingReport,
   canActivateBillingGeneration,
   canonicalB2BEventName,
+  canonicalizeSegmentPredicates,
   catalogMetricImpact,
   changelogPaths,
   classifyAccountCreation,
   classifyInvoiceTransition,
+  classifySegment,
   classifySubscriptionStatus,
   classifyTaxonomyEvent,
   classifyTrackIngestBody,
@@ -24637,6 +24778,7 @@ export {
   deriveBillingRevisionKey,
   deriveBillingScheduleComponentKey,
   describeUnavailable,
+  dimensionKeyForField,
   entitlementPaths,
   environmentPaths,
   eventPaths,
@@ -24654,11 +24796,14 @@ export {
   getSchemaFacets,
   getSchemaIdentity,
   getSchemaPersistence,
+  inferSegmentMode,
   isAnalyticsDateRangeFilterValue,
   isAutomaticBillingAccountBindingKind,
+  isBasicSegmentOperator,
   isEvidencedAccountCreation,
   isLegacyDateRangeArray,
   isRetryableEvidenceReason,
+  isSegmentMode,
   isValidClerkPlanVariation,
   isVersionedConfigEntity,
   jsonPlainViolation,
@@ -24695,6 +24840,7 @@ export {
   schemaFacets,
   scopesSubsetOfRole,
   searchAgentCatalog,
+  segmentDimensionKeys,
   segmentPaths,
   settingsPaths,
   simulationControlEvidenceDigest,
