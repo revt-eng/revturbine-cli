@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.530
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.532
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -23221,6 +23221,14 @@ var SIMULATION_RUNNER_LIMITS = Object.freeze({
 });
 var simulationRunnerResources = [
   "events_clickstream",
+  "placement_presentations",
+  "placement_exposure_attribution",
+  "experiment_assignments",
+  "gate_event_fields",
+  "user_account_map"
+];
+var SIMULATION_RESET_PRE_BILLING_RESOURCES = [
+  "events_clickstream",
   "events_billing",
   "placement_presentations",
   "placement_exposure_attribution",
@@ -23230,10 +23238,11 @@ var simulationRunnerResources = [
   "gate_event_fields",
   "user_account_map"
 ];
-var SIMULATION_RESET_LEGACY_RESOURCES = [...simulationRunnerResources, "subscription_stock_weekly"];
+var SIMULATION_RESET_LEGACY_RESOURCES = [...SIMULATION_RESET_PRE_BILLING_RESOURCES, "subscription_stock_weekly"];
 var SIMULATION_RESET_PREDICATE = "tenant_id = 'tenant_simulation'";
 var SIMULATION_RESET_PREDICATE_DIGEST = sha256Hex(SIMULATION_RESET_PREDICATE);
 var SIMULATION_RESET_RESOURCE_SET_DIGEST = sha256Hex(canonicalizeJson([...simulationRunnerResources].sort()));
+var SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST = sha256Hex(canonicalizeJson([...SIMULATION_RESET_PRE_BILLING_RESOURCES].sort()));
 var SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST = sha256Hex(canonicalizeJson([...SIMULATION_RESET_LEGACY_RESOURCES].sort()));
 var key2 = z69.string().min(1).max(128).regex(/^[A-Za-z0-9_.:-]+$/);
 var digest2 = z69.string().regex(/^[a-f0-9]{64}$/);
@@ -23247,10 +23256,10 @@ var resetResource = z69.enum(SIMULATION_RESET_LEGACY_RESOURCES);
 var RESOURCE_COUNT = simulationRunnerResources.length;
 var RECEIPT_RESOURCE_COUNT = SIMULATION_RESET_LEGACY_RESOURCES.length;
 var exactReceiptResources = (rows) => {
-  const expected = rows.length === RESOURCE_COUNT ? simulationRunnerResources : SIMULATION_RESET_LEGACY_RESOURCES;
   const names = new Set(rows.map((row) => row.resource));
-  return names.size === rows.length && names.size === expected.length && expected.every((name) => names.has(name));
+  return names.size === rows.length && [simulationRunnerResources, SIMULATION_RESET_PRE_BILLING_RESOURCES, SIMULATION_RESET_LEGACY_RESOURCES].some((expected) => names.size === expected.length && expected.every((name) => names.has(name)));
 };
+var resetResources = (setDigest) => setDigest === SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST ? SIMULATION_RESET_LEGACY_RESOURCES : setDigest === SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST ? SIMULATION_RESET_PRE_BILLING_RESOURCES : simulationRunnerResources;
 var metadata5 = (id11) => ({
   id: id11,
   ...ServerOnly,
@@ -23293,7 +23302,7 @@ var SimulationExecutionFingerprintSchema = z69.strictObject({
 var resetIdentity = z69.strictObject({
   entry_id: key2,
   predicate_digest: z69.literal(SIMULATION_RESET_PREDICATE_DIGEST),
-  resource_set_digest: z69.enum([SIMULATION_RESET_RESOURCE_SET_DIGEST, SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST])
+  resource_set_digest: z69.enum([SIMULATION_RESET_RESOURCE_SET_DIGEST, SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST, SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST])
 });
 var error = z69.strictObject({
   code: z69.enum([
@@ -23396,7 +23405,7 @@ var SimulationTerminalZeroReceiptSchema = z69.strictObject({
   terminal_at: timestamp,
   resources: z69.array(zeroResource).min(RESOURCE_COUNT).max(SIMULATION_RESET_LEGACY_RESOURCES.length)
 }).superRefine((v, ctx) => {
-  const expected = v.resource_set_digest === SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST ? SIMULATION_RESET_LEGACY_RESOURCES : simulationRunnerResources;
+  const expected = resetResources(v.resource_set_digest);
   const covered = new Set(v.resources.map((x) => x.resource));
   if (covered.size !== v.resources.length || covered.size !== expected.length || expected.some((name) => !covered.has(name))) issue2(ctx, "terminal zero must cover exact resource set");
   if (v.resources.some((x) => x.zero_read_at > v.terminal_at)) issue2(ctx, "terminal receipt must follow all zero readbacks");
@@ -23880,8 +23889,9 @@ var SimulationRunReceiptSchema = z69.strictObject({
     if (v.admitted_footprint.observed_at < v.reset_zero.terminal_at || v.admitted_footprint.probe_runs.some((p) => p.observed_interval.start < v.reset_zero.terminal_at || p.observed_interval.end > v.admitted_footprint.observed_at || p.source_commit !== v.fingerprint.app_commit)) issue2(ctx, "probe footprint must follow authentic reset zero at deployed source");
   }
   if (v.reset_zero && v.reset_zero.terminal_at > v.started_at) issue2(ctx, "execution must follow terminal reset zero");
-  if (v.requested_reset.resource_set_digest !== SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST && (v.resources.some((r) => r.resource === "subscription_stock_weekly") || v.admitted_footprint?.resources.some((r) => r.resource === "subscription_stock_weekly"))) {
-    issue2(ctx, "legacy resource evidence requires the legacy reset identity");
+  const expectedResources = new Set(resetResources(v.requested_reset.resource_set_digest));
+  if (v.resources.some((r) => !expectedResources.has(r.resource)) || v.admitted_footprint?.resources.some((r) => !expectedResources.has(r.resource))) {
+    issue2(ctx, "resource evidence requires its exact reset identity");
   }
   if (v.status === "complete" && (v.phase !== "qualification" || !v.completed_at || v.errors.length || !v.reset_zero || !v.admitted_footprint || !v.setup_receipt || !plannedCount || v.slices.length !== plannedCount || v.slices.some((s) => s.status !== "complete") || !exactReceiptResources(v.resources) || v.admitted_footprint.resources.length !== v.resources.length || v.resources.some((r) => r.status === "unresolved") || !v.replay || !["complete", "unchanged"].includes(v.replay.status) || !v.replay.generation_id || v.replay.output_count === null || v.replay.output_digest === null || (v.replay.policy === "mrr-v1-subscription-state" ? !v.replay.manifest_last_verified : !v.replay.active_series_verified || v.replay.complete_through === null || v.replay.complete_through < v.replay.required_complete_through) || !v.replay.oracle_matched || !v.replay.served_matched || v.replay.source_inventory_digest !== v.prepared_inventory_digest)) {
     issue2(ctx, "complete requires all children, authentic reset/probe evidence, full resource reconciliation and verified replay");
@@ -24575,6 +24585,8 @@ export {
   SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST,
   SIMULATION_RESET_PREDICATE,
   SIMULATION_RESET_PREDICATE_DIGEST,
+  SIMULATION_RESET_PRE_BILLING_RESOURCES,
+  SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST,
   SIMULATION_RESET_RESOURCE_SET_DIGEST,
   SIMULATION_RUNNER_LIMITS,
   STRIPE_DISCOVERY_EXTERNAL_CONTRACT_EVIDENCE,
