@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.529
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.530
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -12264,18 +12264,18 @@ var accountStatusLabelMetric = {
 };
 
 // scaffold/src/analytics/catalog/entries/concepts/revenue/stock.ts
-var PLAN_CUT_CARRIER = "Served for revenue.mrr by analytics_mrr_stock_by_plan (summarizeMrrStockByPlan).";
+var PLAN_CUT_CARRIER = "Served for revenue.mrr by the Neon mrr_daily plan cut.";
 var PLAN_CUT = {
   served_metrics: ["revenue.mrr"],
-  unserved_blocker: "ST-430: only revenue.mrr has a plan-cut carrier (analytics_mrr_stock_by_plan). analytics_mrr_movements_v1, analytics_mrr_nrr_v1 and the stock-derived metrics accept only tenant, time and currency."
+  unserved_blocker: "ST-430: only revenue.mrr has a plan-cut carrier in mrr_daily. The other stock-derived metrics do not declare this cut."
 };
 var revenueStockConcept = {
   id: "revenue.stock",
   version: 1,
-  label: "Recurring stock (MRR V1)",
-  description: "One contributing subscription item at an ISO-Monday week end in a complete replay generation. Stock and stock-derived weekly movements/endpoint NRR retain mrr-v1-subscription-state, rounded half-up once per item. The account movement cut separately declares its Neon daily carrier; exact accounting remains a separate migration.",
-  do_not_use_for: "Invoice-paid flow, daily stock, atomic movements, exact-policy financial projections, unconverted cross-currency totals or per-environment cuts. The declared Neon account and reporting-currency cuts do not enable legacy Tinybird cuts.",
-  grain: ["tenant", "generation", "week_end", "subscription", "item"],
+  label: "Recurring stock (MRR)",
+  description: "One contributing subscription item at the close of a tenant-local day in the active Neon policy/calendar series. Read only complete days; period stock is the last daily close, while movements sum stored daily classifications and NRR follows the fixed opening cohort. Exact accounting remains a separate design.",
+  do_not_use_for: "Invoice-paid flow, atomic movements, exact-policy financial projections, unconverted cross-currency totals or per-environment cuts. Stock is not additive across dates.",
+  grain: ["tenant", "policy_version", "calendar_version", "as_of", "account", "subscription", "item"],
   analytical_units: ["account"],
   primary_time_dimension: "time.occurred_at",
   historical_mode: "as_of_event",
@@ -12298,10 +12298,10 @@ var revenueStockConcept = {
     "commercial.variation": { kind: "stamped", source: "column:variation_handle", anchor: "fact_time", note: `Null for unbound prices. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
     "commercial.billing_period": { kind: "derived", source: "derived:mrrBillingPeriodOf(billing_interval, interval_count)", anchor: "fact_time", note: `monthly (month x 1), annual (year x 1), else custom: both columns decide, the interval name alone is insufficient. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
     "commercial.item_kind": { kind: "stamped", source: "column:item_kind", anchor: "fact_time", note: `plan, addon or unbound: Add-ons and Unmapped price are buckets of their own, so the buckets sum to the stock. ${PLAN_CUT_CARRIER}`, ...PLAN_CUT },
-    // ST-525: the churn cause of an opening-cohort churn, decided once per account churn week (classifyChurnCause).
-    "revenue.churn_cause": { kind: "derived", source: "derived:classifyChurnCause(events_billing subscription_canceled, payment_failed, payment_succeeded by subscription_id)", anchor: "fact_time", note: "Served by analytics_mrr_opening_cohort (split=churn_cause): customer_cancelled, payment_failure, unknown; the cause rows sum to the unsplit row.", served_metrics: ["revenue.churned_share", "accounts.churned_share"], unserved_blocker: "ST-525: only the opening-cohort churn shares have a cause carrier (analytics_mrr_opening_cohort). revenue.churned_mrr and the other movement and stock metrics on this fact carry no cause." },
-    // ST-565: the reason label of each movement component row (mrr-movement-classification-v1), stored on mrr_movements_weekly.
-    "revenue.movement_reason": { kind: "stamped", source: "column:reason", anchor: "fact_time", note: "Served by analytics_mrr_movement_reasons (mrr_movements_weekly.reason, summarizeMovementReasons) for the five movement ids and revenue.neutral_event_count (ST-572): within a kind the reasons sum to that bucket; new, reactivation and churn rows carry their crossing as their single reason. Only under mrr-movement-classification-v1; the amount policy serves no reason rows.", served_metrics: ["revenue.new_mrr", "revenue.expansion_mrr", "revenue.reactivation_mrr", "revenue.contraction_mrr", "revenue.churned_mrr", "revenue.neutral_event_count"], unserved_blocker: "ST-565: only the five movement amounts and the neutral event count (ST-572) have a reason carrier (analytics_mrr_movement_reasons). revenue.net_new_mrr, accounts.churned, the stock, the rates and the shares are not summed by reason." },
+    // ST-525: the churn cause of an opening-cohort churn, decided once per account churn day (classifyChurnCause).
+    "revenue.churn_cause": { kind: "derived", source: "derived:classifyChurnCause(events_billing subscription_canceled, payment_failed, payment_succeeded by subscription_id)", anchor: "fact_time", note: "Served by mrr_daily (split=churn_cause): customer_cancelled, payment_failure, unknown; the cause rows sum to the unsplit row.", served_metrics: ["revenue.churned_share", "accounts.churned_share"], unserved_blocker: "ST-525: only the opening-cohort churn shares have a cause carrier (mrr_daily). revenue.churned_mrr and the other movement and stock metrics on this fact carry no cause." },
+    // ST-565: the reason label of each movement component row (mrr-movement-classification-v2), stored on mrr_movements_daily.
+    "revenue.movement_reason": { kind: "stamped", source: "column:reason", anchor: "fact_time", note: "Served by mrr_daily (mrr_movements_daily.reason, summarizeMovementReasons) for the five movement ids and revenue.neutral_event_count (ST-572): within a kind the reasons sum to that bucket; new, reactivation and churn rows carry their crossing as their single reason. Only under mrr-movement-classification-v2; the amount policy serves no reason rows.", served_metrics: ["revenue.new_mrr", "revenue.expansion_mrr", "revenue.reactivation_mrr", "revenue.contraction_mrr", "revenue.churned_mrr", "revenue.neutral_event_count"], unserved_blocker: "ST-565: only the five movement amounts and the neutral event count (ST-572) have a reason carrier (mrr_daily). revenue.net_new_mrr, accounts.churned, the stock, the rates and the shares are not summed by reason." },
     // BL-0442 TASK-1: declared shared contract; TASK-4 must prove Neon execution.
     "commercial.reporting_currency": {
       kind: "derived",
@@ -12350,44 +12350,43 @@ var revenueStockConcept = {
   source_scope: "total",
   fact_kind: "periodic_snapshot",
   family: "billing",
-  primary_key: ["tenant_id", "generation", "row_kind", "week_end", "subscription_id", "item_id"],
+  primary_key: ["tenant_id", "policy_version", "calendar_version", "as_of", "account_key", "subscription_id", "item_id"],
   producer: "platform",
   materialization: { mode: "raw" },
   livemode_qualified: false,
   record_contract: {
-    record_id: ["tenant_id", "generation", "row_kind", "week_end", "subscription_id", "item_id"],
-    source_namespace: "stripe_subscription_replay",
-    occurred_time_field: "week_end",
-    received_time_field: "ingested_at",
+    record_id: ["tenant_id", "policy_version", "calendar_version", "as_of", "account_key", "subscription_id", "item_id"],
+    source_namespace: "mrr_daily",
+    occurred_time_field: "as_of",
     dedup: "deduplicated_on_record_id",
     revision: "re_emit_higher_version",
     late_arrival: "accepted",
-    correlation_keys: ["subscription_id", "item_id", "customer_id"],
-    policy_version_fields: ["policy_version"],
-    note: "ReplacingMergeTree versions rows by ingested_at. Complete generations publish a manifest last; readers exclude manifest rows and select the latest complete generation. observed_at records source observation. No livemode column; environment_id is a production placeholder, not financial scope."
+    correlation_keys: ["subscription_id", "item_id", "account_key"],
+    policy_version_fields: ["policy_version", "calendar_version"],
+    note: "Neon rows carry mirror_version and deleted_at. Readers select the active policy/calendar in mrr_tenant_state, exclude deleted rows and require as_of within coverage_from and complete_through. No independent received timestamp, livemode or billing-environment column is stored on this fact."
   },
   keys: [
     { key: "tenant", path: "column:tenant_id", resolution: "source" },
     { key: "subscription", path: "column:subscription_id", resolution: "source" },
     { key: "item", path: "column:item_id", resolution: "source" },
-    { key: "payer", path: "column:customer_id", resolution: "source" },
-    { key: "account", path: "column:account_id", resolution: "enriched", note: "An unlinked payer is a provisional account (ST-935): a customer_accounts row flagged provisional, keyed by its DEC-778 metadata user_id, else its provider customer id; account_resolved=0 on its revenue rows. It counts in the opening-cohort measures (cohort shares, churned accounts, NRR) until linked. Other account denominators still exclude unresolved keys." },
-    { key: "environment", path: "-", resolution: "absent", note: "The stored production placeholder is not authoritative billing environment identity." }
+    { key: "payer", path: "-", resolution: "absent", note: "The worker resolves payer bindings before persisting account_key; no separate payer column is stored." },
+    { key: "account", path: "column:account_key", resolution: "enriched", note: "An unresolved payer is an explicit provisional payer key with account_resolved=false. opening_cohort_member determines cohort eligibility; unresolved eligible payers remain in opening-cohort shares and NRR (ST-935)." },
+    { key: "environment", path: "-", resolution: "absent", note: "No authoritative billing environment identity is stored on this fact." }
   ],
   measures: [
-    { name: "mrr_stock_cents", source: "column:mrr_cents", unit: "currency_minor", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Published item-rounded V1 minor units. Sum disjoint contributing items at one week end in one currency and generation, never dates. Movements are net consecutive-week stock differences; NRR follows the fixed opening cohort." },
-    { name: "mrr_stock_reporting_cents", source: "derived:convertMrrStockSnapshotToReportingCurrency", unit: "currency_minor", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Declared Neon result beside native stock (BL-0442): REPORTING_CURRENCY_V1_POLICY converts each contributing item at its stock fact date, rounded once per row, then sums converted items. Native partitions remain selectable. TASK-4 must verify the executor; no converted column is added to subscription_stock_weekly or another Tinybird revenue replica." }
+    { name: "mrr_stock_cents", source: "column:mrr_minor_units", unit: "currency_minor", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Sum disjoint contributing items at one complete local-day close in one currency and active policy/calendar series, never dates. Movements sum separately stored daily classifications; NRR follows the fixed opening cohort." },
+    { name: "mrr_stock_reporting_cents", source: "derived:convertMrrStockSnapshotToReportingCurrency", unit: "currency_minor", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Declared Neon result beside native stock (BL-0442): REPORTING_CURRENCY_V1_POLICY converts each contributing item at its stock fact date, rounded once per row, then sums converted items. Native partitions remain selectable. TASK-4 must verify the executor; no Tinybird revenue replica carries converted stock." }
   ],
   event_attributes: [
-    { name: "generation", path: "column:generation" },
-    { name: "row_kind", path: "column:row_kind" },
+    { name: "as_of", path: "column:as_of" },
+    { name: "mirror_version", path: "column:mirror_version" },
     { name: "account_resolved", path: "column:account_resolved" },
     { name: "policy_version", path: "column:policy_version" },
-    { name: "series_start", path: "column:series_start" },
-    { name: "series_end", path: "column:series_end" }
+    { name: "calendar_version", path: "column:calendar_version" },
+    { name: "deleted_at", path: "column:deleted_at" }
   ],
-  sources: [{ kind: "datasource", ref: "subscription_stock_weekly" }, { kind: "datasource", ref: "subscription_stock_seed" }, { kind: "datasource", ref: "events_billing" }],
-  build: { kind: "worker", ref: "mrr-v1-replay", inputs: ["events_billing", "subscription_stock_seed"] },
+  sources: [{ kind: "datasource", ref: "billing_observations" }, { kind: "datasource", ref: "billing_mirror_payer" }, { kind: "datasource", ref: "plan_variation_versions" }, { kind: "datasource", ref: "addon_variation_versions" }, { kind: "datasource", ref: "events_billing" }],
+  build: { kind: "worker", ref: "mrr-daily-run", inputs: ["billing_observations", "billing_mirror_payer", "plan_variation_versions", "addon_variation_versions"] },
   oracle_family: { family: "recurring" },
   policy_dependencies: [
     { kind: "mrr", stamped: true },
@@ -12438,8 +12437,8 @@ var revenueMovementDestinationDimension = {
 };
 
 // scaffold/src/analytics/catalog/entries/exact-recurring.ts
-var EXACT_RECURRING_BLOCKER = "Unavailable until RM-0264 TASK-34/35/36/39/53/54/56 publish complete financial generations, deploy the source Views, and verify lossless registered bindings.";
-function exactRecurringMetric(id11, label, economic_basis, population, carrier, column, aggregation, numerator, denominator) {
+var EXACT_RECURRING_BLOCKER = "exact-family Tinybird carriers retired (ST-1398 Q-4); a Neon design is a new plan";
+function exactRecurringMetric(id11, label, economic_basis, population, column, aggregation, numerator, denominator) {
   const ratio = numerator !== void 0;
   const categories = {
     new_mrr_exact: "new",
@@ -12465,7 +12464,7 @@ function exactRecurringMetric(id11, label, economic_basis, population, carrier, 
     accounting: { economic_basis, population },
     ...ratio ? { numerator_metric: numerator, denominator_metric: denominator } : {},
     derivation: {
-      carried_by: [carrier],
+      carried_by: [],
       input_origin: "none",
       ingested_events: [],
       note: `Exact source projection column ${column}.${predicate} No SQL amount aggregation, rounding or inference from invoices. ${EXACT_RECURRING_BLOCKER}`
@@ -12475,79 +12474,79 @@ function exactRecurringMetric(id11, label, economic_basis, population, carrier, 
 }
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/mrr_exact.ts
-var revenueMrrExactMetric = exactRecurringMetric("revenue.mrr_exact", "Exact actual MRR", "actual_recurring_stock", "source_contracts", "analytics_recurring_periods", "closing_mrr_minor", "semi_additive");
+var revenueMrrExactMetric = exactRecurringMetric("revenue.mrr_exact", "Exact actual MRR", "actual_recurring_stock", "source_contracts", "closing_mrr_minor", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/arr_exact.ts
-var revenueArrExactMetric = exactRecurringMetric("revenue.arr_exact", "Exact actual ARR", "actual_recurring_stock", "source_contracts", "analytics_recurring_periods", "closing_arr_minor", "semi_additive");
+var revenueArrExactMetric = exactRecurringMetric("revenue.arr_exact", "Exact actual ARR", "actual_recurring_stock", "source_contracts", "closing_arr_minor", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/matched_mrr_exact.ts
-var revenueMatchedMrrExactMetric = exactRecurringMetric("revenue.matched_mrr_exact", "Exact matched MRR", "actual_recurring_stock", "matched_accounts", "analytics_recurring_periods", "closing_matched_mrr_minor", "semi_additive");
+var revenueMatchedMrrExactMetric = exactRecurringMetric("revenue.matched_mrr_exact", "Exact matched MRR", "actual_recurring_stock", "matched_accounts", "closing_matched_mrr_minor", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/paid_accounts_exact.ts
-var revenuePaidAccountsExactMetric = exactRecurringMetric("revenue.paid_accounts_exact", "Exact paid accounts", "actual_recurring_stock", "matched_accounts", "analytics_recurring_periods", "closing_paid_accounts", "semi_additive");
+var revenuePaidAccountsExactMetric = exactRecurringMetric("revenue.paid_accounts_exact", "Exact paid accounts", "actual_recurring_stock", "matched_accounts", "closing_paid_accounts", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/arpa_exact.ts
-var revenueArpaExactMetric = exactRecurringMetric("revenue.arpa_exact", "Exact ARPA", "actual_recurring_stock", "matched_accounts", "analytics_recurring_periods", "closing_arpa_minor", "non_additive", "revenue.matched_mrr_exact", "revenue.paid_accounts_exact");
+var revenueArpaExactMetric = exactRecurringMetric("revenue.arpa_exact", "Exact ARPA", "actual_recurring_stock", "matched_accounts", "closing_arpa_minor", "non_additive", "revenue.matched_mrr_exact", "revenue.paid_accounts_exact");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/net_new_mrr_exact.ts
-var revenueNetNewMrrExactMetric = exactRecurringMetric("revenue.net_new_mrr_exact", "Exact organic MRR change", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "organic_delta_minor", "additive");
+var revenueNetNewMrrExactMetric = exactRecurringMetric("revenue.net_new_mrr_exact", "Exact organic MRR change", "selected_recurring_movement", "source_contracts", "organic_delta_minor", "additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/new_mrr_exact.ts
-var revenueNewMrrExactMetric = exactRecurringMetric("revenue.new_mrr_exact", "Exact new MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "amount_minor", "additive");
+var revenueNewMrrExactMetric = exactRecurringMetric("revenue.new_mrr_exact", "Exact new MRR", "selected_recurring_movement", "source_contracts", "amount_minor", "additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/expansion_mrr_exact.ts
-var revenueExpansionMrrExactMetric = exactRecurringMetric("revenue.expansion_mrr_exact", "Exact expansion MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "amount_minor", "additive");
+var revenueExpansionMrrExactMetric = exactRecurringMetric("revenue.expansion_mrr_exact", "Exact expansion MRR", "selected_recurring_movement", "source_contracts", "amount_minor", "additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/contraction_mrr_exact.ts
-var revenueContractionMrrExactMetric = exactRecurringMetric("revenue.contraction_mrr_exact", "Exact contraction MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "amount_minor", "additive");
+var revenueContractionMrrExactMetric = exactRecurringMetric("revenue.contraction_mrr_exact", "Exact contraction MRR", "selected_recurring_movement", "source_contracts", "amount_minor", "additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/churned_mrr_exact.ts
-var revenueChurnedMrrExactMetric = exactRecurringMetric("revenue.churned_mrr_exact", "Exact churned MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "amount_minor", "additive");
+var revenueChurnedMrrExactMetric = exactRecurringMetric("revenue.churned_mrr_exact", "Exact churned MRR", "selected_recurring_movement", "source_contracts", "amount_minor", "additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/reactivation_mrr_exact.ts
-var revenueReactivationMrrExactMetric = exactRecurringMetric("revenue.reactivation_mrr_exact", "Exact reactivation MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "amount_minor", "additive");
+var revenueReactivationMrrExactMetric = exactRecurringMetric("revenue.reactivation_mrr_exact", "Exact reactivation MRR", "selected_recurring_movement", "source_contracts", "amount_minor", "additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/neutral_mrr_exact.ts
-var revenueNeutralMrrExactMetric = exactRecurringMetric("revenue.neutral_mrr_exact", "Exact neutral MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "amount_minor", "additive");
+var revenueNeutralMrrExactMetric = exactRecurringMetric("revenue.neutral_mrr_exact", "Exact neutral MRR", "selected_recurring_movement", "source_contracts", "amount_minor", "additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/neutral_event_count.ts
-var revenueNeutralEventCountMetric = { id: "revenue.neutral_event_count", label: "Labelled events with no MRR change", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "row_count of analytics_mrr_movement_reasons where kind = neutral (mrr-movement-classification-v1): per week, currency and reason, the component rows recording a labelled event with no MRR change (a same-price plan switch, a same-MRR monthly/annual switch, offsetting components). Servable only cut by revenue.movement_reason. A classified week with no neutral row is a qualified 0; an unserved week is null. Absent under the amount policy. Not revenue.neutral_mrr_exact (an exact-ledger amount) and not a movement amount: moves no bucket. Oracle: summarizeMovementReasons." } };
+var revenueNeutralEventCountMetric = { id: "revenue.neutral_event_count", label: "Labelled events with no MRR change", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "row_count of the Neon mrr_daily reason cut where kind = neutral (mrr-movement-classification-v2): per week, currency and reason, the component rows recording a labelled event with no MRR change (a same-price plan switch, a same-MRR monthly/annual switch, offsetting components). Servable only cut by revenue.movement_reason. A classified week with no neutral row is a qualified 0; an unserved week is null. Absent under the amount policy. Not revenue.neutral_mrr_exact (an exact-ledger amount) and not a movement amount: moves no bucket. Oracle: summarizeMovementReasons." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/transfer_in_mrr_exact.ts
-var revenueTransferInMrrExactMetric = exactRecurringMetric("revenue.transfer_in_mrr_exact", "Exact transfer-in MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "transfer_in_minor", "additive");
+var revenueTransferInMrrExactMetric = exactRecurringMetric("revenue.transfer_in_mrr_exact", "Exact transfer-in MRR", "selected_recurring_movement", "source_contracts", "transfer_in_minor", "additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/transfer_out_mrr_exact.ts
-var revenueTransferOutMrrExactMetric = exactRecurringMetric("revenue.transfer_out_mrr_exact", "Exact transfer-out MRR", "selected_recurring_movement", "source_contracts", "analytics_recurring_movements", "transfer_out_minor", "additive");
+var revenueTransferOutMrrExactMetric = exactRecurringMetric("revenue.transfer_out_mrr_exact", "Exact transfer-out MRR", "selected_recurring_movement", "source_contracts", "transfer_out_minor", "additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/opening_cohort_mrr_exact.ts
-var revenueOpeningCohortMrrExactMetric = exactRecurringMetric("revenue.opening_cohort_mrr_exact", "Included opening-cohort MRR", "fixed_opening_retention", "opening_source_contracts", "analytics_recurring_periods", "opening_cohort_mrr_minor", "semi_additive");
+var revenueOpeningCohortMrrExactMetric = exactRecurringMetric("revenue.opening_cohort_mrr_exact", "Included opening-cohort MRR", "fixed_opening_retention", "opening_source_contracts", "opening_cohort_mrr_minor", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/gross_retained_mrr_exact.ts
-var revenueGrossRetainedMrrExactMetric = exactRecurringMetric("revenue.gross_retained_mrr_exact", "Gross retained opening-cohort MRR", "fixed_opening_retention", "opening_source_contracts", "analytics_recurring_periods", "gross_retained_mrr_minor", "semi_additive");
+var revenueGrossRetainedMrrExactMetric = exactRecurringMetric("revenue.gross_retained_mrr_exact", "Gross retained opening-cohort MRR", "fixed_opening_retention", "opening_source_contracts", "gross_retained_mrr_minor", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/closing_cohort_mrr_exact.ts
-var revenueClosingCohortMrrExactMetric = exactRecurringMetric("revenue.closing_cohort_mrr_exact", "Closing opening-cohort MRR", "fixed_opening_retention", "opening_source_contracts", "analytics_recurring_periods", "closing_cohort_mrr_minor", "semi_additive");
+var revenueClosingCohortMrrExactMetric = exactRecurringMetric("revenue.closing_cohort_mrr_exact", "Closing opening-cohort MRR", "fixed_opening_retention", "opening_source_contracts", "closing_cohort_mrr_minor", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/grr_exact.ts
-var revenueGrrExactMetric = exactRecurringMetric("revenue.grr_exact", "Exact endpoint GRR", "fixed_opening_retention", "opening_source_contracts", "analytics_recurring_periods", "grr", "non_additive", "revenue.gross_retained_mrr_exact", "revenue.opening_cohort_mrr_exact");
+var revenueGrrExactMetric = exactRecurringMetric("revenue.grr_exact", "Exact endpoint GRR", "fixed_opening_retention", "opening_source_contracts", "grr", "non_additive", "revenue.gross_retained_mrr_exact", "revenue.opening_cohort_mrr_exact");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/nrr_exact.ts
-var revenueNrrExactMetric = exactRecurringMetric("revenue.nrr_exact", "Exact endpoint NRR", "fixed_opening_retention", "opening_source_contracts", "analytics_recurring_periods", "nrr", "non_additive", "revenue.closing_cohort_mrr_exact", "revenue.opening_cohort_mrr_exact");
+var revenueNrrExactMetric = exactRecurringMetric("revenue.nrr_exact", "Exact endpoint NRR", "fixed_opening_retention", "opening_source_contracts", "nrr", "non_additive", "revenue.closing_cohort_mrr_exact", "revenue.opening_cohort_mrr_exact");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/opening_cohort_accounts_exact.ts
-var revenueOpeningCohortAccountsExactMetric = exactRecurringMetric("revenue.opening_cohort_accounts_exact", "Included opening matched accounts", "fixed_opening_retention", "opening_matched_accounts", "analytics_recurring_periods", "included_cohort_accounts", "semi_additive");
+var revenueOpeningCohortAccountsExactMetric = exactRecurringMetric("revenue.opening_cohort_accounts_exact", "Included opening matched accounts", "fixed_opening_retention", "opening_matched_accounts", "included_cohort_accounts", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/retained_cohort_accounts_exact.ts
-var revenueRetainedCohortAccountsExactMetric = exactRecurringMetric("revenue.retained_cohort_accounts_exact", "Retained opening matched accounts", "fixed_opening_retention", "opening_matched_accounts", "analytics_recurring_periods", "retained_cohort_accounts", "semi_additive");
+var revenueRetainedCohortAccountsExactMetric = exactRecurringMetric("revenue.retained_cohort_accounts_exact", "Retained opening matched accounts", "fixed_opening_retention", "opening_matched_accounts", "retained_cohort_accounts", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/logo_retention_exact.ts
-var revenueLogoRetentionExactMetric = exactRecurringMetric("revenue.logo_retention_exact", "Exact endpoint logo retention", "fixed_opening_retention", "opening_matched_accounts", "analytics_recurring_periods", "logo_retention", "non_additive", "revenue.retained_cohort_accounts_exact", "revenue.opening_cohort_accounts_exact");
+var revenueLogoRetentionExactMetric = exactRecurringMetric("revenue.logo_retention_exact", "Exact endpoint logo retention", "fixed_opening_retention", "opening_matched_accounts", "logo_retention", "non_additive", "revenue.retained_cohort_accounts_exact", "revenue.opening_cohort_accounts_exact");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/committed_mrr_exact.ts
-var revenueCommittedMrrExactMetric = exactRecurringMetric("revenue.committed_mrr_exact", "Exact committed MRR", "committed_recurring_stock", "source_subscription", "analytics_committed_stock", "committed_mrr_minor", "semi_additive");
+var revenueCommittedMrrExactMetric = exactRecurringMetric("revenue.committed_mrr_exact", "Exact committed MRR", "committed_recurring_stock", "source_subscription", "committed_mrr_minor", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/committed_arr_exact.ts
-var revenueCommittedArrExactMetric = exactRecurringMetric("revenue.committed_arr_exact", "Exact committed ARR", "committed_recurring_stock", "source_subscription", "analytics_committed_stock", "committed_arr_minor", "semi_additive");
+var revenueCommittedArrExactMetric = exactRecurringMetric("revenue.committed_arr_exact", "Exact committed ARR", "committed_recurring_stock", "source_subscription", "committed_arr_minor", "semi_additive");
 
 // scaffold/src/analytics/catalog/entries/concepts/revenue/recurring_stock_exact.ts
 var revenueRecurringStockExactConcept = {
@@ -12566,7 +12565,7 @@ var revenueRecurringStockExactConcept = {
   metrics: ["revenue.mrr_exact", "revenue.arr_exact", "revenue.matched_mrr_exact", "revenue.paid_accounts_exact", "revenue.arpa_exact"],
   query_families: ["table", "timeseries"],
   source_scope: "total",
-  sources: [{ kind: "unavailable", ref: "analytics_recurring_periods", blocker: EXACT_RECURRING_BLOCKER }],
+  sources: [{ kind: "unavailable", ref: "exact recurring stock source; replacement not designed", blocker: EXACT_RECURRING_BLOCKER }],
   oracle_family: { family: "recurring_exact" },
   policy_dependencies: [{ kind: "mrr", stamped: false, blocker: EXACT_RECURRING_BLOCKER }]
 };
@@ -12597,7 +12596,7 @@ var revenueRecurringMovementExactConcept = {
   metrics: ["revenue.net_new_mrr_exact", "revenue.new_mrr_exact", "revenue.expansion_mrr_exact", "revenue.contraction_mrr_exact", "revenue.churned_mrr_exact", "revenue.reactivation_mrr_exact", "revenue.neutral_mrr_exact", "revenue.transfer_in_mrr_exact", "revenue.transfer_out_mrr_exact"],
   query_families: ["table", "timeseries"],
   source_scope: "total",
-  sources: [{ kind: "unavailable", ref: "analytics_recurring_movements", blocker: EXACT_RECURRING_BLOCKER }],
+  sources: [{ kind: "unavailable", ref: "exact recurring movement source; replacement not designed", blocker: EXACT_RECURRING_BLOCKER }],
   oracle_family: { family: "recurring_exact" },
   policy_dependencies: [{ kind: "mrr", stamped: false, blocker: EXACT_RECURRING_BLOCKER }]
 };
@@ -12619,7 +12618,7 @@ var revenueRecurringRetentionExactConcept = {
   metrics: ["revenue.opening_cohort_mrr_exact", "revenue.gross_retained_mrr_exact", "revenue.closing_cohort_mrr_exact", "revenue.grr_exact", "revenue.nrr_exact", "revenue.opening_cohort_accounts_exact", "revenue.retained_cohort_accounts_exact", "revenue.logo_retention_exact"],
   query_families: ["table", "timeseries"],
   source_scope: "total",
-  sources: [{ kind: "unavailable", ref: "analytics_recurring_periods", blocker: EXACT_RECURRING_BLOCKER }],
+  sources: [{ kind: "unavailable", ref: "exact recurring retention source; replacement not designed", blocker: EXACT_RECURRING_BLOCKER }],
   oracle_family: { family: "recurring_exact" },
   policy_dependencies: [{ kind: "mrr", stamped: false, blocker: EXACT_RECURRING_BLOCKER }]
 };
@@ -12641,7 +12640,7 @@ var revenueCommittedStockExactConcept = {
   metrics: ["revenue.committed_mrr_exact", "revenue.committed_arr_exact"],
   query_families: ["table", "timeseries"],
   source_scope: "total",
-  sources: [{ kind: "unavailable", ref: "analytics_committed_stock", blocker: EXACT_RECURRING_BLOCKER }],
+  sources: [{ kind: "unavailable", ref: "exact committed stock source; replacement not designed", blocker: EXACT_RECURRING_BLOCKER }],
   oracle_family: { family: "recurring_exact" },
   policy_dependencies: [{ kind: "mrr", stamped: false, blocker: EXACT_RECURRING_BLOCKER }]
 };
@@ -12661,7 +12660,7 @@ var revenueMovementBasisDimension = {
 };
 
 // scaffold/src/analytics/catalog/entries/metrics/receivable/collectible_exact.ts
-var EXACT_RECEIVABLE_BLOCKER = "Unavailable until RM-0264 TASK-51 produces reconciled invoice history, TASK-36 deploys released source Views, and TASK-39 verifies exact registered bindings.";
+var EXACT_RECEIVABLE_BLOCKER = "exact-family Tinybird carriers retired (ST-1398 Q-4); a Neon design is a new plan";
 var receivableCollectibleExactMetric = {
   id: "receivable.collectible_exact",
   label: "Exact collectible invoice balance",
@@ -12675,7 +12674,7 @@ var receivableCollectibleExactMetric = {
   catalog_status: "unavailable",
   accounting: { economic_basis: "invoice_receivable_stock", population: "source_invoices" },
   derivation: {
-    carried_by: ["analytics_receivable_snapshots"],
+    carried_by: [],
     input_origin: "none",
     ingested_events: [],
     note: "Exact collectible_minor per invoice at an inclusive point and independent observation cutoff. Full-source selection retains unknown currency and unavailable invoices before paging. " + EXACT_RECEIVABLE_BLOCKER
@@ -12715,12 +12714,12 @@ var receivableInvoiceStockExactConcept = {
   metrics: ["receivable.collectible_exact"],
   query_families: ["table"],
   source_scope: "total",
-  sources: [{ kind: "unavailable", ref: "analytics_receivable_snapshots", blocker: EXACT_RECEIVABLE_BLOCKER }],
+  sources: [{ kind: "unavailable", ref: "exact invoice receivable stock source; replacement not designed", blocker: EXACT_RECEIVABLE_BLOCKER }],
   oracle_family: { family: "receivable_exact" }
 };
 
 // scaffold/src/analytics/catalog/entries/metrics/cash/captured_gross.ts
-var CAPTURED_GROSS_BLOCKER = "Unavailable until the BUG-709 capture producer is deployed in web, a published capture generation exists, and the exact registered binding is verified.";
+var CAPTURED_GROSS_BLOCKER = "exact-family Tinybird carriers retired (ST-1398 Q-4); a Neon design is a new plan";
 var cashCapturedGrossMetric = {
   id: "cash.captured_gross",
   label: "Captured payments (gross)",
@@ -12735,7 +12734,7 @@ var cashCapturedGrossMetric = {
   catalog_status: "unavailable",
   accounting: { economic_basis: "gross_captured_payment", population: "source_charge_captures" },
   derivation: {
-    carried_by: ["analytics_captured_payments"],
+    carried_by: [],
     input_origin: "none",
     ingested_events: [],
     note: "One economic Charge capture per trusted source scope, dated by the original capture-transition event under the tenant reporting calendar. Evidenced payments that cannot qualify stay listed as unavailable rows; a partial generation is a labelled verified subtotal. Invoice-paid amounts, MRR and paid conversions keep their own meanings. " + CAPTURED_GROSS_BLOCKER
@@ -12760,7 +12759,7 @@ var cashCapturedPaymentsGrossConcept = {
   metrics: ["cash.captured_gross"],
   query_families: ["table"],
   source_scope: "total",
-  sources: [{ kind: "unavailable", ref: "analytics_captured_payments", blocker: CAPTURED_GROSS_BLOCKER }],
+  sources: [{ kind: "unavailable", ref: "verified gross capture source; replacement not designed", blocker: CAPTURED_GROSS_BLOCKER }],
   oracle_family: { family: "captured_payment_exact" }
 };
 
@@ -13777,31 +13776,31 @@ var lifecycleMovedAccountCountMetric = { id: "lifecycle.moved_account_count", la
 var lifecycleSignupAccountsMetric = { id: "lifecycle.signup_accounts", label: "Signup accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: events_clickstream (account_created, user_signed_up). Plan 282 A.6 accounts.signups: distinct accounts whose first account_created or user_signed_up falls in the interval. A tenant that emits neither reads not ready, never zero (D-57). Not lifecycle.signup_count: plan 276 R-2 refuses a user signup as account creation. ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/lifecycle/free_accounts.ts
-var lifecycleFreeAccountsMetric = { id: "lifecycle.free_accounts", label: "Free accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly, events_clickstream, the open-trial set from trial_episodes. Plan 282 A.6 accounts.free (stock): identified accounts with MRR 0 at the instant, no open trial episode, and no MRR > 0 at any earlier week end. A previously paying account is lifecycle.lapsed_accounts, so the pools partition (A.7 account.pool). ${pendingPipe("account_lifecycle")}` } };
+var lifecycleFreeAccountsMetric = { id: "lifecycle.free_accounts", label: "Free accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398), events_clickstream, the open-trial set from trial_episodes. Plan 282 A.6 accounts.free (stock): identified accounts with MRR 0 at the instant, no open trial episode, and no MRR > 0 at any earlier week end. A previously paying account is lifecycle.lapsed_accounts, so the pools partition (A.7 account.pool). ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/lifecycle/free_active_accounts.ts
 var lifecycleFreeActiveAccountsMetric = { id: "lifecycle.free_active_accounts", label: "Free active accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: as lifecycle.free_accounts, and tenant_configs.activity_window_days. Plan 282 A.6 accounts.free_active: lifecycle.free_accounts with at least one clickstream event in the activity window before the instant. ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/lifecycle/lapsed_accounts.ts
-var lifecycleLapsedAccountsMetric = { id: "lifecycle.lapsed_accounts", label: "Lapsed accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly, the open-trial set from trial_episodes. Plan 282 A.6 accounts.lapsed (stock): accounts with MRR 0 at the instant and MRR > 0 at an earlier week end in retained history, and no open trial episode (A.7 precedence: paying, trialing, then free or lapsed). ${pendingPipe("account_lifecycle")}` } };
+var lifecycleLapsedAccountsMetric = { id: "lifecycle.lapsed_accounts", label: "Lapsed accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398), the open-trial set from trial_episodes. Plan 282 A.6 accounts.lapsed (stock): accounts with MRR 0 at the instant and MRR > 0 at an earlier week end in retained history, and no open trial episode (A.7 precedence: paying, trialing, then free or lapsed). ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/lifecycle/free_to_paid_accounts.ts
-var lifecycleFreeToPaidAccountsMetric = { id: "lifecycle.free_to_paid_accounts", label: "Free to paid accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly, trial_episodes. Plan 282 A.6 accounts.free_to_paid: accounts with MRR 0 at the interval start and > 0 at its end, no MRR > 0 at an earlier week end (a return is lifecycle.reactivated_accounts), and no trial episode ending in the interval (counted by trial.converted_count). ${pendingPipe("account_lifecycle")}` } };
+var lifecycleFreeToPaidAccountsMetric = { id: "lifecycle.free_to_paid_accounts", label: "Free to paid accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398), trial_episodes. Plan 282 A.6 accounts.free_to_paid: accounts with MRR 0 at the interval start and > 0 at its end, no MRR > 0 at an earlier week end (a return is lifecycle.reactivated_accounts), and no trial episode ending in the interval (counted by trial.converted_count). ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/lifecycle/free_to_paid_rate.ts
 var lifecycleFreeToPaidRateMetric = { id: "lifecycle.free_to_paid_rate", label: "Free to paid conversion rate", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "ratio", direction: "increase", preferred_analysis_unit: "account", numerator_metric: "lifecycle.free_to_paid_accounts", denominator_metric: "lifecycle.free_accounts", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: as its two components. Plan 282 A.6 drivers: lifecycle.free_to_paid_accounts \xF7 lifecycle.free_accounts at the interval start; "not enough data yet" below the minimum sample. The drivers card cuts it by region, plan, usage band, acquisition source and persona, each an unavailable grounding of customer.account_state. ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/lifecycle/churned_accounts.ts
-var lifecycleChurnedAccountsMetric = { id: "lifecycle.churned_accounts", label: "Churned accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly. Plan 282 A.6 accounts.churned: accounts with MRR > 0 at the interval start and 0 at its end (the A.1 week-end stock). Not lifecycle.paid_ended_count: plan 276 counts effective-time occurrences under plan 252's policy and resolves accounts through the effective-dated payer map, never the read-time identity map (R-2). ${pendingPipe("account_lifecycle")}` } };
+var lifecycleChurnedAccountsMetric = { id: "lifecycle.churned_accounts", label: "Churned accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398). Plan 282 A.6 accounts.churned: accounts with MRR > 0 at the interval start and 0 at its end (the A.1 week-end stock). Not lifecycle.paid_ended_count: plan 276 counts effective-time occurrences under plan 252's policy and resolves accounts through the effective-dated payer map, never the read-time identity map (R-2). ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/lifecycle/churned_involuntary_accounts.ts
-var lifecycleChurnedInvoluntaryAccountsMetric = { id: "lifecycle.churned_involuntary_accounts", label: "Involuntarily churned accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly, events_billing (payment_failed, payment_succeeded, subscription_renewed, subscription_canceled by subscription_id). Plan 282 A.6: lifecycle.churned_accounts whose subscription_canceled was preceded by a payment_failed on that subscription with no recovery between (the payment_recovery sequencing). ${pendingPipe("account_lifecycle")}` } };
+var lifecycleChurnedInvoluntaryAccountsMetric = { id: "lifecycle.churned_involuntary_accounts", label: "Involuntarily churned accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398), events_billing (payment_failed, payment_succeeded, subscription_renewed, subscription_canceled by subscription_id). Plan 282 A.6: lifecycle.churned_accounts whose subscription_canceled was preceded by a payment_failed on that subscription with no recovery between (the payment_recovery sequencing). ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/lifecycle/churned_voluntary_accounts.ts
-var lifecycleChurnedVoluntaryAccountsMetric = { id: "lifecycle.churned_voluntary_accounts", label: "Voluntarily churned accounts", description: "Churned accounts whose churn was not involuntary, served one row per cancellation reason (Stripe cancellation_details.reason, events_billing.cancellation_reason from plan 282 TASK-4; none when the customer gave none). The reasons partition the id; they are its own row grain, not a concept-wide cut.", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly, events_billing (subscription_canceled, cancellation_reason). Plan 282 A.6: lifecycle.churned_accounts that are not involuntary, with Stripe's cancellation_details.reason as the reason breakdown (the description). ${pendingPipe("account_lifecycle")}` } };
+var lifecycleChurnedVoluntaryAccountsMetric = { id: "lifecycle.churned_voluntary_accounts", label: "Voluntarily churned accounts", description: "Churned accounts whose churn was not involuntary, served one row per cancellation reason (Stripe cancellation_details.reason, events_billing.cancellation_reason from plan 282 TASK-4; none when the customer gave none). The reasons partition the id; they are its own row grain, not a concept-wide cut.", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398), events_billing (subscription_canceled, cancellation_reason). Plan 282 A.6: lifecycle.churned_accounts that are not involuntary, with Stripe's cancellation_details.reason as the reason breakdown (the description). ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/lifecycle/reactivated_accounts.ts
-var lifecycleReactivatedAccountsMetric = { id: "lifecycle.reactivated_accounts", label: "Reactivated accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly. Plan 282 A.6 accounts.reactivated: accounts with MRR 0 at the interval start and > 0 at its end, with MRR > 0 at an earlier week end (the accounts behind revenue.reactivation_mrr). Not lifecycle.reactivated_count: plan 276 counts transition occurrences and requires KNOWN prior history under its own policy. ${pendingPipe("account_lifecycle")}` } };
+var lifecycleReactivatedAccountsMetric = { id: "lifecycle.reactivated_accounts", label: "Reactivated accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398). Plan 282 A.6 accounts.reactivated: accounts with MRR 0 at the interval start and > 0 at its end, with MRR > 0 at an earlier week end (the accounts behind revenue.reactivation_mrr). Not lifecycle.reactivated_count: plan 276 counts transition occurrences and requires KNOWN prior history under its own policy. ${pendingPipe("account_lifecycle")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/recovery/failed_count.ts
 var recoveryFailedCountMetric = { id: "recovery.failed_count", label: "Failed payments", value_type: "number", source_scope: "total", statistical_type: "count", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "primitive", catalog_status: "unavailable", release_condition: "RM-0269 TASK-44 must build per-invoice first-failure cases, same-invoice paid/retry/lost evidence and mature origin-cohort bindings with decline-code and boundary conformance.", derivation: { carried_by: ["payment_recovery"], input_origin: "none", ingested_events: [], note: "One case per invoice at its first authoritative failure, counted at that first-failure origin in the half-open interval. Retries do not create cases; one subscription with two failed invoices has two cases. Unavailable: RM-0269 TASK-44 must build per-invoice first-failure cases, same-invoice paid/retry/lost evidence and mature origin-cohort bindings with decline-code and boundary conformance." } };
@@ -13822,7 +13821,7 @@ var recoveryRateMetric = { id: "recovery.rate", label: "Payment recovery rate", 
 var engagementActiveAccountsMetric = { id: "engagement.active_accounts", label: "Active accounts", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_activity"], input_origin: "none", ingested_events: [], note: `Inputs when served: events_clickstream, tenant_configs.activity_window_days. Plan 282 A.6: distinct real accounts (user-fallback keys excluded) with at least one clickstream event in the activity window. Any event counts, customer track() names included. ${pendingPipe("account_activity")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/engagement/inactive_share.ts
-var engagementInactiveShareMetric = { id: "engagement.inactive_share", label: "Inactive paying share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["account_activity"], input_origin: "none", ingested_events: [], note: `Inputs when served: events_clickstream, subscription_stock_weekly, tenant_configs.activity_window_days. Plan 282 A.6: paying accounts (MRR > 0 at the instant) with no clickstream event in the activity window \xF7 paying accounts. ${pendingPipe("account_activity")}` } };
+var engagementInactiveShareMetric = { id: "engagement.inactive_share", label: "Inactive paying share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["account_activity"], input_origin: "none", ingested_events: [], note: `Inputs when served: events_clickstream, retired V1 stock; replacement source not yet designed (ST-1398), tenant_configs.activity_window_days. Plan 282 A.6: paying accounts (MRR > 0 at the instant) with no clickstream event in the activity window \xF7 paying accounts. ${pendingPipe("account_activity")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/engagement/users_per_account.ts
 var engagementUsersPerAccountMetric = { id: "engagement.users_per_account", label: "Users per account", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["account_activity"], input_origin: "none", ingested_events: [], note: `Inputs when served: events_clickstream. Plan 282 A.6: uniqExact(user_id) per account over the activity window; the mean over engagement.active_accounts when not cut by customer.account. Not retention.active_users_per_account, whose "active" is a customer-authored core action. ${pendingPipe("account_activity")}` } };
@@ -13834,22 +13833,22 @@ var engagementWeeklyActiveUsersMetric = { id: "engagement.weekly_active_users", 
 var usageMeteredPerActiveAccountMetric = { id: "usage.metered_per_active_account", label: "Metered usage per active account", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["account_activity"], input_origin: "none", ingested_events: [], note: `Inputs when served: events_clickstream (usage_recorded, gate_evaluated), gate_event_fields. Plan 282 A.6: \u03A3 usage_recorded quantity (or gate_evaluated used deltas) per ISO week \xF7 engagement.active_accounts. Gate used carries the BL-0413 caveat. Not usage.metered_per_account, the mean used per evaluation. ${pendingPipe("account_activity")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/cohort/nrr.ts
-var cohortNrrMetric = { id: "cohort.nrr", label: "Paying cohort NRR", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["paying_cohort_rollup"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly. Plan 282 A.6: over accounts whose first week end with MRR > 0 falls in the cohort period (customer.paying_cohort_period), \u03A3 account MRR at age k \xF7 \u03A3 account MRR at age 0, per currency. A paying cohort, not the first-observed signup cohort of customer.cohort. ${pendingPipe("paying_cohort_rollup")}` } };
+var cohortNrrMetric = { id: "cohort.nrr", label: "Paying cohort NRR", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["paying_cohort_rollup"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398). Plan 282 A.6: over accounts whose first week end with MRR > 0 falls in the cohort period (customer.paying_cohort_period), \u03A3 account MRR at age k \xF7 \u03A3 account MRR at age 0, per currency. A paying cohort, not the first-observed signup cohort of customer.cohort. ${pendingPipe("paying_cohort_rollup")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/cohort/logo_survival.ts
-var cohortLogoSurvivalMetric = { id: "cohort.logo_survival", label: "Paying cohort logo survival", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["paying_cohort_rollup"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly. Plan 282 A.6: cohort accounts (first MRR > 0 in the cohort period) with MRR > 0 at age k \xF7 cohort size. Not cohort.retention_rate, which counts recurrence facts over a signup cohort. ${pendingPipe("paying_cohort_rollup")}` } };
+var cohortLogoSurvivalMetric = { id: "cohort.logo_survival", label: "Paying cohort logo survival", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["paying_cohort_rollup"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398). Plan 282 A.6: cohort accounts (first MRR > 0 in the cohort period) with MRR > 0 at age k \xF7 cohort size. Not cohort.retention_rate, which counts recurrence facts over a signup cohort. ${pendingPipe("paying_cohort_rollup")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/mrr.ts
-var accountMrrMetric = { id: "account.mrr", label: "Account MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly, the identity map. Plan 282 A.7: the account's MRR V1 stock at the instant, per currency (A.1 revenue.mrr for one account). ${pendingPipe("account_profile")}` } };
+var accountMrrMetric = { id: "account.mrr", label: "Account MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398), the identity map. Plan 282 A.7: the account's MRR V1 stock at the instant, per currency (A.1 revenue.mrr for one account). ${pendingPipe("account_profile")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/plan.ts
-var accountPlanMetric = { id: "account.plan", label: "Account plan", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly (each item's variation binding by stripe_price_id). Plan 282 A.7: the plan handle of the account's base (plan) items at the instant; an account on several plans reports each, never an arbitrary primary. ${pendingPipe("account_profile")}` } };
+var accountPlanMetric = { id: "account.plan", label: "Account plan", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398) (each item's variation binding by stripe_price_id). Plan 282 A.7: the plan handle of the account's base (plan) items at the instant; an account on several plans reports each, never an arbitrary primary. ${pendingPipe("account_profile")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/variation.ts
-var accountVariationMetric = { id: "account.variation", label: "Account plan variation", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly. Plan 282 A.7: the variation handle of the account's base item, from the item's stripe_price_id binding (plan_variation_versions). ${pendingPipe("account_profile")}` } };
+var accountVariationMetric = { id: "account.variation", label: "Account plan variation", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398). Plan 282 A.7: the variation handle of the account's base item, from the item's stripe_price_id binding (plan_variation_versions). ${pendingPipe("account_profile")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/addons.ts
-var accountAddonsMetric = { id: "account.addons", label: "Account add-ons", description: "The account's add-on handles, served one row per add-on item.", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: subscription_stock_weekly. Plan 282 A.7: the add-on handles of the account's add-on items, from their stripe_price_id bindings (addon_variation_versions). ${pendingPipe("account_profile")}` } };
+var accountAddonsMetric = { id: "account.addons", label: "Account add-ons", description: "The account's add-on handles, served one row per add-on item.", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398). Plan 282 A.7: the add-on handles of the account's add-on items, from their stripe_price_id bindings (addon_variation_versions). ${pendingPipe("account_profile")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/pool.ts
 var accountPoolMetric = { id: "account.pool", label: "Account pool", value_type: "string", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["account_lifecycle"], input_origin: "none", ingested_events: [], note: `Inputs when served: as the lifecycle.*_accounts stocks. Plan 282 A.7: paying, trialing, free or lapsed, the A.6 stock definitions at the instant in that precedence. Free (never paid) and lapsed (previously paid) are disjoint, so every account has one pool. ${pendingPipe("account_lifecycle")}` } };
@@ -14023,29 +14022,29 @@ var revenueMrrMetric = {
   aggregation_semantics: "semi_additive",
   layer: "primitive",
   catalog_status: "tested",
-  derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 from subscription state (plan 282 TASK-11, D-51): \u03A3 over active and past_due items of quantity \xD7 unit_amount normalized to a month (year \xF7 12, week \xD7 52/12, day \xD7 365/12, \xF7 interval_count); every other status contributes 0. Web TASK-11b replays the customer.subscription.* payloads in events_billing.raw and the seeded opening position into subscription_stock_weekly through the oracle, reconciles against stripe_sub_item \xD7 stripe_prices, and is tested by simulation-mrr-v1-conformance. V1 exclusions: discounts, prorations, schedules, multi-plan items, tax, currency transfers." }
+  derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 from subscription state (plan 282 TASK-11, D-51): \u03A3 over active and past_due items of quantity \xD7 unit_amount normalized to a month (year \xF7 12, week \xD7 52/12, day \xD7 365/12, \xF7 interval_count); every other status contributes 0. The mrr-daily-run worker derives Neon daily stock from billing_observations, effective payer and price bindings, and publishes the verified active series. V1 exclusions: discounts, prorations, schedules, multi-plan items, tax, currency transfers." }
 };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/new_mrr.ts
-var revenueNewMrrMetric = { id: "revenue.new_mrr", label: "New MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 closing account MRR over accounts with MRR > 0 at the week end, 0 at the previous week end, and no MRR > 0 at any earlier week end in retained history. Classified from the atomic net change in account/currency stock, never from event names. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
+var revenueNewMrrMetric = { id: "revenue.new_mrr", label: "New MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 closing account MRR over accounts with MRR > 0 at the week end, 0 at the previous week end, and no MRR > 0 at any earlier week end in retained history. Classified from the atomic net change in account/currency stock, never from event names. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by the Neon mrr_daily block under its active policy and reporting calendar." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/expansion_mrr.ts
-var revenueExpansionMrrMetric = { id: "revenue.expansion_mrr", label: "Expansion MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 (closing \u2212 opening) over accounts with MRR > 0 at both week ends and closing > opening \u2014 plan upgrades, seats, add-ons. The stamped event vocabulary only ever derived quantity growth and mapped value-based upgrades to null (BL-0063); the stock delta catches them. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
+var revenueExpansionMrrMetric = { id: "revenue.expansion_mrr", label: "Expansion MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 (closing \u2212 opening) over accounts with MRR > 0 at both week ends and closing > opening \u2014 plan upgrades, seats, add-ons. The stamped event vocabulary only ever derived quantity growth and mapped value-based upgrades to null (BL-0063); the stock delta catches them. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by the Neon mrr_daily block under its active policy and reporting calendar." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/contraction_mrr.ts
-var revenueContractionMrrMetric = { id: "revenue.contraction_mrr", label: "Contraction MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 (opening \u2212 closing) over accounts with MRR > 0 at both week ends and closing < opening \u2014 downgrades, removed add-ons, and a monthly \u2192 annual switch whose normalized MRR falls (per the mock). Published as a positive magnitude. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
+var revenueContractionMrrMetric = { id: "revenue.contraction_mrr", label: "Contraction MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 (opening \u2212 closing) over accounts with MRR > 0 at both week ends and closing < opening \u2014 downgrades, removed add-ons, and a monthly \u2192 annual switch whose normalized MRR falls (per the mock). Published as a positive magnitude. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by the Neon mrr_daily block under its active policy and reporting calendar." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/churned_mrr.ts
-var revenueChurnedMrrMetric = { id: "revenue.churned_mrr", label: "Churned MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 opening account MRR over accounts with MRR > 0 at the previous week end and 0 at this one \u2014 canceled, unpaid, paused, or zero quantity while still subscribed (revenue-accounting \xA73: paid churn is not a contract cancellation). Published as a positive magnitude. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
+var revenueChurnedMrrMetric = { id: "revenue.churned_mrr", label: "Churned MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "decrease", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 opening account MRR over accounts with MRR > 0 at the previous week end and 0 at this one \u2014 canceled, unpaid, paused, or zero quantity while still subscribed (revenue-accounting \xA73: paid churn is not a contract cancellation). Published as a positive magnitude. Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by the Neon mrr_daily block under its active policy and reporting calendar." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/reactivation_mrr.ts
-var revenueReactivationMrrMetric = { id: "revenue.reactivation_mrr", label: "Reactivation MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 closing account MRR over accounts with MRR > 0 at the week end, 0 at the previous week end, and MRR > 0 at some earlier week end in retained history. A seeded opening position is an opening balance, never a reactivation (revenue-accounting \xA74). Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
+var revenueReactivationMrrMetric = { id: "revenue.reactivation_mrr", label: "Reactivation MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): \u03A3 closing account MRR over accounts with MRR > 0 at the week end, 0 at the previous week end, and MRR > 0 at some earlier week end in retained history. A seeded opening position is an opening balance, never a reactivation (revenue-accounting \xA74). Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrMovements. Served by the Neon mrr_daily block under its active policy and reporting calendar." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/net_new_mrr.ts
-var revenueNetNewMrrMetric = { id: "revenue.net_new_mrr", label: "Net new MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): new + expansion + reactivation \u2212 contraction \u2212 churned, per currency and week; equals closing \u2212 opening (the roll-forward the oracle asserts and AC-12 tests). Replaces daily_revenue_rollup's net_new_revenue_cents, which was the invoice-paid proxy under a second name (BL-0063). V1 exclusions as revenue.mrr. Served by analytics_mrr_movements_v1 over subscription_stock_weekly (tested by simulation-mrr-v1-conformance); mrr-movement-classification-v1 (ST-520) also by analytics_mrr_movements_classified." } };
+var revenueNetNewMrrMetric = { id: "revenue.net_new_mrr", label: "Net new MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 movement (plan 282 TASK-11; plan 252 A-4): new + expansion + reactivation \u2212 contraction \u2212 churned, per currency and week; equals closing \u2212 opening (the roll-forward the oracle asserts and AC-12 tests). Replaces daily_revenue_rollup's net_new_revenue_cents, which was the invoice-paid proxy under a second name (BL-0063). V1 exclusions as revenue.mrr. Served by the Neon mrr_daily block under its active policy and reporting calendar." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/nrr.ts
-var revenueNrrMetric = { id: "revenue.nrr", label: "Net revenue retention", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 endpoint NRR (plan 282 TASK-11; revenue-accounting \xA75): over the fixed cohort of accounts with MRR > 0 at the interval start, their MRR at the end \xF7 their MRR at the start, per currency. Accounts new in the interval are excluded from both sides; cohort members that churned and returned count at close. An empty cohort is unavailable, never 0%. Unlinked payers count as provisional accounts (ST-935). Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrNrr. Served by analytics_mrr_nrr_v1 over subscription_stock_weekly; tested by simulation-mrr-v1-conformance." } };
+var revenueNrrMetric = { id: "revenue.nrr", label: "Net revenue retention", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["events_billing"], note: "MRR V1 endpoint NRR (plan 282 TASK-11; revenue-accounting \xA75): over the fixed cohort of accounts with MRR > 0 at the interval start, their MRR at the end \xF7 their MRR at the start, per currency. Accounts new in the interval are excluded from both sides; cohort members that churned and returned count at close. An empty cohort is unavailable, never 0%. Unlinked payers count as provisional accounts (ST-935). Stock definition and V1 exclusions as revenue.mrr. Oracle: deriveMrrNrr. Served by the Neon mrr_daily block under its active policy and reporting calendar." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/placement/impressions.ts
 var placementImpressionsMetric = { id: "placement.impressions", label: "Impressions", value_type: "number", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals", "analytics_presentation_timeseries", "analytics_presentation_breakdown", "analytics_presentation_funnel", "exposure_breakdown"], input_origin: "platform", ingested_events: ["placement_exposed", "placement_interaction", "placement_outcome"], ingested_datasources: ["placement_presentations"], note: "D-53 (plan 282 TASK-14): the base is DISPLAYS \u2014 rows with outcome presented, i.e. the placement was shown \u2014 never every interaction row. Since web #965 (TASK-15) the presentation pipes count countIf(outcome = presented), growth_funnel_signals' rule slice counts the impression interaction, exposure_breakdown counts exposures (one per display), and derivePresentationAggregate derives the same base (BL-0495)." } };
@@ -14813,12 +14812,12 @@ var revenueMovementConcept = {
     { key: "payer", path: "column:customer_id", resolution: "source", note: "The Stripe customer. Billing facts and the ledger are keyed by payer; account is an enriched attribute (metric-primitives section 6)." },
     { key: "subscription", path: "column:subscription_id", resolution: "source" },
     { key: "user", path: "column:user_id", resolution: "source" },
-    { key: "account", path: "-", resolution: "absent", note: "events_billing carries the payer only and no enrichment writes an account key, so an account slice would have to run in account_matched scope with excluded payers shown as coverage. This concept offers no account cut for that reason. The MRR V1 rows (subscription_stock_weekly, TASK-11b) resolve account through the identity map; the paid-invoice proxy still does not." },
+    { key: "account", path: "-", resolution: "absent", note: "events_billing carries the payer only and no enrichment writes an account key, so an account slice would have to run in account_matched scope with excluded payers shown as coverage. This concept offers no account cut for that reason. The separate Neon MRR stock resolves payer bindings; the paid-invoice proxy still does not." },
     { key: "environment", path: "-", resolution: "absent", note: "Billing facts are tenant-global: events_billing has no environment_id. That is why the stored grain is [tenant, stripe_event] and per-environment revenue cuts are refused." }
   ],
   measures: [
     { name: "amount_cents", source: "column:amount_cents", unit: "currency_minor", temporal: "flow", sign: "signed", aggregation_semantics: "additive" },
-    { name: "mrr_cents", source: "column:mrr_cents", unit: "currency_minor", temporal: "flow", sign: "signed", aggregation_semantics: "additive", note: "Served from events_billing FINAL (BL-0014); the insert-time aggregate is diagnostic only. Named mrr_cents but computed as the paid-invoice amount per day: a cash-adjacent FLOW, not a run rate, served as revenue.invoice_paid_amount_legacy (BL-0063). The stock measure is mrr_stock_cents on subscription_stock_weekly." },
+    { name: "mrr_cents", source: "column:mrr_cents", unit: "currency_minor", temporal: "flow", sign: "signed", aggregation_semantics: "additive", note: "Served from events_billing FINAL (BL-0014); the insert-time aggregate is diagnostic only. Named mrr_cents but computed as the paid-invoice amount per day: a cash-adjacent FLOW, not a run rate, served as revenue.invoice_paid_amount_legacy (BL-0063). The stock measure is served separately by the Neon mrr_daily block." },
     { name: "paid_conversions", source: "column:paid_conversions", unit: "count", temporal: "flow", sign: "unsigned", aggregation_semantics: "additive" },
     // Plan 282 TASK-32 (D-54): the `_reporting` measures beside the native
     // ones (REPORTING_CURRENCY_MEASURES pins these names). Same unit,
@@ -15056,12 +15055,11 @@ var revenueAttributionConcept = {
     { kind: "ingested_event", ref: "placement_exposed" },
     { kind: "datasource", ref: "placement_presentations" },
     { kind: "datasource", ref: "placement_exposure_attribution" },
-    { kind: "datasource", ref: "events_billing" },
-    { kind: "build", ref: "rebuild_placement_exposure_attribution" }
+    { kind: "datasource", ref: "events_billing" }
   ],
   build: {
-    kind: "pipe",
-    ref: "rebuild_placement_exposure_attribution",
+    kind: "worker",
+    ref: "exposure-attribution",
     inputs: ["placement_presentations", "events_billing", "placement_exposure_attribution"]
   },
   maturity: {
@@ -15571,12 +15569,12 @@ var customerAccountStateConcept = {
   query_families: ["scalar", "timeseries", "breakdown", "table"],
   source_scope: "total",
   sources: [
-    { kind: "unavailable", ref: "account-state snapshot (account x ISO week end) served by the account_lifecycle pipe over subscription_stock_weekly, events_clickstream and events_billing", blocker: "No pipe builds it yet: web plan 282 TASK-17 phase 2 builds account_lifecycle. Its inputs exist (the MRR V1 stock, TASK-11b; the TASK-4 billing columns); the open-trial set comes from trial_episodes in Postgres, which Tinybird cannot read, so the pipe takes it as a parameter." }
+    { kind: "unavailable", ref: "account_lifecycle account-state snapshot (account x ISO week end), with events_clickstream and events_billing origins", blocker: "No account_lifecycle producer exists. ST-1398 retires its proposed V1 stock input; a replacement over Neon stock and trial_episodes requires its own design." }
   ],
   oracle_family: { family: "none", blocker: "No pool or movement oracle exists. Both are functions of the MRR V1 weekly stock (deriveMrrWeeklyStock) and the clickstream; their pure twin is owed with the account_lifecycle pipe, which TASK-22's oracle golden needs." },
   policy_dependencies: [
     { kind: "lifecycle", stamped: false, blocker: "The pool and movement definitions are plan 282 Appendix A.6's and carry no version; no row will stamp one until the account_lifecycle pipe does." },
-    { kind: "mrr", stamped: false, blocker: "subscription_stock_weekly rows stamp MRR_V1_POLICY.version, but no account-state row exists yet to carry it." },
+    { kind: "mrr", stamped: false, blocker: "No account-state row exists to carry an MRR policy; its proposed V1 stock input is retired (ST-1398)." },
     { kind: "engagement", stamped: false, blocker: "lifecycle.free_active_accounts reads tenant_configs.activity_window_days, a read-time parameter no row stamps and no versioned policy owns." }
   ]
 };
@@ -15638,7 +15636,7 @@ var customerActivityConcept = {
   query_families: ["scalar", "timeseries", "breakdown", "table"],
   source_scope: "revturbine_tracked",
   sources: [
-    { kind: "unavailable", ref: "account activity over events_clickstream (users, last activity, activity in the window) served by the account_activity pipe", blocker: "No pipe builds it yet: web plan 282 TASK-17 phase 2 builds account_activity. Its inputs exist (events_clickstream, gate_event_fields, subscription_stock_weekly for the paying base, tenant_configs.activity_window_days)." }
+    { kind: "unavailable", ref: "account activity over events_clickstream (users, last activity, activity in the window) served by the account_activity pipe", blocker: "No pipe builds it yet: web plan 282 TASK-17 phase 2 builds account_activity. Its proposed inputs were (events_clickstream, gate_event_fields, the retired V1 stock for the paying base, tenant_configs.activity_window_days)." }
   ],
   oracle_family: { family: "none", blocker: "No activity oracle exists; its pure twin is owed with the account_activity pipe." },
   policy_dependencies: [
@@ -15660,7 +15658,7 @@ var customerPayingCohortConcept = {
   historical_mode: "as_of_event",
   dimensions: ["time.occurred_at", "customer.paying_cohort_period", "customer.cohort_age", "revenue.currency"],
   dimension_groundings: {
-    "customer.paying_cohort_period": { kind: "derived", source: "derived:first_paying_week", anchor: "cohort_entry", partitions: true, note: "The period of the account's first week end with MRR > 0 in subscription_stock_weekly, bucketed at the cohort grain (default month)." },
+    "customer.paying_cohort_period": { kind: "derived", source: "derived:first_paying_week", anchor: "cohort_entry", partitions: true, note: "The period of the account's first week end with MRR > 0 in the retired V1 stock, bucketed at the cohort grain (default month)." },
     "customer.cohort_age": { kind: "derived", source: "derived:first_paying_week", anchor: "cohort_entry", note: "Whole periods between the paying cohort period and the measured week end." },
     "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time" }
   },
@@ -15668,11 +15666,11 @@ var customerPayingCohortConcept = {
   query_families: ["table", "breakdown"],
   source_scope: "total",
   sources: [
-    { kind: "unavailable", ref: "paying cohorts (first week end with MRR > 0) by age over subscription_stock_weekly, served by the paying_cohort_rollup pipe", blocker: "No pipe builds it yet: web plan 282 TASK-17 phase 2 builds paying_cohort_rollup over the MRR V1 stock TASK-11b stores." }
+    { kind: "unavailable", ref: "paying cohorts (first week end with MRR > 0) by age over the retired V1 stock, served by the paying_cohort_rollup pipe", blocker: "No pipe builds it yet: web plan 282 TASK-17 phase 2 builds paying_cohort_rollup over the MRR V1 stock TASK-11b stores." }
   ],
   oracle_family: { family: "none", blocker: "No paying-cohort oracle exists; it is a function of the MRR V1 weekly stock and its pure twin is owed with paying_cohort_rollup." },
   policy_dependencies: [
-    { kind: "mrr", stamped: false, blocker: "subscription_stock_weekly rows stamp MRR_V1_POLICY.version, but no cohort cell exists yet to carry it." }
+    { kind: "mrr", stamped: false, blocker: "the retired V1 stock rows stamp MRR_V1_POLICY.version, but no cohort cell exists yet to carry it." }
   ]
 };
 
@@ -15720,7 +15718,7 @@ var customerAccountProfileConcept = {
   ],
   oracle_family: { family: "none", blocker: "No account-profile oracle exists; each attribute's pure twin is owed with the block that serves it." },
   policy_dependencies: [
-    { kind: "mrr", stamped: false, blocker: "account.mrr reads subscription_stock_weekly, whose rows stamp MRR_V1_POLICY.version, but no account row exists yet to carry it." },
+    { kind: "mrr", stamped: false, blocker: "account.mrr reads the retired V1 stock, whose rows stamp MRR_V1_POLICY.version, but no account row exists yet to carry it." },
     { kind: "engagement", stamped: false, blocker: "account.inactive_30d reads tenant_configs.activity_window_days, a read-time parameter no row stamps and no versioned policy owns." }
   ]
 };
@@ -23229,13 +23227,14 @@ var simulationRunnerResources = [
   "experiment_assignments",
   "conversion_touch_attribution",
   "aggregates_daily_revenue",
-  "subscription_stock_weekly",
   "gate_event_fields",
   "user_account_map"
 ];
+var SIMULATION_RESET_LEGACY_RESOURCES = [...simulationRunnerResources, "subscription_stock_weekly"];
 var SIMULATION_RESET_PREDICATE = "tenant_id = 'tenant_simulation'";
 var SIMULATION_RESET_PREDICATE_DIGEST = sha256Hex(SIMULATION_RESET_PREDICATE);
 var SIMULATION_RESET_RESOURCE_SET_DIGEST = sha256Hex(canonicalizeJson([...simulationRunnerResources].sort()));
+var SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST = sha256Hex(canonicalizeJson([...SIMULATION_RESET_LEGACY_RESOURCES].sort()));
 var key2 = z69.string().min(1).max(128).regex(/^[A-Za-z0-9_.:-]+$/);
 var digest2 = z69.string().regex(/^[a-f0-9]{64}$/);
 var commit = z69.string().regex(/^[a-f0-9]{40}$/);
@@ -23243,7 +23242,15 @@ var count3 = z69.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 var timestamp = z69.iso.datetime({ precision: 3 });
 var version = z69.string().max(64).regex(/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/);
 var lane = z69.enum(["clickstream", "interactions", "billing"]);
-var resource = z69.enum(simulationRunnerResources);
+var resource = z69.enum(SIMULATION_RESET_LEGACY_RESOURCES);
+var resetResource = z69.enum(SIMULATION_RESET_LEGACY_RESOURCES);
+var RESOURCE_COUNT = simulationRunnerResources.length;
+var RECEIPT_RESOURCE_COUNT = SIMULATION_RESET_LEGACY_RESOURCES.length;
+var exactReceiptResources = (rows) => {
+  const expected = rows.length === RESOURCE_COUNT ? simulationRunnerResources : SIMULATION_RESET_LEGACY_RESOURCES;
+  const names = new Set(rows.map((row) => row.resource));
+  return names.size === rows.length && names.size === expected.length && expected.every((name) => names.has(name));
+};
 var metadata5 = (id11) => ({
   id: id11,
   ...ServerOnly,
@@ -23286,7 +23293,7 @@ var SimulationExecutionFingerprintSchema = z69.strictObject({
 var resetIdentity = z69.strictObject({
   entry_id: key2,
   predicate_digest: z69.literal(SIMULATION_RESET_PREDICATE_DIGEST),
-  resource_set_digest: z69.literal(SIMULATION_RESET_RESOURCE_SET_DIGEST)
+  resource_set_digest: z69.enum([SIMULATION_RESET_RESOURCE_SET_DIGEST, SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST])
 });
 var error = z69.strictObject({
   code: z69.enum([
@@ -23373,7 +23380,7 @@ var budget = z69.strictObject({
   if (v.workflow_timeout_minutes * 60 <= v.deadline_seconds) issue2(ctx, "workflow must reserve final artifact time");
 });
 var zeroResource = z69.strictObject({
-  resource,
+  resource: resetResource,
   predelete_physical_count: count3,
   delete_job_id: key2,
   delete_status: z69.literal("complete"),
@@ -23387,9 +23394,11 @@ var SimulationTerminalZeroReceiptSchema = z69.strictObject({
   workflow_run_id: key2,
   workflow_attempt: count3.positive(),
   terminal_at: timestamp,
-  resources: z69.array(zeroResource).length(10)
+  resources: z69.array(zeroResource).min(RESOURCE_COUNT).max(SIMULATION_RESET_LEGACY_RESOURCES.length)
 }).superRefine((v, ctx) => {
-  if (new Set(v.resources.map((x) => x.resource)).size !== 10) issue2(ctx, "terminal zero must cover exact resource set");
+  const expected = v.resource_set_digest === SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST ? SIMULATION_RESET_LEGACY_RESOURCES : simulationRunnerResources;
+  const covered = new Set(v.resources.map((x) => x.resource));
+  if (covered.size !== v.resources.length || covered.size !== expected.length || expected.some((name) => !covered.has(name))) issue2(ctx, "terminal zero must cover exact resource set");
   if (v.resources.some((x) => x.zero_read_at > v.terminal_at)) issue2(ctx, "terminal receipt must follow all zero readbacks");
 }).meta(metadata5("SimulationTerminalZeroReceipt"));
 var SimulationProbeReceiptSchema = z69.strictObject({
@@ -23630,7 +23639,7 @@ var SimulationPreparationReceiptSchema = z69.strictObject({
   budget,
   pending_reset_entries: z69.array(key2).max(20),
   applied_reset_entries: z69.array(key2).max(20),
-  resources: z69.array(z69.strictObject({ resource, expected: inventory.nullable(), unresolved_reason: key2.nullable() })).length(10),
+  resources: z69.array(z69.strictObject({ resource, expected: inventory.nullable(), unresolved_reason: key2.nullable() })).min(RESOURCE_COUNT).max(RECEIPT_RESOURCE_COUNT),
   errors: z69.array(error).max(20)
 }).superRefine((v, ctx) => {
   if (v.prepared_at >= v.expires_at) issue2(ctx, "preparation expiry must follow execution");
@@ -23640,12 +23649,12 @@ var SimulationPreparationReceiptSchema = z69.strictObject({
   for (const list of [v.lanes, v.measurements]) {
     if (new Set(list.map((x) => x.lane)).size !== 3) issue2(ctx, "every lane must occur exactly once");
   }
-  if (new Set(v.resources.map((x) => x.resource)).size !== 10) issue2(ctx, "all ten resources must occur exactly once");
+  if (!exactReceiptResources(v.resources)) issue2(ctx, "every runner resource must occur exactly once");
   for (const r of v.resources) {
     if (r.expected !== null) {
       if (r.unresolved_reason !== null) issue2(ctx, "known expectation cannot carry an unresolved reason");
     } else {
-      const reason = r.resource === "subscription_stock_weekly" ? "runtime_replay_pending" : ["placement_exposure_attribution", "conversion_touch_attribution"].includes(r.resource) ? "joined_output_oracle_unavailable" : r.resource === "aggregates_daily_revenue" ? "active_output_oracle_unavailable" : null;
+      const reason = ["placement_exposure_attribution", "conversion_touch_attribution"].includes(r.resource) ? "joined_output_oracle_unavailable" : r.resource === "aggregates_daily_revenue" ? "active_output_oracle_unavailable" : r.resource === "subscription_stock_weekly" ? "runtime_replay_pending" : null;
       if (reason === null) {
         if (v.status === "prepared" || r.unresolved_reason !== "source_inventory_unavailable") {
           issue2(ctx, "prepared requires authored source/transport expectation; diagnostic absence requires source_inventory_unavailable");
@@ -23745,9 +23754,9 @@ var footprint = z69.strictObject({
   observed_at: timestamp,
   allowlist_digest: digest2,
   probe_runs: z69.array(SimulationProbeReceiptSchema).max(20),
-  resources: z69.array(footprintResource).length(10)
+  resources: z69.array(footprintResource).min(RESOURCE_COUNT).max(RECEIPT_RESOURCE_COUNT)
 }).superRefine((v, ctx) => {
-  if (new Set(v.resources.map((x) => x.resource)).size !== 10) issue2(ctx, "footprint must cover exact ten resources");
+  if (!exactReceiptResources(v.resources)) issue2(ctx, "footprint must cover the exact resource set");
   if (new Set(v.probe_runs.map((x) => x.probe_run_id)).size !== v.probe_runs.length) issue2(ctx, "duplicate probe identity");
   if (v.status === "empty" ? v.probe_runs.length !== 0 : v.probe_runs.length === 0) issue2(ctx, "probe status must match allowlist");
   const ingests = v.probe_runs.filter((x) => x.kind === "ingest").length;
@@ -23837,7 +23846,7 @@ var SimulationRunReceiptSchema = z69.strictObject({
   }).nullable(),
   planned_lanes: z69.array(lanePlan).length(3),
   slices: z69.array(sliceSummary).max(512),
-  resources: z69.array(reconciliation).max(10),
+  resources: z69.array(reconciliation).max(RECEIPT_RESOURCE_COUNT),
   replay: replay.nullable(),
   errors: z69.array(error).max(20)
 }).superRefine((v, ctx) => {
@@ -23871,7 +23880,10 @@ var SimulationRunReceiptSchema = z69.strictObject({
     if (v.admitted_footprint.observed_at < v.reset_zero.terminal_at || v.admitted_footprint.probe_runs.some((p) => p.observed_interval.start < v.reset_zero.terminal_at || p.observed_interval.end > v.admitted_footprint.observed_at || p.source_commit !== v.fingerprint.app_commit)) issue2(ctx, "probe footprint must follow authentic reset zero at deployed source");
   }
   if (v.reset_zero && v.reset_zero.terminal_at > v.started_at) issue2(ctx, "execution must follow terminal reset zero");
-  if (v.status === "complete" && (v.phase !== "qualification" || !v.completed_at || v.errors.length || !v.reset_zero || !v.admitted_footprint || !v.setup_receipt || !plannedCount || v.slices.length !== plannedCount || v.slices.some((s) => s.status !== "complete") || v.resources.length !== 10 || new Set(v.resources.map((r) => r.resource)).size !== 10 || v.resources.some((r) => r.status === "unresolved") || !v.replay || !["complete", "unchanged"].includes(v.replay.status) || !v.replay.generation_id || v.replay.output_count === null || v.replay.output_digest === null || (v.replay.policy === "mrr-v1-subscription-state" ? !v.replay.manifest_last_verified : !v.replay.active_series_verified || v.replay.complete_through === null || v.replay.complete_through < v.replay.required_complete_through) || !v.replay.oracle_matched || !v.replay.served_matched || v.replay.source_inventory_digest !== v.prepared_inventory_digest)) {
+  if (v.requested_reset.resource_set_digest !== SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST && (v.resources.some((r) => r.resource === "subscription_stock_weekly") || v.admitted_footprint?.resources.some((r) => r.resource === "subscription_stock_weekly"))) {
+    issue2(ctx, "legacy resource evidence requires the legacy reset identity");
+  }
+  if (v.status === "complete" && (v.phase !== "qualification" || !v.completed_at || v.errors.length || !v.reset_zero || !v.admitted_footprint || !v.setup_receipt || !plannedCount || v.slices.length !== plannedCount || v.slices.some((s) => s.status !== "complete") || !exactReceiptResources(v.resources) || v.admitted_footprint.resources.length !== v.resources.length || v.resources.some((r) => r.status === "unresolved") || !v.replay || !["complete", "unchanged"].includes(v.replay.status) || !v.replay.generation_id || v.replay.output_count === null || v.replay.output_digest === null || (v.replay.policy === "mrr-v1-subscription-state" ? !v.replay.manifest_last_verified : !v.replay.active_series_verified || v.replay.complete_through === null || v.replay.complete_through < v.replay.required_complete_through) || !v.replay.oracle_matched || !v.replay.served_matched || v.replay.source_inventory_digest !== v.prepared_inventory_digest)) {
     issue2(ctx, "complete requires all children, authentic reset/probe evidence, full resource reconciliation and verified replay");
   }
   if (["refused", "failed", "canceled", "skipped", "expired", "timed_out", "unknown"].includes(v.status) && !v.errors.length) issue2(ctx, "non-success disposition requires explicit diagnostic");
@@ -24559,6 +24571,8 @@ export {
   SEGMENT_MAX_MESSAGE_ID_LENGTH,
   SEGMENT_MODES,
   SEMANTIC_ID_PATTERN,
+  SIMULATION_RESET_LEGACY_RESOURCES,
+  SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST,
   SIMULATION_RESET_PREDICATE,
   SIMULATION_RESET_PREDICATE_DIGEST,
   SIMULATION_RESET_RESOURCE_SET_DIGEST,
