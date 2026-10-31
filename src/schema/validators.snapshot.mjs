@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.528
+// Vendored validation engine bundled from @revt-eng/schema@0.1.529
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -530,7 +530,7 @@ var AnchorFields = z3.object({
 var VersionFields = z3.object({
   // Which playbook version (the review/deploy unit — was `change_set_id`) staged
   // this ledger row; null once it is the deployed live row.
-  playbook_version_id: z3.string().nullable().default(null).meta(Unrestricted),
+  playbook_version_id: z3.string().nullable().default(null).meta({ ...Unrestricted, readOnly: true }),
   is_current: z3.boolean().default(true).meta({ ...Unrestricted, readOnly: true }),
   is_deleted: z3.boolean().default(false).meta({ ...Unrestricted, readOnly: true }),
   delete_date: z3.string().datetime().nullable().default(null).meta({ ...Unrestricted, readOnly: true }),
@@ -2180,33 +2180,32 @@ var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).
   }
 );
 var EntitlementRuleAnchorSchema = makeAnchor("EntitlementRuleAnchor");
-var EntitlementRuleValidatedSchema = EntitlementRuleSchema.superRefine(
-  (rule, ctx) => {
-    if (rule.reset_period === "billing_period") {
-      const nonVariationIdx = rule.targets.findIndex(
-        (t) => t.kind !== "plan_variation" && t.kind !== "addon_variation"
-      );
-      if (nonVariationIdx !== -1) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["reset_period"],
-          params: { code: "billing_period_target_mismatch" },
-          message: "reset_period='billing_period' requires all targets to be plan_variation or addon_variation"
-        });
-      }
-    }
-    const allowance = rule.allowance_value;
-    const hasRecurringAllowance = allowance === "unlimited" || typeof allowance === "number" && allowance > 0;
-    if (hasRecurringAllowance && rule.reset_period == null) {
+function refineEntitlementRuleAuthoring(rule, ctx) {
+  if (rule.reset_period === "billing_period") {
+    const nonVariationIdx = rule.targets.findIndex(
+      (t) => t.kind !== "plan_variation" && t.kind !== "addon_variation"
+    );
+    if (nonVariationIdx !== -1) {
       ctx.addIssue({
         code: "custom",
         path: ["reset_period"],
-        params: { code: "allowance_requires_reset_period" },
-        message: "a non-zero credits allowance_value requires a reset_period (the per-period refill cadence)"
+        params: { code: "billing_period_target_mismatch" },
+        message: "reset_period='billing_period' requires all targets to be plan_variation or addon_variation"
       });
     }
   }
-);
+  const allowance = rule.allowance_value;
+  const hasRecurringAllowance = allowance === "unlimited" || typeof allowance === "number" && allowance > 0;
+  if (hasRecurringAllowance && rule.reset_period == null) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["reset_period"],
+      params: { code: "allowance_requires_reset_period" },
+      message: "a non-zero credits allowance_value requires a reset_period (the per-period refill cadence)"
+    });
+  }
+}
+var EntitlementRuleValidatedSchema = EntitlementRuleSchema.superRefine(refineEntitlementRuleAuthoring);
 var EntitlementRuleWarningCodeSchema = z6.enum(["one_time_period_mismatch"]).meta(
   { id: "EntitlementRuleWarningCode", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
 );
