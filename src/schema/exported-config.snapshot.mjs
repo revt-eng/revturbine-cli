@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.534
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.535
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -14394,7 +14394,7 @@ var growthEntitlementUsageConcept = {
     // entitlement was stamped — an entitlement with four plan-scoped rules
     // reported one undifferentiated denial count.
     "decision.rule": { kind: "stamped", source: "payload:rule_handle", anchor: "fact_time", partitions: true, catalog_status: "bound" },
-    "commercial.plan": { kind: "stamped", source: "payload:plan_handle", anchor: "fact_time" },
+    "commercial.plan": { kind: "stamped", source: "payload:plan_handle", anchor: "fact_time", catalog_status: "unavailable", blocker: "ST-919: no retained growth signal carrier serves a plan split; SDK gate signals are grouped only by entitlement or decision rule." },
     "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", anchor: "fact_time", note: "R-11a stamp; lands with TASK-4" }
   },
   metrics: [
@@ -14531,7 +14531,7 @@ var monetizationEntitlementDecisionConcept = {
     "experiment.variant"
   ],
   dimension_groundings: {
-    "commercial.plan": { kind: "stamped", source: "payload:plan_handle", anchor: "fact_time" },
+    "commercial.plan": { kind: "stamped", source: "payload:plan_handle", anchor: "fact_time", catalog_status: "unavailable", blocker: "ST-919: no retained presentation, exposure or gate carrier serves a plan split after the billing-enriched plan column was retired." },
     "commercial.billing_period": { kind: "stamped", source: "payload:billing_period", anchor: "fact_time", catalog_status: "unavailable", blocker: "BL-0248/G13: no serving pipe exposes a billing-period split. placement_presentations has no such column, and exposure_breakdown's dimension enum offers only segment and converted_plan, so the stamp never reaches a group_by. A Tinybird pipe change, not a mapping fix." },
     "lifecycle.state": { kind: "config_join", source: "config:activity_tier", anchor: "current", catalog_status: "unavailable", blocker: "BL-0248/G13: a config join with no execution path. The plan-180 activity tier lives in Postgres configuration; the \xA75.6 tenant-scoped configuration snapshots that would put it in the warehouse do not exist, so no pipe performs this join and the concept declares no config source for it." },
     "targeting.segment": { kind: "stamped", source: "envelope:segment_ids", anchor: "fact_time", note: "R-11a stamp; lands with TASK-4" },
