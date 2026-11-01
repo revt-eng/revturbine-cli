@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.535
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.536
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -2879,6 +2879,8 @@ var UserContextSchema = IdField.merge(TenantIdField).merge(TimestampFields).exte
    * `user_id` promotes it (clears the flag) and keeps its revenue history.
    */
   provisional: z13.boolean().optional().meta({ ...Unrestricted10, ...ServerOnly }),
+  /** Observation-created rows are not trusted identities until authorized adoption. */
+  observed_only: z13.boolean().default(false).meta({ ...Unrestricted10, ...ServerOnly, readOnly: true }),
   /** ST-935: the user a provisional user was merged into when its payer was linked elsewhere; null otherwise. */
   merged_into: z13.string().min(1).nullable().optional().meta({ ...Pii2, ...ServerOnly }),
   /** ST-935: when a provisional user was retired (merged); null while live. */
@@ -5282,8 +5284,27 @@ var provisionalAccountFields = {
 var CustomerAccountSchema = IdField.merge(TenantIdField).merge(TimestampFields).extend({
   ...CustomerAccountCreateSchema.shape,
   name: z16.string().nullable().optional().meta(privateField),
-  ...provisionalAccountFields
+  ...provisionalAccountFields,
+  // Telemetry may create the row; only authorized provisioning may adopt it.
+  observed_only: z16.boolean().default(false).meta({ ...DataClassification.Unrestricted, ...ServerOnly, readOnly: true })
 }).meta(persisted("CustomerAccount", "customerAccounts", ["tenant_id", "account_id"]));
+var CustomerAccountObservationSchema = IdField.merge(TenantIdField).extend({
+  environment_id: logicalKey(),
+  is_test: z16.boolean().meta({ ...DataClassification.Unrestricted, ...ServerOnly }),
+  user_id: logicalKey(),
+  account_id: logicalKey(),
+  first_seen_at: z16.iso.datetime({ offset: true }).meta({ ...DataClassification.Unrestricted, ...ServerOnly }),
+  last_seen_at: z16.iso.datetime({ offset: true }).meta({ ...DataClassification.Unrestricted, ...ServerOnly }),
+  // Provenance of the last observation; replay retains the original source.
+  last_source: z16.enum(["clickstream", "placement_interaction"]).meta({ ...DataClassification.Unrestricted, ...ServerOnly }),
+  last_event_id: logicalKey()
+}).strict().refine((row) => Date.parse(row.first_seen_at) <= Date.parse(row.last_seen_at), {
+  path: ["last_seen_at"],
+  message: "Last observation cannot precede the first observation."
+}).meta({
+  ...persisted("CustomerAccountObservation", "customerAccountObservations", ["tenant_id", "environment_id", "is_test", "user_id", "account_id"]),
+  ...schemaFacets(SchemaContext.CustomerOperations, { sdkInput: false, source: SchemaSource.Runtime })
+});
 var CustomerUserCreateSchema = z16.strictObject({
   user_id: logicalKey(),
   account_id: logicalKey().nullable().optional()
@@ -23696,6 +23717,7 @@ export {
   CurrencySchema,
   CustomerAccountCreateSchema,
   CustomerAccountListQuerySchema,
+  CustomerAccountObservationSchema,
   CustomerAccountSchema,
   CustomerBuiltinDimensionsSchema,
   CustomerCatalogQuerySchema,
