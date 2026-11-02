@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.538
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.539
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -14571,7 +14571,7 @@ var monetizationEntitlementDecisionConcept = {
     "decision.rule": { kind: "stamped", source: "payload:rule_handle", anchor: "fact_time", partitions: true, catalog_status: "bound", note: "BL-0062: the winning entitlement/placement rule, stamped at emit" },
     // BL-0248/G13 declared this grounding unavailable: the gate PAYLOADS
     // carry `entitlement_handle`, but this concept's exposure and outcome
-    // rows (placement_presentations / placement_exposure_attribution) carry
+    // rows (placement_presentations) carry
     // no entitlement key, and borrowing a temporally adjacent gate event's
     // entitlement would assert a link no fact makes. Plan 282 TASK-13/15
     // (web #965) gave the concept a fact that DOES carry it: gate_table
@@ -14647,9 +14647,8 @@ var monetizationEntitlementDecisionConcept = {
     { kind: "ingested_event", ref: "placement_interaction" },
     { kind: "ingested_event", ref: "placement_outcome" },
     { kind: "datasource", ref: "placement_presentations" },
-    { kind: "datasource", ref: "placement_exposure_attribution" },
     { kind: "datasource", ref: "gate_event_fields", note: "Plan 282 TASK-13: gate_evaluated, gate_attempted, gate_allowed and gate_denied lifted from events_clickstream (entitlement_handle, outcome, limit, used, decision_id); gate_table reads the touches here." },
-    { kind: "datasource", ref: "events_clickstream", note: "SDK telemetry and the read-time user-to-account map." },
+    { kind: "datasource", ref: "events_clickstream", note: "SDK telemetry." },
     { kind: "build", ref: "exposure_breakdown" },
     { kind: "build", ref: "gate_table", note: "The retained per-gate table of SDK touches, touched accounts and presentation CTR." }
   ],
@@ -14717,8 +14716,8 @@ var placementPresentationConcept = {
     // definition names a real source; the extraction in revturbine-web's
     // `growth_funnel_signals` pipe is the separate execution-layer step.
     "decision.rule": { kind: "stamped", source: "payload:rule_handle", anchor: "fact_time", partitions: true, catalog_status: "bound", note: "BL-0182: the winning placement rule, stamped on exposure, interaction and outcome" },
-    "commercial.plan": { kind: "stamped", source: "retired:placement_exposure_attribution.converted_plan_handle", anchor: "touch_time", catalog_status: "unavailable", blocker: "ST-919 retires the billing-enriched plan column and its serving dimension; no replacement SDK plan cut is declared." },
-    "targeting.segment": { kind: "stamped", source: "column:segment_ids", anchor: "exposure_time", note: "as-of exposure, via placement_exposure_attribution (TASK-10)" },
+    "commercial.plan": { kind: "stamped", source: "retired:converted_plan_handle", anchor: "touch_time", catalog_status: "unavailable", blocker: "ST-919 retires the billing-enriched plan column and its serving dimension; no replacement SDK plan cut is declared." },
+    "targeting.segment": { kind: "stamped", source: "column:segment_handles", anchor: "exposure_time", note: "as-of exposure: the canonical segment handles stamped on the placement_presentations row (ST-1409 retired the separate exposure store and its always-empty segment_ids)" },
     "placement.placement": { kind: "stamped", source: "column:placement_id", anchor: "fact_time" },
     "placement.payload": { kind: "stamped", source: "column:payload_id", anchor: "fact_time" },
     "content.message_block": { kind: "stamped", source: "column:message_block_handle", anchor: "fact_time" },
@@ -14791,7 +14790,6 @@ var placementPresentationConcept = {
     { kind: "ingested_event", ref: "placement_interaction" },
     { kind: "ingested_event", ref: "placement_outcome" },
     { kind: "datasource", ref: "placement_presentations" },
-    { kind: "datasource", ref: "placement_exposure_attribution" },
     { kind: "ingested_event", ref: "checkout_started", note: "Plan 282 TASK-8: the checkout step placement_chain reads for checkout_started_accounts." },
     { kind: "build", ref: "exposure_breakdown" },
     { kind: "build", ref: "placement_chain", note: "The retained SDK chain on accounts shown, joining presentations and checkout_started." }
@@ -22886,6 +22884,12 @@ var SIMULATION_RUNNER_LIMITS = Object.freeze({
 var simulationRunnerResources = [
   "events_clickstream",
   "placement_presentations",
+  "experiment_assignments",
+  "gate_event_fields"
+];
+var SIMULATION_RESET_PRE_IDENTITY_RESOURCES = [
+  "events_clickstream",
+  "placement_presentations",
   "placement_exposure_attribution",
   "experiment_assignments",
   "gate_event_fields",
@@ -22906,6 +22910,7 @@ var SIMULATION_RESET_LEGACY_RESOURCES = [...SIMULATION_RESET_PRE_BILLING_RESOURC
 var SIMULATION_RESET_PREDICATE = "tenant_id = 'tenant_simulation'";
 var SIMULATION_RESET_PREDICATE_DIGEST = sha256Hex(SIMULATION_RESET_PREDICATE);
 var SIMULATION_RESET_RESOURCE_SET_DIGEST = sha256Hex(canonicalizeJson([...simulationRunnerResources].sort()));
+var SIMULATION_RESET_PRE_IDENTITY_RESOURCE_SET_DIGEST = sha256Hex(canonicalizeJson([...SIMULATION_RESET_PRE_IDENTITY_RESOURCES].sort()));
 var SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST = sha256Hex(canonicalizeJson([...SIMULATION_RESET_PRE_BILLING_RESOURCES].sort()));
 var SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST = sha256Hex(canonicalizeJson([...SIMULATION_RESET_LEGACY_RESOURCES].sort()));
 var key2 = z70.string().min(1).max(128).regex(/^[A-Za-z0-9_.:-]+$/);
@@ -22921,9 +22926,9 @@ var RESOURCE_COUNT = simulationRunnerResources.length;
 var RECEIPT_RESOURCE_COUNT = SIMULATION_RESET_LEGACY_RESOURCES.length;
 var exactReceiptResources = (rows) => {
   const names = new Set(rows.map((row) => row.resource));
-  return names.size === rows.length && [simulationRunnerResources, SIMULATION_RESET_PRE_BILLING_RESOURCES, SIMULATION_RESET_LEGACY_RESOURCES].some((expected) => names.size === expected.length && expected.every((name) => names.has(name)));
+  return names.size === rows.length && [simulationRunnerResources, SIMULATION_RESET_PRE_IDENTITY_RESOURCES, SIMULATION_RESET_PRE_BILLING_RESOURCES, SIMULATION_RESET_LEGACY_RESOURCES].some((expected) => names.size === expected.length && expected.every((name) => names.has(name)));
 };
-var resetResources = (setDigest) => setDigest === SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST ? SIMULATION_RESET_LEGACY_RESOURCES : setDigest === SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST ? SIMULATION_RESET_PRE_BILLING_RESOURCES : simulationRunnerResources;
+var resetResources = (setDigest) => setDigest === SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST ? SIMULATION_RESET_LEGACY_RESOURCES : setDigest === SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST ? SIMULATION_RESET_PRE_BILLING_RESOURCES : setDigest === SIMULATION_RESET_PRE_IDENTITY_RESOURCE_SET_DIGEST ? SIMULATION_RESET_PRE_IDENTITY_RESOURCES : simulationRunnerResources;
 var metadata5 = (id11) => ({
   id: id11,
   ...ServerOnly,
@@ -22966,7 +22971,7 @@ var SimulationExecutionFingerprintSchema = z70.strictObject({
 var resetIdentity = z70.strictObject({
   entry_id: key2,
   predicate_digest: z70.literal(SIMULATION_RESET_PREDICATE_DIGEST),
-  resource_set_digest: z70.enum([SIMULATION_RESET_RESOURCE_SET_DIGEST, SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST, SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST])
+  resource_set_digest: z70.enum([SIMULATION_RESET_RESOURCE_SET_DIGEST, SIMULATION_RESET_PRE_IDENTITY_RESOURCE_SET_DIGEST, SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST, SIMULATION_RESET_LEGACY_RESOURCE_SET_DIGEST])
 });
 var error = z70.strictObject({
   code: z70.enum([
@@ -24606,6 +24611,8 @@ export {
   SIMULATION_RESET_PREDICATE_DIGEST,
   SIMULATION_RESET_PRE_BILLING_RESOURCES,
   SIMULATION_RESET_PRE_BILLING_RESOURCE_SET_DIGEST,
+  SIMULATION_RESET_PRE_IDENTITY_RESOURCES,
+  SIMULATION_RESET_PRE_IDENTITY_RESOURCE_SET_DIGEST,
   SIMULATION_RESET_RESOURCE_SET_DIGEST,
   SIMULATION_RUNNER_LIMITS,
   STRIPE_DISCOVERY_EXTERNAL_CONTRACT_EVIDENCE,
