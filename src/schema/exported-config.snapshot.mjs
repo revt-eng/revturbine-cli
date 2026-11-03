@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.539
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.540
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -12,6 +12,9 @@ import { z } from "zod";
 
 // scaffold/src/core/handle-pattern.ts
 var HANDLE_PATTERN = /^[a-z0-9._]{1,100}$/;
+function slugifyHandle(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+}
 
 // scaffold/src/core/classification.ts
 var SchemaPersistence = {
@@ -5730,6 +5733,7 @@ var ContentPlacementPayloadSchema = z18.object({
   { id: "ContentPlacementPayload", "x-revturbine-schema-persistence": Transient11, "x-revturbine-schema-exposure": External7 }
 );
 var SurfaceTemplateWriteSchema = toWritableSchema(SurfaceTemplateSchema);
+var CtaPathWriteSchema = toWritableSchema(CtaPathSchema);
 var contentPaths = {
   "/api/surface-template-anchors": {
     get: operation({
@@ -5841,6 +5845,28 @@ var contentPaths = {
       requestBody: { required: true, content: { "application/json": { schema: CtaPathSchema } } },
       responses: { "201": { description: "Created", content: { "application/json": { schema: CtaPathSchema } } } },
       "x-revturbine-operation": { exposure: "external", resource: "cta-paths", persistence: { table: "ctaPathVersions", mode: "create" } }
+    })
+  },
+  // Item routes (ST-1445, BUG-1432): the CTA Paths studio page edits and
+  // deletes single paths. Mirrors surface-templates: versioned, addressed by
+  // anchor_id through the registry's anchorLink.
+  "/api/cta-paths/{ctaPathId}": {
+    patch: operation({
+      operationId: "updateCtaPath",
+      requestParams: { path: z18.object({ ctaPathId: z18.string() }) },
+      summary: "Update CTA path",
+      tags: ["content"],
+      requestBody: { required: true, content: { "application/json": { schema: CtaPathWriteSchema } } },
+      responses: { "200": { description: "Updated", content: { "application/json": { schema: CtaPathSchema } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "cta-paths", persistence: { table: "ctaPathVersions", mode: "update" } }
+    }),
+    delete: operation({
+      operationId: "deleteCtaPath",
+      requestParams: { path: z18.object({ ctaPathId: z18.string() }) },
+      summary: "Delete CTA path",
+      tags: ["content"],
+      responses: { "204": { description: "Deleted" }, default: { description: "Error", content: { "application/json": { schema: ErrorEnvelope } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "cta-paths", persistence: { table: "ctaPathVersions", mode: "delete" } }
     })
   }
 };
@@ -24938,6 +24964,7 @@ export {
   simulationExecuteOccurrenceKey,
   simulationRunChildrenMatch,
   simulationRunnerResources,
+  slugifyHandle,
   stripeDiscoveryDisplayRef,
   stripeDiscoveryLeaseLive,
   stripeDiscoveryPopulationFor,
