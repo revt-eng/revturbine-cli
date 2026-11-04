@@ -7,14 +7,12 @@
   "environment_id": "local",
   "plans": [
     {
-      "id": "plan_free",
       "unique_handle": "free",
       "name": "Free",
       "tier_position": 0,
       "sort_order": 0
     },
     {
-      "id": "plan_pro",
       "unique_handle": "pro",
       "name": "Pro",
       "tier_position": 1,
@@ -23,7 +21,6 @@
   ],
   "entitlements": [
     {
-      "id": "ent_advanced_export",
       "unique_handle": "advanced_export",
       "name": "Advanced Export",
       "type": "feature"
@@ -40,10 +37,7 @@
         }
       ],
       "segment_ids": [],
-      "type_fields": {
-        "kind": "feature",
-        "enabled": false
-      },
+      "enabled": false,
       "current_usage": 0
     },
     {
@@ -56,10 +50,7 @@
         }
       ],
       "segment_ids": [],
-      "type_fields": {
-        "kind": "feature",
-        "enabled": true
-      },
+      "enabled": true,
       "current_usage": 0
     }
   ],
