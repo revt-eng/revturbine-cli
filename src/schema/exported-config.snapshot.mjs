@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.545
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.546
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -1204,12 +1204,19 @@ var AnalyticsGateSettingsAppliedSchema = z8.discriminatedUnion("status", [
       analytics_min_sample: TenantConfigSchema.shape.analytics_min_sample.unwrap().meta(Unrestricted5)
     })
   }),
-  z8.strictObject({ status: z8.literal("not_applied") })
+  z8.strictObject({ status: z8.literal("not_applied") }),
+  // BL-0498: the Gates outcome carrier applies the approved snapshot; these are the values it actually used.
+  z8.strictObject({
+    status: z8.literal("approved"),
+    policy: z8.literal(APPROVED_GATE_SETTINGS_POLICY),
+    carrier: z8.literal("gate_outcomes"),
+    values: AnalyticsGateSettingsValuesSchema
+  })
 ]).meta(meta2("AnalyticsGateSettingsApplied"));
-var AnalyticsGateSettingsTargetSchema = z8.strictObject({
-  status: z8.literal("unavailable").meta(Unrestricted5),
-  prerequisite: z8.literal("BL-0497").meta(Unrestricted5)
-}).meta(meta2("AnalyticsGateSettingsTarget"));
+var AnalyticsGateSettingsTargetSchema = z8.discriminatedUnion("status", [
+  z8.strictObject({ status: z8.literal("unavailable").meta(Unrestricted5), prerequisite: z8.literal("BL-0498").meta(Unrestricted5) }),
+  z8.strictObject({ status: z8.literal("available").meta(Unrestricted5), carrier: z8.literal("gate_outcomes").meta(Unrestricted5) })
+]).meta(meta2("AnalyticsGateSettingsTarget"));
 var AnalyticsGateSettingsMetaSchema = z8.strictObject({
   /** Configured identity only. Tenant scoping/hash custody is verified by the
    * serving context, which this context-free schema cannot establish. */
@@ -12961,6 +12968,12 @@ var METRIC_SEMANTICS = {
   "entitlement.touched_accounts": daily30(NOT_MONETARY),
   "entitlement.decision_accounts": daily30(NOT_MONETARY),
   "entitlement.unclassified_exposures": daily30(NOT_MONETARY),
+  // BL-0498: the Gates outcomes are read as of a declared instant over the gate's own touch window (default 28-84 days
+  // before it, the approved tenant settings); the result declares that window, never the page period.
+  "entitlement.outcome_share": asOfDay(NOT_MONETARY),
+  "entitlement.baseline_share": asOfDay(NOT_MONETARY),
+  "entitlement.verdict": asOfDay(NOT_MONETARY),
+  "entitlement.mature_touched_accounts": asOfDay(NOT_MONETARY),
   "event.accounts": daily30(NOT_MONETARY),
   "event.count": daily30(NOT_MONETARY),
   "event.dwell_ms": daily30(NOT_MONETARY),
@@ -14164,6 +14177,18 @@ var entitlementDecisionAccountsMetric = { id: "entitlement.decision_accounts", l
 // scaffold/src/analytics/catalog/entries/metrics/entitlement/unclassified_exposures.ts
 var entitlementUnclassifiedExposuresMetric = { id: "entitlement.unclassified_exposures", label: "Unclassified exposures", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["gate_table"], input_origin: "platform", ingested_events: [], ingested_datasources: ["placement_presentations"], note: `Disclosure: distinct presented exposures with no trigger_source stamp (an older SDK, or a slot not requested through a gate); gate_table.unclassified_exposures, the same value on every row. Placement touches only, never assigned to a gate or inferred from configuration. ${GATE_TABLE_TESTED_NOTE}` } };
 
+// scaffold/src/analytics/catalog/entries/metrics/entitlement/outcome_share.ts
+var entitlementOutcomeShareMetric = { id: "entitlement.outcome_share", label: "Gate outcome share", description: `Share of a gate's mature touched accounts in one outcome (Bought, No change, Left, went quiet or downgraded), served one row per gate, pool (paying, not paying, overall) and outcome. The shares partition the mature touched accounts of the pool; a share below the minimum sample is null ("not enough data yet"); shares never sum across gates.`, value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced", statistical_type: "binary", direction: "neutral", aggregation_semantics: "non_additive", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["gate_outcomes"], input_origin: "mixed", ingested_events: [], ingested_datasources: ["placement_presentations", "events_clickstream", "attribution_credits", "mrr_movements_daily", "mrr_daily"], note: "Served by the gate_outcomes block (BL-0498), classified by deriveGateOutcomes over gate_exposure_touches, account_active_days and Neon credits, movements and MRR. Touch: a gate-stamped exposure in [max(activation, T-84d), T-28d). Mature: the follow-up (and, if not Bought or churned, the quiet interval) has elapsed before the as-of. Precedence: Bought (a live positive gate-lane credit inside the follow-up), then Left (account churn, or a complete quiet interval), then No change. Window and horizons come from the approved tenant settings, declared on the result." } };
+
+// scaffold/src/analytics/catalog/entries/metrics/entitlement/baseline_share.ts
+var entitlementBaselineShareMetric = { id: "entitlement.baseline_share", label: "Gate baseline outcome share", description: "Share of the same-pool no-touch baseline in one outcome (Bought, No change, Left), followed from the touch-window end for the gate follow-up. The baseline is the same-pool accounts with tracked activity in the touch window and no gate-stamped exposure of this gate in [T-84d, T). The common window-end anchor is an approximation to the touched accounts' individual anchors, disclosed on the result.", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced", statistical_type: "binary", direction: "neutral", aggregation_semantics: "non_additive", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["gate_outcomes"], input_origin: "mixed", ingested_events: [], ingested_datasources: ["placement_presentations", "events_clickstream", "mrr_movements_daily", "mrr_daily"], note: "Served by the gate_outcomes block (BL-0498), classified by deriveGateOutcomes with the same rules as the touched accounts, without the credit requirement: Bought is any positive movement (new, expansion, reactivation) in the follow-up. The minimum sample applies to the baseline denominator separately; pool membership is read at the window-end day." } };
+
+// scaffold/src/analytics/catalog/entries/metrics/entitlement/verdict.ts
+var entitlementVerdictMetric = { id: "entitlement.verdict", label: "Gate verdict", description: "Working, Working but costly, Hurting, Within expected range, or Not enough data yet, per gate and pool, from the mature touched shares against the pool baseline. Bought is high at a share of at least 5%, or at least 1.3 times the baseline and two points above it; Left is high at least 1.3 times the baseline and five points above it. The headline is the majority pool; a tie is shown as a tie. An observational comparison, not proof of cause.", value_type: "string", source_scope: "revturbine_influenced", statistical_type: "binary", direction: "neutral", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["gate_outcomes"], input_origin: "mixed", ingested_events: [], ingested_datasources: ["placement_presentations", "events_clickstream", "attribution_credits", "mrr_movements_daily", "mrr_daily"], note: 'gateVerdictOf over entitlement.outcome_share and entitlement.baseline_share (BL-0498). The thresholds are named oracle constants (GATE_VERDICT_THRESHOLDS), not Playbook or tenant settings. Insufficient mature samples in the touched or the baseline population produce "Not enough data yet".' } };
+
+// scaffold/src/analytics/catalog/entries/metrics/entitlement/mature_touched_accounts.ts
+var entitlementMatureTouchedAccountsMetric = { id: "entitlement.mature_touched_accounts", label: "Mature gate-stamped exposures", description: "Accounts with a gate-stamped placement exposure in the gate's touch window whose full follow-up has elapsed: the denominator of entitlement.outcome_share, per gate and pool. Accounts not yet mature are reported separately and never classified.", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "neutral", aggregation_semantics: "non_additive", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["gate_outcomes"], input_origin: "mixed", ingested_events: [], ingested_datasources: ["placement_presentations", "events_clickstream", "mrr_daily"], note: "Served by the gate_outcomes block (BL-0498). Counts do not add across gates: one account may touch several gates. The pool is read from mrr_daily at the account's touch day (sum of mrr_minor_units > 0)." } };
+
 // scaffold/src/analytics/catalog/entries/metrics/coverage/managed_share.ts
 var coverageManagedShareMetric = { id: "coverage.managed_share", label: "Managed MRR share", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "continuous", direction: "increase", preferred_analysis_unit: "account", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: [], input_origin: "none", ingested_events: [], note: "retired by Kent 2026-10-30 (ST-1398 Q-1): the V1 stock it was computed on was never correct" } };
 
@@ -14705,6 +14730,11 @@ var monetizationEntitlementDecisionConcept = {
     // and the disclosure of exposures no SDK stamp classified.
     "entitlement.decision_accounts",
     "entitlement.unclassified_exposures",
+    // BL-0498: the Gates view outcomes, served by the gate_outcomes block.
+    "entitlement.mature_touched_accounts",
+    "entitlement.outcome_share",
+    "entitlement.baseline_share",
+    "entitlement.verdict",
     "entitlement.ctr"
   ],
   query_families: ["scalar", "timeseries", "breakdown", "funnel", "table"],
@@ -14760,6 +14790,8 @@ var monetizationEntitlementDecisionConcept = {
     { kind: "datasource", ref: "gate_event_fields", note: "Plan 282 TASK-13: gate_evaluated, gate_attempted, gate_allowed and gate_denied lifted from events_clickstream (entitlement_handle, outcome, limit, used, decision_id); gate_table reads the touches here." },
     { kind: "datasource", ref: "events_clickstream", note: "SDK telemetry." },
     { kind: "build", ref: "exposure_breakdown" },
+    { kind: "build", ref: "gate_exposure_touches", note: "BL-0498: the gate-stamped exposures per (gate, account, user) with the last exposure instant, read by the Gates outcome block." },
+    { kind: "build", ref: "account_active_days", note: "BL-0498: per real account, the UTC dates with clickstream activity (the baseline population and the quiet interval)." },
     { kind: "build", ref: "gate_table", note: "The retained per-gate table: gate decisions (telemetry), gate-stamped exposures (attribution), the unclassified-exposure disclosure and presentation CTR." }
   ],
   oracle_family: { family: "presentation" },
@@ -15596,6 +15628,10 @@ var AUTHORED_METRIC_ENTRIES = [
   entitlementTouchedAccountsMetric,
   entitlementDecisionAccountsMetric,
   entitlementUnclassifiedExposuresMetric,
+  entitlementOutcomeShareMetric,
+  entitlementBaselineShareMetric,
+  entitlementVerdictMetric,
+  entitlementMatureTouchedAccountsMetric,
   coverageManagedShareMetric,
   revenueNewManagedRevenueMetric,
   eventCountMetric,
