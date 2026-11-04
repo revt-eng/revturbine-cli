@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.541
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.542
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -131,6 +131,12 @@ function toCreateSchema(schema) {
   const handleField = writable.shape["handle"];
   if (handleField && typeof handleField.regex === "function") {
     return writable.extend({ handle: handleField.regex(HANDLE_PATTERN) });
+  }
+  if (handleField instanceof z.ZodOptional) {
+    const inner = handleField.unwrap();
+    if (typeof inner.regex === "function") {
+      return writable.extend({ handle: inner.regex(HANDLE_PATTERN).optional() });
+    }
   }
   return writable;
 }
@@ -5460,13 +5466,17 @@ var SegmentDimensionSchema = IdField.merge(TimestampFields).merge(TenantIdField)
   }
 );
 var SegmentDimensionAnchorSchema = makeAnchor("SegmentDimensionAnchor");
+var SegmentDefinitionRuleField = z17.union([
+  z17.array(RevTurbineConfigSegmentsItemPredicatesItemSchema),
+  z17.record(z17.string(), z17.unknown())
+]).nullable();
 var SegmentValueSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
   anchor_id: z17.string().min(1).meta({ ...Unrestricted13, readOnly: true }),
   dimension_id: z17.string().min(1).meta(Unrestricted13),
   name: NameField.meta(Unrestricted13),
   handle: HandleField.meta(Unrestricted13),
   description: DescriptionField.meta(Unrestricted13),
-  definition_rule: z17.record(z17.string(), z17.unknown()).optional().meta(Unrestricted13),
+  definition_rule: SegmentDefinitionRuleField.optional().meta(Unrestricted13),
   used_in_count: z17.number().int().min(0).default(0).meta({ ...Unrestricted13, readOnly: true })
 }).meta(
   {
@@ -5580,7 +5590,7 @@ var segmentPaths = {
       requestParams: { path: z17.object({ dimensionId: z17.string() }) },
       summary: "Create segment value",
       tags: ["segments"],
-      requestBody: { required: true, content: { "application/json": { schema: z17.object({ name: z17.string(), handle: z17.string(), definition_rule: z17.record(z17.string(), z17.unknown()).optional() }) } } },
+      requestBody: { required: true, content: { "application/json": { schema: z17.object({ name: z17.string(), handle: z17.string(), definition_rule: SegmentDefinitionRuleField.optional() }) } } },
       responses: { "201": { description: "Created", content: { "application/json": { schema: SegmentValueSchema } } } },
       "x-revturbine-operation": { exposure: "internal", resource: "segment-values", persistence: { table: "segmentValueVersions", mode: "create" } }
     })
@@ -5591,7 +5601,7 @@ var segmentPaths = {
       requestParams: { path: z17.object({ valueId: z17.string() }) },
       summary: "Update segment value",
       tags: ["segments"],
-      requestBody: { required: true, content: { "application/json": { schema: z17.object({ name: z17.string().optional(), definition_rule: z17.record(z17.string(), z17.unknown()).optional() }) } } },
+      requestBody: { required: true, content: { "application/json": { schema: z17.object({ name: z17.string().optional(), definition_rule: SegmentDefinitionRuleField.optional() }) } } },
       responses: { "200": { description: "Updated", content: { "application/json": { schema: SegmentValueSchema } } } },
       "x-revturbine-operation": { exposure: "internal", resource: "segment-values", persistence: { table: "segmentValueVersions", mode: "update" } }
     }),
@@ -5642,8 +5652,10 @@ var CtaPathSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(An
   name: NameField.meta(Unrestricted14),
   handle: HandleField.meta(Unrestricted14),
   action_type: CtaActionTypeSchema.meta(Unrestricted14),
-  target_url: z18.string().optional().meta(Unrestricted14),
-  target_plan_id: z18.string().optional().meta(Unrestricted14),
+  // ST-1445: nullable so an editor can clear a target with an explicit null
+  // (an omitted key keeps the stored value on PATCH).
+  target_url: z18.string().nullable().optional().meta(Unrestricted14),
+  target_plan_id: z18.string().nullable().optional().meta(Unrestricted14),
   config_fields: z18.record(z18.string(), z18.unknown()).default({}).meta(Unrestricted14),
   metadata: MetadataField.meta(Unrestricted14)
 }).meta(
