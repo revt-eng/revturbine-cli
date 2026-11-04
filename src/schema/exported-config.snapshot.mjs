@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.540
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.541
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -1194,7 +1194,8 @@ var AnalyticsGateSettingsAppliedSchema = z8.discriminatedUnion("status", [
     policy: z8.literal(GATE_PLACEMENT_LEGACY_POLICY),
     values: z8.strictObject({
       quiet_days: z8.literal(GATE_PLACEMENT_LEGACY_VALUES.quiet_days),
-      analytics_min_sample: z8.literal(GATE_PLACEMENT_LEGACY_VALUES.analytics_min_sample)
+      // The legacy carrier still applies the legacy quiet window, but the tenant's minimum sample (BL-0499 TASK-5).
+      analytics_min_sample: TenantConfigSchema.shape.analytics_min_sample.unwrap().meta(Unrestricted5)
     })
   }),
   z8.strictObject({ status: z8.literal("not_applied") })
