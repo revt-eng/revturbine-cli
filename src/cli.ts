@@ -67,13 +67,14 @@ import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from '.
 import { detectHarness, finalOutputLines, isAgentId, skillsAddArgs, SKILLS_SOURCE, SUPPORTED_AGENTS, type SkillsOutcome } from './lib/init-skills';
 import { generateHandleTypes } from './lib/handles-codegen';
 import { classFromStatus, diag, diagRaw, DIFF_EXIT, diffExitCode, emit, EXIT, fail, isNetworkError, redact, registerSecrets } from './lib/output';
-import { DEFAULT_TENANT_ID, HEADERS_ENV, parseExtraHeaders, resolveAuth, TOKEN_ENV, withExtraHeaders, type TokenSource } from './lib/env-auth';
+import { HEADERS_ENV, parseExtraHeaders, resolveAuth, TOKEN_ENV, withExtraHeaders, type TokenSource } from './lib/env-auth';
 import { type FetchLike } from './lib/device-auth';
 import { checkPinDrift } from './lib/pin-drift';
 import { latestStableSdk, sdkDeclaration, sdkPackageVersion, sdkVersionAdvice } from './lib/sdk-version';
 import { describeSelector, orderDiffSelectors, requireSelectors, SelectorError, type VersionSelector } from './lib/selectors';
 import { resolveUploadTarget } from './lib/target';
-import { serverSchemaIsNewer } from './lib/version-trail';
+import { describeFetchFailure, proxyVariable } from './lib/proxy';
+import { publishedCliVersion, schemaLagMessage, serverSchemaIsNewer } from './lib/version-trail';
 import {
   createAnalyticsView,
   getAnalyticsCatalog,
@@ -244,13 +245,14 @@ function connect(rawUrl: string, explicitTenantId?: string, diagnostic: (message
   if (auth.tokenSource === 'env') {
     diagnostic(`Tenant ${tenantId ?? "(the token user's own)"} (${tenantSource}); token: ${TOKEN_ENV}${extraNote}.`);
   } else {
-    diagnostic(`Tenant ${tenantId} (${tenantSource}); credentials: ${dir} [${source}]${extraNote}.`);
+    diagnostic(`Tenant ${tenantId ?? "(the token user's own)"} (${tenantSource}); credentials: ${dir} [${source}]${extraNote}.`);
   }
   if (source === 'global' && auth.tokenSource !== 'env') {
+    // No advice to create a project-local credentials folder: it would hold the
+    // login token and nothing git-ignores it (BUG-822).
     diagnostic(
-      `WARNING: using the global ${dir} - NOT worktree-scoped. ` +
-        `If this session is for a specific customer, run from that customer's worktree ` +
-        `(with its own .revturbine/) so a stale login can't target the wrong tenant.`,
+      `Using the machine-wide login in ${dir}. ` +
+        `If this session is for a specific customer, pass -t <tenant> on server commands so a stale login can't target the wrong tenant.`,
     );
   }
   return {
@@ -278,18 +280,19 @@ function connect(rawUrl: string, explicitTenantId?: string, diagnostic: (message
  */
 function uploadTenantFor(rawUrl: string, config: unknown, explicit?: string): string | undefined {
   const embedded = (config as { tenant_id?: string })?.tenant_id;
-  if (process.env[TOKEN_ENV]?.trim()) {
-    // Env token: the session tenant is resolved server-side, so there is
-    // nothing to compare against. -t wins; else an embedded origin is sent
-    // (the server 403s it unless it is the token user's own); else no header.
+  const cred = getCredential(normalizeBaseUrl(rawUrl));
+  if (process.env[TOKEN_ENV]?.trim() || !cred?.tenant_id) {
+    // Env token or no configured tenant: the session tenant is resolved
+    // server-side, so there is nothing to compare against. -t wins; else an
+    // embedded origin is sent (the server 403s it unless it is the token
+    // user's own); else no header.
     if (!explicit && embedded) diag(`sending to the config's embedded tenant ${embedded} (pass -t to retarget).`);
     return explicit ?? embedded ?? undefined;
   }
-  const cred = getCredential(normalizeBaseUrl(rawUrl));
   const target = resolveUploadTarget({
     embedded,
     explicit,
-    session: cred?.tenant_id ?? DEFAULT_TENANT_ID,
+    session: cred.tenant_id,
   });
   if (!target.ok) fail(EXIT.VALIDATION, target.error);
   if (target.note) diag(target.note);
@@ -332,7 +335,7 @@ async function request(conn: Connection, pathname: string, init?: RequestInit): 
   try {
     return await fetch(`${conn.url}${pathname}`, { headers: conn.headers, ...init });
   } catch (err) {
-    if (isNetworkError(err)) fail(EXIT.NETWORK, `network failure reaching ${conn.url}: ${(err as Error).message}`);
+    if (isNetworkError(err)) fail(EXIT.NETWORK, `network failure reaching ${conn.url}: ${describeFetchFailure(err, process.env)}`);
     throw err;
   }
 }
@@ -351,14 +354,30 @@ async function getJson(conn: Connection, pathname: string): Promise<{ res: Respo
   return { res, json };
 }
 
-/** Warn when the server's schema stamp outruns the bundled snapshot. */
-function warnIfSchemaBehind(config: unknown): void {
-  const server = serverSchemaIsNewer(config, SCHEMA_VERSION);
-  if (server) {
-    diag(
-      `WARNING: the server's schema (${server}) is newer than this CLI's bundled snapshot (${SCHEMA_VERSION}) — offline validation may be missing rules. Update the CLI pinned in this repo: npm install -D @revturbine/cli@latest (or your package manager's equivalent).`,
-    );
+let schemaLagWarned = false;
+
+/** The latest published CLI version, or undefined when npm cannot be reached. */
+async function latestPublishedCli(): Promise<string | undefined> {
+  try {
+    const registry = (process.env.REVTURBINE_REGISTRY_URL?.trim() || 'https://registry.npmjs.org').replace(/\/+$/, '');
+    const response = await fetch(`${registry}/@revturbine%2fcli/latest`, {
+      signal: globalThis.AbortSignal.timeout(SDK_VERSION_TIMEOUT_MS),
+      credentials: 'omit', redirect: 'error',
+    });
+    if (!response.ok) { await response.body?.cancel(); return undefined; }
+    return publishedCliVersion(await response.json());
+  } catch {
+    return undefined; // A failed advisory never changes the command result.
   }
+}
+
+/** Warn, at most once per run, when the server's schema stamp outruns the bundled snapshot. */
+async function warnIfSchemaBehind(config: unknown): Promise<void> {
+  const server = serverSchemaIsNewer(config, SCHEMA_VERSION);
+  if (!server || schemaLagWarned) return;
+  schemaLagWarned = true;
+  const message = schemaLagMessage({ server, bundled: SCHEMA_VERSION, installed: pkgVersion, latest: await latestPublishedCli() });
+  if (message) diag(message);
 }
 
 /** Download a config version's JSON; `playbookVersionId` scopes a draft/Release. */
@@ -367,7 +386,7 @@ async function downloadConfig(conn: Connection, playbookVersionId?: string): Pro
   const res = await request(conn, `/api/config/export${qs}`);
   if (!res.ok) await httpFailResponse(conn, 'download', res);
   const config = await res.json().catch(() => ({}));
-  warnIfSchemaBehind(config);
+  await warnIfSchemaBehind(config);
   return config;
 }
 
@@ -565,7 +584,7 @@ Command groups:
   Catalog       plans, plan-variations create|list|get|link|links
 
 Version selectors (no defaults — a command that reads a config requires one):
-  <file>            a local Playbook file (positional, or --file <path>)
+  <file>            a local Playbook file (positional; only \`show\` also takes --file <path>)
   --draft           the tenant's single open draft (resolved automatically)
   --live            the current live Release
   --release <id>    a specific playbook version / Release
@@ -877,6 +896,7 @@ program
         playbookAdded,
         skills: skillsOutcome,
         harness,
+        projectDir: dir,
       });
       process.stdout.write(`${lines.join('\n')}\n`);
     }
@@ -894,7 +914,7 @@ program
       await deviceLogin(base, console.log, instanceFetch());
       await trackEvent(base, undefined, 'cli_signed_in');
     } catch (err) {
-      fail(EXIT.AUTH, `Login failed: ${(err as Error).message}`);
+      fail(EXIT.AUTH, `Login failed: ${describeFetchFailure(err, process.env)}`);
     }
   });
 
@@ -2201,6 +2221,12 @@ function gitRootOf(from: string): string | null {
   }
 }
 
+/** Apply exitOverride to a command and every descendant (BUG-1436). */
+function applyExitOverride(cmd: Command): void {
+  cmd.exitOverride();
+  for (const sub of cmd.commands) applyExitOverride(sub);
+}
+
 // Self-delegation (plan 142 REQ-14): hand off to the version this repo pins,
 // because the bundled schema snapshot is pinned with it. Everything about the
 // decision lives in lib/delegate.ts; this is only the IO.
@@ -2221,6 +2247,14 @@ function gitRootOf(from: string): string | null {
     });
     process.exit(child.status ?? EXIT.UNEXPECTED);
   }
+}
+
+// Node's fetch ignores HTTP(S)_PROXY; opt in when one is set (BUG-821). Done
+// after delegation so a delegated child installs it once, in its own process.
+// Loaded lazily so the no-proxy path never pays for (or evaluates) undici.
+if (proxyVariable(process.env)) {
+  const { EnvHttpProxyAgent, setGlobalDispatcher } = await import('undici');
+  setGlobalDispatcher(new EnvHttpProxyAgent());
 }
 
 // -V/--version is answered pre-parse (same pattern as the delegation flag) so
@@ -2244,7 +2278,9 @@ if (process.argv.includes('-V') || process.argv.includes('--version')) {
   // fetch can crash Node on Windows with UV_HANDLE_CLOSING (plan 254 TASK-12).
   process.exitCode = EXIT.OK;
 } else {
-  program.exitOverride();
+  // Commander copies exitOverride to a subcommand only when it is created, so
+  // set it on every command now that all of them exist (BUG-1436).
+  applyExitOverride(program);
   try {
     await program.parseAsync(process.argv);
   } catch (err) {

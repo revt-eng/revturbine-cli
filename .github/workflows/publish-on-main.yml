@@ -25,6 +25,9 @@ on:
     branches: [main]
     paths:
       - 'package.json'
+  # snapshot-patch-release.yml dispatches this after pushing a bump with the
+  # default GITHUB_TOKEN (whose pushes do not start push-triggered workflows).
+  workflow_dispatch:
 
 permissions:
   contents: write # tag push

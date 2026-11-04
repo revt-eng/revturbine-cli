@@ -96,7 +96,7 @@ Commands that read a config name the version explicitly — there is no default:
 
 | Selector | Meaning |
 |---|---|
-| `<file>` / `--file <path>` | a local Playbook file |
+| `<file>` | a local Playbook file, given as a positional path (only `show` also accepts `--file <path>`) |
 | `--draft` | the tenant's single open draft (resolved automatically) |
 | `--live` | the current live Release |
 | `--release <id>` | a specific playbook version / Release |
@@ -113,7 +113,7 @@ Commands that read a config name the version explicitly — there is no default:
 | `docs` | Print the canonical documentation URL. |
 | `download` | Fetch a config version (`--live` / `--draft` / `--release <id>`); `--save`. |
 | `validate` | Offline schema validation of a `<file>`, or the full server catalog against the open draft (`--draft`). |
-| `diff` | Compare any two versions (dry-run, no writes). A file vs `--draft`/`--live`/`--release` previews the launch — the server side is the base, so `+`/`-` read as created/pruned on launch. `--exit-code` makes the status machine-readable: `0` no differences, `1` differences, anything else an error (an unexpected internal error exits `70` so `1` always means "differences"). Every top-level Playbook collection is compared. |
+| `diff` | Compare any two versions (dry-run, no writes). A file vs `--draft`/`--live`/`--release` previews the launch — the server side is the base, so `+`/`-` read as created/pruned on launch. `--exit-code` makes the status machine-readable: `0` no differences, `1` differences, anything else an error (an unexpected internal error exits `70` so `1` always means "differences"). Every top-level Playbook collection is compared, per `unique_handle`/`handle`, **semantically**: key order does not matter; `null`, `[]` and `{}` equal an absent property; server-owned fields (`created_at`/`updated_at`, item `id`, `segments[].dimension_id`, `entitlement_rules[].unit`, `entitlements[].tier_description`), the built-in `rt.*` segments, the Playbook header and `entitlements[].kind` `feature` vs `capability_tier` are ignored, so an uploaded-then-downloaded file reads as unchanged. A real change lists the changed fields, e.g. `~ pro (name)`; top-level objects and scalars are compared too. |
 | `show <kind>` | Summary tables: `plans` · `entitlements` · `segments` · `placements` · `trials` for any version. |
 | `upload` | Stage a Playbook file as the open draft. |
 | `launch` | Take a config live: validate (launch gate) → submit → approve → deploy. `launch <file>` or `launch --draft`. |
@@ -195,6 +195,7 @@ environment instead:
 | Variable | Meaning |
 |---|---|
 | `REVTURBINE_TOKEN` | Bearer token for every request. Wins over any stored credential (which is then ignored). With it set and no `-t/--tenant-id`, **no `x-tenant-id` header is sent** and the server resolves the token user's own tenant; `-t` still sends one (it must be that tenant). |
+| `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` | Honoured by every request (undici `EnvHttpProxyAgent`), for sandboxes that reach the internet only through a proxy. A failed request prints its cause and the variable that was in force (never its value, which can carry credentials). |
 | `REVTURBINE_HTTP_HEADERS` | A JSON object of extra headers added to every request to the RevTurbine instance, e.g. `{"x-vercel-protection-bypass":"…"}` to reach a protection-gated preview/staging deployment. It may not set `Authorization`, `x-tenant-id`, `x-rt-tenant-id` or `Content-Type`. A malformed value exits `2`. |
 
 Neither the token nor any header value is ever logged, echoed in an error, or

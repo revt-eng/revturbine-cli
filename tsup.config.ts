@@ -11,8 +11,18 @@ export default defineConfig({
   target: 'node22',
   platform: 'node',
   bundle: true,
-  noExternal: ['semver'],
+  // Keep one dist/cli.js: the lazy undici import must not become a second chunk.
+  splitting: false,
+  noExternal: ['semver', 'undici'],
   clean: true,
-  banner: { js: '#!/usr/bin/env node' },
+  // undici is CommonJS and requires Node built-ins; ESM output needs a real
+  // `require` for the bundler's shim to use.
+  banner: {
+    js: [
+      '#!/usr/bin/env node',
+      'import { createRequire as __revtCreateRequire } from "node:module";',
+      'const require = __revtCreateRequire(import.meta.url);',
+    ].join('\n'),
+  },
   outDir: 'dist',
 });

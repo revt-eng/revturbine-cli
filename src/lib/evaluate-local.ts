@@ -151,9 +151,17 @@ export async function evaluateLocal(
   // against the instances at `nowIso` and pushes the resulting status into the
   // context that gates trial_progress / trial_ending / trial_ended.
   if (input.trialInstances) {
+    // `basePlanHandle` is the plan a reverse-trial user reverts to; the SDK
+    // surfaces it as the trial status's `plan_handle`, which is what matches the
+    // reverse-trial rule and grants its `entitlements_during_trial` (BUG-1195:
+    // without it the status read in_trial yet every trial grant was denied).
+    const options = {
+      ...(input.nowIso ? { nowIso: input.nowIso } : {}),
+      ...(input.planHandle ? { basePlanHandle: input.planHandle } : {}),
+    };
     await session.sdk.setTrialInstances(
       input.trialInstances as unknown as TrialInstances,
-      input.nowIso ? { nowIso: input.nowIso } : undefined,
+      Object.keys(options).length > 0 ? options : undefined,
     );
   }
   const trialAsked = Boolean(input.trialInstances || input.trialStatus);

@@ -6,7 +6,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  DEFAULT_TENANT_ID,
   parseExtraHeaders,
   resolveAuth,
   withExtraHeaders,
@@ -39,8 +38,17 @@ describe('resolveAuth — token and tenant precedence', () => {
 
   it('without the env token keeps the pre-existing behavior', () => {
     expect(resolveAuth({ envToken: undefined, stored, explicitTenantId: 'tn_x' })).toMatchObject({ tenantId: 'tn_x', tenantSource: '--tenant-id' });
-    expect(resolveAuth({ envToken: undefined, stored: { token: 't_fake', tenant_id: null } })).toMatchObject({ tenantId: DEFAULT_TENANT_ID, tenantSource: 'default' });
-    expect(resolveAuth({ envToken: undefined, stored: null })).toMatchObject({ token: null, tokenSource: 'none', tenantId: DEFAULT_TENANT_ID });
+  });
+
+  it('sends no tenant when none is configured, on both stored-credential paths (BL-0415)', () => {
+    // Stored credential whose tenant_id is null.
+    expect(resolveAuth({ envToken: undefined, stored: { token: 't_fake', tenant_id: null } })).toMatchObject({ tokenSource: 'stored', tenantId: null });
+    // No credential at all.
+    expect(resolveAuth({ envToken: undefined, stored: null })).toMatchObject({ token: null, tokenSource: 'none', tenantId: null });
+    // The placeholder default no longer exists in any resolved tenant.
+    for (const stored of [null, { token: 't_fake', tenant_id: null }]) {
+      expect(JSON.stringify(resolveAuth({ envToken: undefined, stored }))).not.toContain('dev-tenant-001');
+    }
   });
 });
 
