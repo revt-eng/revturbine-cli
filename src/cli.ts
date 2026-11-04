@@ -46,7 +46,7 @@ import {
   UnsupportedFormatError,
 } from './lib/playbook-header';
 import { resolveActiveDraft } from './lib/drafts';
-import { classifyToken, formatAuthentication } from './lib/whoami';
+import { classifyRefusal, classifyToken, formatAuthentication, formatRefusal, parseRefusalEnvelope, type Refusal } from './lib/whoami';
 import { parseDecisionContext } from './lib/evaluate-context';
 import { evaluateLocal, resolvePlacementComponentType } from './lib/evaluate-local';
 import { createIngestKey, listIngestKeys, revokeIngestKey, formatIngestKeyLine } from './lib/ingest-keys';
@@ -296,8 +296,14 @@ function uploadTenantFor(rawUrl: string, config: unknown, explicit?: string): st
   return target.tenantId;
 }
 
-function authHint(url: string, status: number): void {
+function authHint(url: string, status: number, detail?: unknown, mitigated?: string | null): void {
   if (status === 401 || status === 403) {
+    const refusal = classifyRefusal(status, detail, mitigated);
+    if (refusal?.challenged) {
+      // A firewall or bot challenge answered before the credentials were read (BUG-1184).
+      diag(`Request to ${url} ${formatRefusal(refusal)}`);
+      return;
+    }
     diag(
       process.env[TOKEN_ENV]?.trim()
         ? `Authentication failed for ${url} with ${TOKEN_ENV}: check the token and its tenant membership.`
@@ -306,10 +312,20 @@ function authHint(url: string, status: number): void {
   }
 }
 
-/** Fail with the right class for a non-OK HTTP response. */
-function httpFail(conn: Connection, what: string, status: number, detail?: unknown): never {
-  authHint(conn.url, status);
-  fail(classFromStatus(status), `${what} failed (${status})${detail ? `: ${JSON.stringify(detail)}` : ''}`);
+/** Fail with the right class for a non-OK HTTP response; a 401/403 reports its body and tells a challenge from a refused key. */
+function httpFail(conn: Connection, what: string, status: number, detail?: unknown, mitigated?: string | null): never {
+  authHint(conn.url, status, detail, mitigated);
+  fail(classFromStatus(status), `${what} failed (${status})${detail ? `: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''}`);
+}
+
+/** `httpFail` for a bare Response: reads the body of a 401/403 so the failure can report it. */
+async function httpFailResponse(conn: Connection, what: string, res: Response): Promise<never> {
+  if (res.status === 401 || res.status === 403) {
+    const text = (await res.text().catch(() => '')).trim();
+    const parsed = parseRefusalEnvelope(text);
+    return httpFail(conn, what, res.status, parsed ? text : text.slice(0, 200) || undefined, res.headers.get('x-vercel-mitigated'));
+  }
+  return httpFail(conn, what, res.status);
 }
 
 async function request(conn: Connection, pathname: string, init?: RequestInit): Promise<Response> {
@@ -349,7 +365,7 @@ function warnIfSchemaBehind(config: unknown): void {
 async function downloadConfig(conn: Connection, playbookVersionId?: string): Promise<unknown> {
   const qs = playbookVersionId ? `?playbookVersionId=${encodeURIComponent(playbookVersionId)}` : '';
   const res = await request(conn, `/api/config/export${qs}`);
-  if (!res.ok) httpFail(conn, 'download', res.status);
+  if (!res.ok) await httpFailResponse(conn, 'download', res);
   const config = await res.json().catch(() => ({}));
   warnIfSchemaBehind(config);
   return config;
@@ -997,6 +1013,7 @@ program
     const diagnostics: string[] = [];
     const conn = connect(opts.url, opts.tenantId, (message) => diagnostics.push(message));
     let probeStatus: number | null = null;
+    let refusal: Refusal | null = null;
     if (conn.hasToken) {
       probeStatus = await fetch(`${conn.url}/api/optimization/drafts`, {
         headers: conn.headers,
@@ -1004,11 +1021,17 @@ program
         // A redirected login page returning 200 is not proof of authentication.
         redirect: 'manual',
       }).then(async (response) => {
-        await response.body?.cancel();
+        if (response.status === 401 || response.status === 403) {
+          // The body says whether a key was refused or a challenge answered first (BUG-1184).
+          const text = await response.text().catch(() => '');
+          refusal = classifyRefusal(response.status, text, response.headers.get('x-vercel-mitigated'));
+        } else {
+          await response.body?.cancel();
+        }
         return response.status;
       }).catch(() => null);
     }
-    const tokenValid = classifyToken(conn.hasToken, probeStatus);
+    const tokenValid = classifyToken(conn.hasToken, probeStatus, (refusal as Refusal | null)?.challenged === true);
     const data = {
       instance: conn.url,
       tenant: conn.tenantId,
@@ -1017,12 +1040,16 @@ program
       credentials_source: conn.credentialsSource,
       token_present: conn.hasToken,
       token_valid: tokenValid,
+      // Only a 401/403 adds fields, so the accepted and unavailable contracts stay unchanged.
+      ...(refusal
+        ? { probe_status: (refusal as Refusal).status, probe_challenged: (refusal as Refusal).challenged, probe_body: (refusal as Refusal).detail }
+        : {}),
     };
     emit(
       data,
       Boolean(opts.json),
       [
-        formatAuthentication(conn.hasToken, tokenValid),
+        formatAuthentication(conn.hasToken, tokenValid, refusal),
         `instance:    ${data.instance}`,
         `tenant:      ${data.tenant ?? "(the token user's own)"} (${data.tenant_source})`,
         conn.tokenSource === 'env'
@@ -1257,6 +1284,9 @@ program
     if (!res.ok) {
       // A 409 means a draft playbook version is already open for the tenant —
       // launch or discard it (Drafts & Releases) before importing.
+      if (res.status === 401 || res.status === 403) {
+        httpFail(conn, 'upload', res.status, json, res.headers.get('x-vercel-mitigated'));
+      }
       if (json && typeof json === 'object' && json.stage) {
         diagRaw(`  stage:  ${json.stage}`);
         diagRaw(`  detail: ${JSON.stringify(json.detail)}`);
@@ -1296,6 +1326,9 @@ program
       diag(`Staging ${sel.path} as the open draft …`);
       const { res, json } = await postJson(conn, `/api/config/import${pruneQuery(opts.prune)}`, config);
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          httpFail(conn, 'upload', res.status, json, res.headers.get('x-vercel-mitigated'));
+        }
         diagRaw(`  ${JSON.stringify(json)}`);
         httpFail(conn, 'upload', res.status);
       }
@@ -1396,7 +1429,7 @@ program
   .action(async (opts: { url: string; tenantId?: string; json?: boolean }) => {
     const conn = connect(opts.url, opts.tenantId);
     const { res, json } = await getJson(conn, '/api/optimization/releases');
-    if (!res.ok) httpFail(conn, 'history', res.status);
+    if (!res.ok) await httpFailResponse(conn, 'history', res);
     const items: AnyRecord[] = Array.isArray(json?.items) ? json.items : [];
     emit(
       items,
