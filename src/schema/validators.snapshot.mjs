@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.539
+// Vendored validation engine bundled from @revt-eng/schema@0.1.543
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -344,6 +344,12 @@ function toCreateSchema(schema) {
   const handleField = writable.shape["handle"];
   if (handleField && typeof handleField.regex === "function") {
     return writable.extend({ handle: handleField.regex(HANDLE_PATTERN) });
+  }
+  if (handleField instanceof z2.ZodOptional) {
+    const inner = handleField.unwrap();
+    if (typeof inner.regex === "function") {
+      return writable.extend({ handle: inner.regex(HANDLE_PATTERN).optional() });
+    }
   }
   return writable;
 }
