@@ -90,15 +90,18 @@ async function withServer(mode: Mode, check: (url: string, dir: string, seen: Se
 
 function run(args: string[], dir: string, env: Record<string, string> = {}, cwd = dir) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
+    // Env names are case-sensitive off Windows and undici prefers the lower-case
+    // proxy variables even when empty, so remove them rather than blanking them.
+    const base: Record<string, string | undefined> = { ...process.env };
+    for (const name of Object.keys(base)) if (/^(https?_proxy|no_proxy)$/i.test(name)) delete base[name];
     const child = spawn(process.execPath, [cli!, ...args], {
       cwd,
       env: {
-        ...process.env,
+        ...base,
         REVTURBINE_CONFIG_DIR: dir,
         REVTURBINE_TOKEN: '',
         REVTURBINE_HTTP_HEADERS: '',
         REVTURBINE_REGISTRY_URL: '',
-        HTTPS_PROXY: '', https_proxy: '', HTTP_PROXY: '', http_proxy: '',
         ...env,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
