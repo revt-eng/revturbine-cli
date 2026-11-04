@@ -86,6 +86,19 @@ describe('finalOutputLines', () => {
     expect(out).toContain('Installed the Agent Skills');
   });
 
+  it('names the skills folder and the reload step (BUG-826)', () => {
+    const out = finalOutputLines({ ...base, projectDir: '/work/app' }).join('\n');
+    expect(out).toContain('Skills are in /work/app/.claude/skills.');
+    expect(out).toContain('/reload-skills');
+    expect(out).toContain('--add-dir');
+    const codex = finalOutputLines({
+      ...base,
+      harness: { agentId: 'codex' as const, label: 'Codex', invocation: `Run the skill:  $${START_HERE_SKILL}` },
+    }).join('\n');
+    expect(codex).toContain('.agents/skills');
+    expect(codex).not.toContain('/reload-skills');
+  });
+
   it('surfaces a skills failure honestly rather than claiming success', () => {
     const out = finalOutputLines({ ...base, skills: 'failed' }).join('\n');
     expect(out).toContain('not installed');

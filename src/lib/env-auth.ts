@@ -17,9 +17,6 @@
 export const TOKEN_ENV = 'REVTURBINE_TOKEN';
 export const HEADERS_ENV = 'REVTURBINE_HTTP_HEADERS';
 
-/** The tenant header sent when nothing else names a tenant (non-env sessions). */
-export const DEFAULT_TENANT_ID = 'dev-tenant-001';
-
 export type TokenSource = 'env' | 'stored' | 'none';
 
 export type ResolvedAuth = {
@@ -36,7 +33,7 @@ export type ResolvedAuth = {
  * Resolve the bearer + tenant header, in precedence order:
  *   token:  `REVTURBINE_TOKEN` > stored credential > none
  *   tenant: `-t/--tenant-id` > (env token: none — server-resolved)
- *           > stored token's tenant > the dev default
+ *           > stored token's tenant > none (server-resolved)
  */
 export function resolveAuth(params: {
   envToken: string | undefined;
@@ -57,8 +54,10 @@ export function resolveAuth(params: {
   return {
     token: stored?.token ?? null,
     tokenSource: stored ? 'stored' : 'none',
-    tenantId: explicit ?? stored?.tenant_id ?? DEFAULT_TENANT_ID,
-    tenantSource: explicit ? '--tenant-id' : stored?.tenant_id ? 'stored token' : 'default',
+    // No tenant configured: send no header and let the server resolve the token
+    // user's own tenant, exactly as env-token mode does (BL-0415, D-27).
+    tenantId: explicit ?? stored?.tenant_id ?? null,
+    tenantSource: explicit ? '--tenant-id' : stored?.tenant_id ? 'stored token' : 'none configured; resolved server-side',
   };
 }
 

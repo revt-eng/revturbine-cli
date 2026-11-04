@@ -137,8 +137,8 @@ describe('whoami process contract (also run against the installed npm tarball)',
       const result = await run(url, dir, true, false);
       expect(result.code).toBe(0);
       expect(JSON.parse(result.stdout)).toMatchObject({
-        tenant: present ? 'stored-tenant' : 'dev-tenant-001',
-        tenant_source: present ? 'stored token' : 'default',
+        tenant: present ? 'stored-tenant' : null,
+        tenant_source: present ? 'stored token' : 'none configured; resolved server-side',
         token_present: present, token_valid: present ? true : null,
       });
     });

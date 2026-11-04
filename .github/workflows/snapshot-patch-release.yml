@@ -1,0 +1,83 @@
+name: Snapshot patch release
+
+# A schema publish in revturbine-scaffold ends here with a CLI patch release and
+# no human step (BUG-1189, ST-1453 TASK-5):
+#
+#   1. scaffold's release opens the `chore: vendor schema snapshot` PR (plan 143),
+#      waits for this repo's gate on the exact head and squash-merges it;
+#   2. that merge changes `src/schema/version.ts` on main — this workflow's trigger;
+#   3. this workflow bumps the patch version and pushes it to main, then
+#      dispatches `publish-on-main`, which verifies, publishes and tags.
+#
+# Why a dispatch: a push made with the default GITHUB_TOKEN does not start other
+# push-triggered workflows, but `workflow_dispatch` is the documented exception,
+# so the existing publish path (provenance, registry-idempotent, tag record) is
+# reused unchanged and no PAT is introduced — this repo is public and the org
+# REVTURBINE_GIT_TOKEN is withheld from public repos by design.
+#
+# Release decision, kept deliberately small:
+#   - only a change to the bundled schema version releases (the path filter);
+#   - if package.json's version is not on npm yet, a release is already pending
+#     and publish-on-main owns it — nothing to bump;
+#   - the bump commit touches package.json / package-lock.json only, so it can
+#     not re-trigger this workflow.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/schema/version.ts'
+
+permissions:
+  contents: write # push the bump commit
+  actions: write # dispatch publish-on-main
+
+concurrency:
+  group: snapshot-patch-release
+  cancel-in-progress: false
+
+jobs:
+  bump-and-dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Use the npm version pinned in package.json
+        run: |
+          NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          npm install --global "npm@$NPM_VERSION"
+      - name: Decide whether a patch release is needed
+        id: decide
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          SCHEMA=$(node -p "require('fs').readFileSync('src/schema/version.ts','utf8').match(/'([0-9]+\.[0-9]+\.[0-9]+[^']*)'/)[1]")
+          echo "schema=$SCHEMA" >> "$GITHUB_OUTPUT"
+          if npm view "@revturbine/cli@$VERSION" version >/dev/null 2>&1; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "@revturbine/cli@$VERSION is on npm; bundling schema $SCHEMA needs a patch release."
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "@revturbine/cli@$VERSION is not on npm yet — a release is already pending; publish-on-main owns it."
+          fi
+      - name: Bump the patch version and push it to main
+        if: steps.decide.outputs.release == 'true'
+        run: |
+          set -euo pipefail
+          npm version patch --no-git-tag-version
+          NEXT=$(node -p "require('./package.json').version")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(release): v$NEXT (bundles schema ${{ steps.decide.outputs.schema }})"
+          git push origin HEAD:main
+      - name: Dispatch the publish workflow
+        if: steps.decide.outputs.release == 'true'
+        run: gh workflow run publish-on-main.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}

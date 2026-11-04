@@ -66,6 +66,31 @@ export function skillsAddArgs(agent: AgentId): string[] {
 /** How the skills step resolved — drives both the output and the JSON. */
 export type SkillsOutcome = 'installed' | 'skipped' | 'unknown' | 'failed';
 
+/** Project-relative folder each supported agent loads skills from. */
+const SKILLS_FOLDER: Record<AgentId, string> = {
+  'claude-code': '.claude/skills',
+  cursor: '.cursor/skills',
+  codex: '.agents/skills',
+};
+
+/**
+ * Where the skills landed and that a running agent must reload (BUG-826): a
+ * skills folder created after the session started is not seen until a reload,
+ * and a session started above the project loads it only when a file there is touched.
+ */
+export function skillsReloadLines(harness: Harness, projectDir?: string): string[] {
+  const folder = harness.agentId ? SKILLS_FOLDER[harness.agentId] : null;
+  const where = folder ? `${projectDir ? `${projectDir.replace(/\\/g, '/')}/` : ''}${folder}` : "your agent's skills folder in this project";
+  const reload =
+    harness.agentId === 'claude-code'
+      ? 'run /reload-skills, or restart it in that folder'
+      : 'restart it in that folder';
+  return [
+    `    Skills are in ${where}.`,
+    `    If your agent is already running, ${reload}; or add the folder with --add-dir.`,
+  ];
+}
+
 /**
  * The closing summary a builder sees (plan 142 REQ-12) — the last words the
  * generator says, which are the skill entry point. Returned as lines so the
@@ -78,6 +103,8 @@ export function finalOutputLines(params: {
   playbookAdded: boolean;
   skills: SkillsOutcome;
   harness: Harness;
+  /** Where the project lives, so the skills folder can be named exactly. */
+  projectDir?: string;
 }): string[] {
   const lines: string[] = ['', 'RevTurbine is set up.', ''];
 
@@ -89,6 +116,7 @@ export function finalOutputLines(params: {
   }
   if (params.skills === 'installed') {
     lines.push('  ✓ Installed the Agent Skills');
+    lines.push(...skillsReloadLines(params.harness, params.projectDir));
   } else if (params.skills === 'skipped') {
     lines.push('  • Skipped the Agent Skills (--no-skills)');
   } else if (params.skills === 'unknown') {
