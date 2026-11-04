@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.543
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.544
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -2266,7 +2266,11 @@ var PlacementPayloadSchema = IdField.merge(TimestampFields).merge(TenantIdField)
   cta_list: z11.array(CtaObjectSchema).default([]).meta(Unrestricted8),
   max_per_period: z11.number().int().min(0).nullable().default(null).meta(Unrestricted8),
   max_period_unit: CapPeriodSchema.default("session").meta(Unrestricted8),
-  cooldown_after_dismiss_days: z11.number().int().min(0).default(7).meta(Unrestricted8),
+  // Days a dismissed payload stays hidden. Null = no dismiss window: what
+  // the importer stores for Access Gate and Fixed payloads, which ignore
+  // the cooldown (VAL-PLC-06); other categories get 7 from the importer.
+  // BL-0518 D-2.
+  cooldown_after_dismiss_days: z11.number().int().min(0).nullable().default(null).meta(Unrestricted8),
   // Per-payload remind-me-later (defer) window override, in minutes. Null =
   // inherit the tenant default (`remindLaterMinutes`, 60). Plan 167 REQ-6 / Q-3.
   remind_later_minutes: z11.number().int().min(0).nullable().default(null).meta(Unrestricted8),
