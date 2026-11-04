@@ -1393,6 +1393,21 @@ program
       httpFail(conn, 'upload', res.status);
     }
 
+    if (opts.dryRun && json && typeof json === 'object' && json.ok === false) {
+      // A dry-run schema failure answers 200 {ok:false, dryRun:true, issues}: a refusal, not a plan.
+      writeReport(reportForRefusal(res.status, json));
+      diag('✗ Dry run found problems — nothing was written.');
+      const issues = Array.isArray(json.issues) ? json.issues : [];
+      for (const issue of issues) {
+        const msg = issue && typeof issue === 'object' && typeof (issue as AnyRecord).message === 'string'
+          ? `${Array.isArray((issue as AnyRecord).path) ? `${((issue as AnyRecord).path as unknown[]).join('.')}: ` : ''}${(issue as AnyRecord).message}`
+          : JSON.stringify(issue);
+        diagRaw(`  ${msg}`);
+      }
+      if (issues.length === 0) diagRaw(`  ${JSON.stringify(json)}`);
+      fail(EXIT.VALIDATION, 'dry run was rejected by the server — nothing was written.');
+    }
+
     writeReport(reportForSuccess(json, Boolean(opts.dryRun)));
     const plan = readPlan(json);
     const notes = readNotes(json);

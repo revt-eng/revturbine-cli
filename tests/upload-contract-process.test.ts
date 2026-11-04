@@ -212,6 +212,32 @@ describe('upload --dry-run (AC-11, AC-19)', () => {
     });
   }, 30_000);
 
+  it('a 200 {ok:false, dryRun:true, issues} prints the issues and exits 4, not a plan', async () => {
+    const body = { ok: false, dryRun: true, issues: [{ path: ['plans', 0, 'name'], message: 'Required' }] };
+    await withServer({ import: { status: 200, body } }, async (url, dir) => {
+      const out = await run(['upload', 'x.json', '--dry-run', '--url', url, '--report', 'out.json'], dir);
+      expect(out.code, out.stderr).toBe(4);
+      expect(out.stderr).toContain('plans.0.name: Required');
+      expect(out.stdout).not.toContain('no plan');
+      expect(readReport(dir)).toMatchObject({ outcome: 'refused' });
+    });
+  }, 30_000);
+
+  it('the real duplicate_handles 409 prints the server message, not an edit list, exit 5', async () => {
+    const body = {
+      ok: false,
+      stage: 'duplicate_handles',
+      details: { conflicts: [{ collection: 'plans', handle: 'pro', existing_id: 'pro', config_id: 'pro', scope: 'config' }] },
+      detail: { message: 'Duplicate handles in the config' },
+    };
+    await withServer({ import: { status: 409, body } }, async (url, dir) => {
+      const out = await run(['upload', 'x.json', '--url', url], dir);
+      expect(out.code, out.stderr).toBe(5);
+      expect(out.stderr).toContain('Duplicate handles in the config');
+      expect(out.stderr).not.toContain('edit(s) made since');
+    });
+  }, 30_000);
+
   it('exits 1 when the dry run is refused with edits since the last upload, 5 for a beyond-draft version', async () => {
     await withServer({ import: { status: 409, body: CONFLICTS } }, async (url, dir) => {
       expect((await run(['upload', 'x.json', '--dry-run', '--url', url], dir)).code).toBe(1);

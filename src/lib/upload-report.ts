@@ -173,7 +173,13 @@ export function classifyUploadRefusal(body: unknown): UploadRefusal {
     };
   }
   const conflicts = details?.conflicts ?? body.conflicts;
-  if (Array.isArray(conflicts) && conflicts.length > 0) {
+  // Only studio-edit-shaped entries (objectType / fields[]) are edits. The
+  // duplicate_handles 409 also carries details.conflicts, as
+  // {collection, handle, existing_id, config_id, scope}; that is `other` so the
+  // server message prints and no backup is offered.
+  const editShaped = (entry: unknown): boolean =>
+    isRecord(entry) && (entry.objectType !== undefined || entry.object_type !== undefined || Array.isArray(entry.fields));
+  if (Array.isArray(conflicts) && conflicts.length > 0 && conflicts.every(editShaped)) {
     const edits = conflicts.map(editFrom).filter((e): e is ConflictEdit => e !== undefined);
     return {
       kind: 'conflicts',

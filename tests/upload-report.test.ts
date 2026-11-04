@@ -100,6 +100,17 @@ describe('classifyUploadRefusal / formatRefusal409 (AC-11)', () => {
     expect(refusal).toMatchObject({ kind: 'conflicts', instruction: 'Do the thing.' });
   });
 
+  it('the real duplicate_handles 409 body is `other`, not studio edits', () => {
+    const body = {
+      ok: false,
+      stage: 'duplicate_handles',
+      details: { conflicts: [{ collection: 'plans', handle: 'pro', existing_id: 'pro', config_id: 'pro', scope: 'config' }] },
+      detail: { message: 'Duplicate handles in the config' },
+    };
+    expect(classifyUploadRefusal(body)).toEqual({ kind: 'other' });
+    expect(reportForRefusal(409, body).rejected?.kind).toBe('http');
+  });
+
   it.each([null, 'x', {}, { details: { conflicts: [] } }, { details: { error: 'something_else' } }])('unrecognized body %j is `other`', (body) => {
     expect(classifyUploadRefusal(body)).toEqual({ kind: 'other' });
   });
