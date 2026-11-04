@@ -114,6 +114,10 @@ describe('whoami process contract (also run against the installed npm tarball)',
             instance: url, tenant: 'configured-tenant', tenant_source: '--tenant-id',
             credentials_dir: dir, credentials_source: 'env',
             token_present: scenario.present !== false, token_valid: scenario.valid,
+            // A 401/403 reports its status and body (ST-1447, BUG-1184).
+            ...(scenario.status === 401 || scenario.status === 403
+              ? { probe_status: scenario.status, probe_challenged: false, probe_body: '{"active":null}' }
+              : {}),
           });
         } else {
           expect(result.stdout.split('\n')[0]).toContain(`authentication: ${scenario.message}`);
