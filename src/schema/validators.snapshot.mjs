@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.543
+// Vendored validation engine bundled from @revt-eng/schema@0.1.544
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -4508,6 +4508,46 @@ function repairDeprecatedFields(config, schema = PlaybookObjectSchema) {
   return { config: repaired ?? config, findings };
 }
 
+// scaffold/src/core/validation/unknown-fields.ts
+var LEGACY_ROOT_ALIASES = /* @__PURE__ */ new Set(["version", "change_set_id"]);
+function isRecord4(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function walk(raw, parsed, path, out) {
+  if (raw === parsed) return;
+  if (Array.isArray(raw)) {
+    if (!Array.isArray(parsed)) return;
+    const length = Math.min(raw.length, parsed.length);
+    for (let index = 0; index < length; index += 1) walk(raw[index], parsed[index], [...path, index], out);
+    return;
+  }
+  if (!isRecord4(raw) || !isRecord4(parsed)) return;
+  for (const key of Object.keys(raw)) {
+    if (Object.prototype.hasOwnProperty.call(parsed, key)) {
+      walk(raw[key], parsed[key], [...path, key], out);
+    } else if (!(path.length === 0 && LEGACY_ROOT_ALIASES.has(key))) {
+      out.push({ path: [...path, key], key });
+    }
+  }
+}
+function collectUnknownFields(raw, schema = PlaybookSchema) {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) return [];
+  const out = [];
+  walk(raw, parsed.data, [], out);
+  return out;
+}
+var IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+function formatFieldPath(path) {
+  let text = "";
+  for (const segment of path) {
+    if (typeof segment === "number") text += `[${segment}]`;
+    else if (IDENTIFIER.test(segment)) text += text === "" ? segment : `.${segment}`;
+    else text += `[${JSON.stringify(segment)}]`;
+  }
+  return text;
+}
+
 // scaffold/src/core/validation/catalog-drift.ts
 var REFINE_RULE_CODES = [];
 var RENAMED_SEVERITIES = ["error_publish"];
@@ -4584,8 +4624,10 @@ export {
   assertCatalogInSync,
   checkCatalogDrift,
   checkIdHandleParity,
+  collectUnknownFields,
   disposition,
   evaluate,
+  formatFieldPath,
   getCatalogEntry,
   installValidationErrorMap,
   listCatalogIds,
