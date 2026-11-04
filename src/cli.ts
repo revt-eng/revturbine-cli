@@ -66,7 +66,23 @@ import { declaredSdk, detectPackageManager, detectStack, installArgs, integratio
 import { STARTER_PLAYBOOK, STARTER_PLAYBOOK_FILENAME, validatePlaybook } from './lib/starter-playbook';
 import { detectHarness, finalOutputLines, isAgentId, skillsAddArgs, SKILLS_SOURCE, SUPPORTED_AGENTS, type SkillsOutcome } from './lib/init-skills';
 import { generateHandleTypes } from './lib/handles-codegen';
-import { classFromStatus, diag, diagRaw, DIFF_EXIT, diffExitCode, emit, EXIT, fail, isNetworkError, redact, registerSecrets } from './lib/output';
+import { classFromStatus, diag, diagRaw, DIFF_EXIT, DRY_RUN_EXIT, diffExitCode, emit, EXIT, fail, isNetworkError, redact, registerSecrets } from './lib/output';
+import {
+  classifyUploadRefusal,
+  conflictCount,
+  discardPrompt,
+  formatNotes,
+  formatPlan,
+  formatRefusal409,
+  offerBackup,
+  readNotes,
+  readPlan,
+  reportForOfflineFailure,
+  reportForRefusal,
+  reportForSuccess,
+  serializeReport,
+  type UploadReport,
+} from './lib/upload-report';
 import { HEADERS_ENV, parseExtraHeaders, resolveAuth, TOKEN_ENV, withExtraHeaders, type TokenSource } from './lib/env-auth';
 import { type FetchLike } from './lib/device-auth';
 import { checkPinDrift } from './lib/pin-drift';
@@ -1244,6 +1260,19 @@ program
     diag(`Diff (${ordered.map((s) => (s.kind === 'file' ? s.path : s.kind === 'release' ? `--release ${s.id}` : `--${s.kind}`)).join(' → ')}):`);
     const diff = diffExportedConfig(a, b);
     process.stdout.write(`${formatDiff(diff)}\n`);
+    // Warn in full (DEC-1182): when the draft is a side of the diff, list what
+    // the importer defaulted, dropped or rewrote in it. Best effort, so a
+    // failed lookup never changes the diff result or its exit code.
+    if (ordered.some((s) => s.kind === 'draft')) {
+      try {
+        const draftId = await requireOpenDraft(conn);
+        const changes = await getJson(conn, `/api/optimization/drafts/${draftId}/changes`);
+        const notes = changes.res.ok ? readNotes(changes.json) : [];
+        if (notes.length > 0) diagRaw(`Import notes (${notes.length}) — what the importer defaulted, dropped or rewrote in the draft:\n${formatNotes(notes)}`);
+      } catch {
+        // advisory only
+      }
+    }
     if (opts.exitCode) process.exitCode = diffExitCode(diff);
   });
 
@@ -1288,24 +1317,71 @@ const NO_PRUNE_OPTION = ['--no-prune', 'Additive import — keep entities that a
 
 program
   .command('upload')
-  .description('Stage a Playbook file as the open draft (POST /api/config/import).')
+  .description('Stage a Playbook file as the open draft (POST /api/config/import). A 409 names the edits or the in-flight version; --dry-run prints the plan; --report writes it as JSON.')
   .argument('<config>', 'Path to a Playbook file')
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option(...PRUNE_OPTION)
   .option(...NO_PRUNE_OPTION)
-  .action(async (configFile: string, opts: { url: string; tenantId?: string; prune?: boolean }) => {
+  .option('--dry-run', 'Print the plan (create / update / remove / conflict / no change) without writing; exit 0 when it has no conflicts, 1 when it has')
+  .option('--report <path>', 'Write the result as JSON ({ outcome, plan, rejected, warnings }) to <path>; the exit code is unchanged')
+  .action(async (configFile: string, opts: { url: string; tenantId?: string; prune?: boolean; dryRun?: boolean; report?: string }) => {
+    // Set before anything can throw, so an unexpected error never exits 1 (= "conflicts").
+    if (opts.dryRun) unexpectedExit = DRY_RUN_EXIT.UNEXPECTED;
+    const writeReport = (report: UploadReport): void => {
+      if (!opts.report) return;
+      const file = path.resolve(opts.report);
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, serializeReport(report));
+      diag(`✓ Wrote report ${file}`);
+    };
+
     const config = verifyConfig(configFile);
-    if (config === null) fail(EXIT.VALIDATION, `Fix the issues above in ${configFile}, then re-run.`);
+    if (config === null) {
+      writeReport(reportForOfflineFailure());
+      fail(EXIT.VALIDATION, `Fix the issues above in ${configFile}, then re-run.`);
+    }
 
     const conn = connect(opts.url, uploadTenantFor(opts.url, config, opts.tenantId));
-    diag(`Staging ${configFile} as the open draft (${conn.url}/api/config/import) …`);
-    const { res, json } = await postJson(conn, `/api/config/import${pruneQuery(opts.prune)}`, config);
+    diag(`${opts.dryRun ? 'Planning' : 'Staging'} ${configFile} ${opts.dryRun ? '(dry run, nothing is written) ' : 'as the open draft '}(${conn.url}/api/config/import) …`);
+    const prune = pruneQuery(opts.prune);
+    const query = opts.dryRun ? `${prune}${prune ? '&' : '?'}dryRun=true` : prune;
+    const { res, json } = await postJson(conn, `/api/config/import${query}`, config);
     if (!res.ok) {
-      // A 409 means a draft playbook version is already open for the tenant —
-      // launch or discard it (Drafts & Releases) before importing.
+      writeReport(reportForRefusal(res.status, json));
       if (res.status === 401 || res.status === 403) {
         httpFail(conn, 'upload', res.status, json, res.headers.get('x-vercel-mitigated'));
+      }
+      // A 409 is one of two refusals the server explains in full: edits made
+      // since the last upload, or an in-flight version beyond draft.
+      const refusal = res.status === 409 ? classifyUploadRefusal(json) : ({ kind: 'other' } as const);
+      if (refusal.kind !== 'other') {
+        diagRaw(formatRefusal409(refusal));
+        if (!opts.dryRun) {
+          // Nothing is lost by a dry run, so only a real refusal offers the backup.
+          const rl = process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stderr }) : undefined;
+          try {
+            await offerBackup(
+              {
+                interactive: rl !== undefined,
+                ask: (question) => (rl ? rl.question(question) : Promise.resolve('')),
+                fetchDraft: async (versionId) => downloadConfig(conn, versionId ?? (await requireOpenDraft(conn))),
+                write: (file, content) => {
+                  const target = path.resolve(file);
+                  mkdirSync(path.dirname(target), { recursive: true });
+                  writeFileSync(target, content);
+                  return target;
+                },
+                log: diag,
+              },
+              refusal,
+            );
+          } finally {
+            rl?.close();
+          }
+        }
+        if (opts.dryRun && refusal.kind === 'conflicts') fail(DRY_RUN_EXIT.CONFLICTS, 'dry run found conflicts — nothing was written.');
+        fail(EXIT.CONFLICT, 'upload refused (409) — nothing was written.');
       }
       if (json && typeof json === 'object' && json.stage) {
         diagRaw(`  stage:  ${json.stage}`);
@@ -1313,13 +1389,31 @@ program
       } else {
         diagRaw(`  ${JSON.stringify(json)}`);
       }
+      if (Array.isArray(json?.findings) && json.findings.length > 0) diagRaw(formatFindings(json.findings));
       httpFail(conn, 'upload', res.status);
+    }
+
+    writeReport(reportForSuccess(json, Boolean(opts.dryRun)));
+    const plan = readPlan(json);
+    const notes = readNotes(json);
+    const findings = (Array.isArray(json?.findings) ? json.findings : []) as ValidationFinding[];
+    if (opts.dryRun) {
+      diag('✓ Dry run — nothing was written.');
+      // The plan is the command's result, so it goes to stdout.
+      process.stdout.write(`${plan ? formatPlan(plan) : 'The server returned no plan.'}\n`);
+      if (findings.length > 0) diagRaw(formatFindings(findings));
+      if (notes.length > 0) diagRaw(formatNotes(notes));
+      if (conflictCount(plan) > 0) fail(DRY_RUN_EXIT.CONFLICTS, `dry run found ${conflictCount(plan)} conflict(s) — nothing was written.`);
+      return;
     }
 
     const playbookVersionId = json?.playbook_version_id as string | undefined;
     diag(`✓ Staged ${configFile} as the open draft (${res.status})`);
     diagRaw(`  imported: ${JSON.stringify(json.imported ?? {})}`);
     if (playbookVersionId) diagRaw(`  playbook_version_id: ${playbookVersionId}`);
+    if (plan) diagRaw(formatPlan(plan));
+    if (findings.length > 0) diagRaw(formatFindings(findings));
+    if (notes.length > 0) diagRaw(formatNotes(notes));
     diag('Launch it with `revturbine launch --draft`, or from the UI (Drafts & Releases).');
   });
 
@@ -1372,8 +1466,13 @@ program
   .option('--yes', 'Skip the confirmation prompt')
   .action(async (id: string | undefined, opts: { draft?: boolean; url: string; tenantId?: string; yes?: boolean }) => {
     const conn = connect(opts.url, opts.tenantId);
-    const playbookVersionId = id ?? (await requireOpenDraft(conn));
-    await confirmOrExit(`Discard draft ${playbookVersionId} on ${conn.url}?`, !!opts.yes);
+    // The open draft's status is on the same lookup the default id comes from; an
+    // explicit id for another version has no status here, so the prompt omits it.
+    const active = await resolveActiveDraft(conn.url, conn.headers);
+    if (!active.ok) httpFail(conn, 'draft lookup', active.status);
+    const playbookVersionId = id ?? active.draft?.id ?? (await requireOpenDraft(conn));
+    const status = active.draft?.id === playbookVersionId ? active.draft.status : undefined;
+    await confirmOrExit(discardPrompt({ id: playbookVersionId, url: conn.url, status }), !!opts.yes);
     const { res, json } = await postJson(conn, `/api/playbook-versions/${playbookVersionId}/archive`, {});
     if (!res.ok) httpFail(conn, 'discard', res.status, json);
     diag(`✓ Discarded draft ${playbookVersionId}.`);
@@ -1468,7 +1567,7 @@ program
 
 program
   .command('preview')
-  .description("The open draft's Runtime Impact summary (objects affected, billing impact) + field-level changes.")
+  .description("The open draft's Runtime Impact summary (objects affected, billing impact) + field-level changes + import notes.")
   .option('-u, --url <url>', 'RevTurbine instance URL', DEFAULT_URL)
   .option('-t, --tenant-id <id>', 'x-tenant-id (defaults to the stored token tenant)')
   .option('--json', 'Machine-readable output')
@@ -1479,7 +1578,8 @@ program
     if (!res.ok) httpFail(conn, 'preview', res.status, json);
     const impact = (json?.impact ?? {}) as { byCategory?: Array<{ label: string; count: number }>; billing?: { objects?: string[] } };
     const changes = (Array.isArray(json?.changes) ? json.changes : []) as Array<AnyRecord>;
-    const data = { playbook_version_id: playbookVersionId, impact, changes };
+    const notes = readNotes(json);
+    const data = { playbook_version_id: playbookVersionId, impact, changes, import_notes: notes };
     const billingObjects = impact.billing?.objects ?? [];
     const text = [
       `Runtime impact (draft ${playbookVersionId}):`,
@@ -1487,6 +1587,7 @@ program
       `Billing impact: ${billingObjects.length === 0 ? '(none)' : billingObjects.join(', ')}`,
       `Changes (${changes.length}):`,
       table(changes.map((c) => [String(c.action ?? ''), String(c.objectType ?? ''), String(c.objectName ?? ''), String(c.summary ?? '')])),
+      ...(notes.length > 0 ? [`Import notes (${notes.length}) — what the importer defaulted, dropped or rewrote:`, formatNotes(notes)] : []),
     ].join('\n');
     emit(data, Boolean(opts.json), text);
   });
@@ -2132,7 +2233,16 @@ const COMMAND_EXAMPLES: Record<string, string> = {
     'entitlement type) and the `EntitlementHandle` union for can()/gate()',
     'call sites. Its header records the exact command to regenerate it.',
   ].join('\n'),
-  upload: ['', 'Example:', '  revturbine upload ./revturbine.playbook.json        Stage as the open draft'].join('\n'),
+  upload: [
+    '',
+    'Examples:',
+    '  revturbine upload ./revturbine.playbook.json                 Stage as the open draft',
+    '  revturbine upload ./revturbine.playbook.json --dry-run       Print the plan; exit 1 on conflicts',
+    '  revturbine upload ./revturbine.playbook.json --report out.json   Also write { outcome, plan, rejected, warnings }',
+    '',
+    'A 409 (edits since the last upload, or a version beyond draft) writes nothing and',
+    'names what to do; save a copy first with `revturbine download --draft --save <file>`.',
+  ].join('\n'),
   launch: [
     '',
     'Examples:',

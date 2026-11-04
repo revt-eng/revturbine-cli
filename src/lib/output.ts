@@ -94,6 +94,13 @@ export function fail(cls: ExitClass, message: string): never {
  */
 export const DIFF_EXIT = { NO_DIFFERENCES: 0, DIFFERENCES: 1, UNEXPECTED: 70 } as const;
 
+/**
+ * `upload --dry-run` (BL-0518 TASK-11): 0 = the plan has no conflicts, 1 =
+ * conflicts. As with `diff --exit-code`, an unexpected internal error exits 70
+ * so a 1 always means "conflicts"; every other failure keeps its class (2–7).
+ */
+export const DRY_RUN_EXIT = { CLEAN: 0, CONFLICTS: 1, UNEXPECTED: 70 } as const;
+
 /** The `diff --exit-code` status for a computed diff. */
 export function diffExitCode(diff: Record<string, unknown>): number {
   return Object.keys(diff).length === 0 ? DIFF_EXIT.NO_DIFFERENCES : DIFF_EXIT.DIFFERENCES;

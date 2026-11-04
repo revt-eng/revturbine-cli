@@ -95,6 +95,31 @@ describe('checkOfflineConfig — post RAW, warn, never strip (AC-4, OQ-1)', () =
   });
 });
 
+describe('offlineAdvisories — unknown fields at any depth (BL-0518 TASK-16, AC-18)', () => {
+  const NESTED = {
+    ...CANONICAL_CLEAN,
+    entitlements: [{ unique_handle: 'export', name: 'Export', type: 'feature', allocatoin: 5 }],
+    bogus_root: true,
+  };
+
+  it('warns with the full path for a nested typo and for a root key, and still posts the raw body', () => {
+    const check = checkOfflineConfig(NESTED);
+    const unknown = check.advisories.filter((f) => f.code === 'cli/unknown-field');
+    expect(unknown.map((f) => f.targetRef?.path)).toEqual([['entitlements', 0, 'allocatoin'], ['bogus_root']]);
+    expect(unknown[0]?.message).toContain("'entitlements[0].allocatoin'");
+    expect(unknown.every((f) => f.severity === 'warning')).toBe(true);
+    expect(hasBlockingFindings(check.advisories)).toBe(false);
+    expect(check.ok).toBe(true);
+    // The server sees the key: the body is the raw object, never a stripped copy.
+    expect(check.body).toBe(NESTED);
+  });
+
+  it('does not flag the legacy header aliases', () => {
+    const advisories = offlineAdvisories({ ...CANONICAL_CLEAN, version: '1.0.0', change_set_id: null });
+    expect(advisories.filter((f) => f.code === 'cli/unknown-field')).toEqual([]);
+  });
+});
+
 describe('offlineAdvisories — deprecation warnings (AC-6, matches TASK-9)', () => {
   it('a legacy config with a deprecated `theme` field surfaces a deprecation warning', () => {
     const advisories = offlineAdvisories({ ...LEGACY_CLEAN, theme: { primary: '#fff' } });

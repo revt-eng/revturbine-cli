@@ -14,3 +14,12 @@ export function evaluate(
   graph: Record<string, unknown>,
   opts?: { structuralErrors?: unknown },
 ): SnapshotFinding[];
+/** One unknown field in a raw Playbook; `path` is the full path and ends with `key`. */
+export interface UnknownField {
+  path: (string | number)[];
+  key: string;
+}
+/** Unknown fields at any depth (scaffold `collectUnknownFields`, BL-0518 TASK-14). `[]` when `raw` does not parse. */
+export function collectUnknownFields(raw: unknown): UnknownField[];
+/** `entitlements[2].allocation` style text for a path from `collectUnknownFields`. */
+export function formatFieldPath(path: ReadonlyArray<string | number>): string;

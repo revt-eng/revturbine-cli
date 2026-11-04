@@ -14,7 +14,12 @@
  * is unit-tested without a filesystem or network (AGENTS.md rule 3).
  */
 
+// `collectUnknownFields` / `formatFieldPath` ship in the vendored snapshot
+// (scaffold 0.1.544, BL-0518 TASK-14): the one shared implementation of
+// "unknown field at any depth" that web also uses. It honours `catchall` and
+// `z.record` fields and the legacy header aliases (`version`, `change_set_id`).
 import * as validatorsSnapshot from '../schema/validators.snapshot.mjs';
+import { collectUnknownFields, formatFieldPath } from '../schema/validators.snapshot.mjs';
 import { schemaForConfig } from './offline-schema';
 import type { ValidationFinding } from './config-validate';
 
@@ -38,13 +43,6 @@ const repairDeprecatedFields = (
   validatorsSnapshot as unknown as { repairDeprecatedFields: RepairDeprecatedFields }
 ).repairDeprecatedFields;
 
-/**
- * Legacy header aliases that `normalizeConfigHeaderInput` (in the vendored
- * snapshot) renames into the canonical shape on parse — `version` →
- * `format_version`, `change_set_id` → `playbook_version_id`. They are recognized
- * input, not unknown fields, so the unknown-field diff must not flag them.
- */
-const LEGACY_HEADER_ALIASES: ReadonlySet<string> = new Set(['version', 'change_set_id']);
 
 /**
  * Code for the CLI's own "unknown top-level field" advisory. Deliberately NOT a
@@ -54,26 +52,6 @@ const LEGACY_HEADER_ALIASES: ReadonlySet<string> = new Set(['version', 'change_s
  */
 const UNKNOWN_FIELD_CODE = 'cli/unknown-field';
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Top-level keys the vendored schema doesn't recognize. Computed as the raw keys
- * minus the keys the lenient schema keeps after normalizing + stripping (unknown
- * keys are stripped, so their absence from the parsed output reveals them) minus
- * the legacy header aliases normalization renames. Returns `[]` when the config
- * isn't an object or can't be parsed — a structural failure, which `evaluate()`
- * surfaces as blocking findings instead.
- */
-function unknownTopLevelKeys(raw: unknown): string[] {
-  if (!isRecord(raw)) return [];
-  const { schema } = schemaForConfig(raw);
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success || !isRecord(parsed.data)) return [];
-  const recognized = new Set(Object.keys(parsed.data));
-  return Object.keys(raw).filter((key) => !recognized.has(key) && !LEGACY_HEADER_ALIASES.has(key));
-}
 
 /**
  * Advisory `warning` findings for a raw config: one per deprecated field (from
@@ -93,12 +71,13 @@ export function offlineAdvisories(raw: unknown): ValidationFinding[] {
     });
   }
 
-  for (const key of unknownTopLevelKeys(raw)) {
+  for (const unknown of collectUnknownFields(raw)) {
+    const fullPath = formatFieldPath(unknown.path);
     advisories.push({
       code: UNKNOWN_FIELD_CODE,
       severity: 'warning',
-      message: `Unknown top-level field '${key}' is not part of the RevTurbine config schema (bundled offline snapshot). The CLI uploads it unchanged so the server can validate it — remove it if it was a typo.`,
-      targetRef: { field: key, path: [key] },
+      message: `Unknown field '${fullPath}' is not part of the RevTurbine config schema (bundled offline snapshot). The CLI uploads it unchanged so the server can validate it — remove it if it was a typo.`,
+      targetRef: { field: unknown.key, path: unknown.path },
     });
   }
 
