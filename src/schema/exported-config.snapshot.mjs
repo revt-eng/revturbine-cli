@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.547
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.548
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -13202,6 +13202,8 @@ var METRIC_SEMANTICS = {
   "revenue.logo_retention_exact": daily30(NOT_MONETARY),
   "revenue.matched_mrr_exact": daily30(PER_CURRENCY),
   "revenue.mrr": weekly30(PER_CURRENCY),
+  "revenue.account_opening_mrr": daily90(PER_CURRENCY),
+  "revenue.account_mrr_delta": daily90(PER_CURRENCY),
   "revenue.mrr_exact": daily30(PER_CURRENCY),
   "revenue.net_new_mrr": weekly30(PER_CURRENCY),
   "revenue.net_new_mrr_exact": daily30(PER_CURRENCY),
@@ -14089,7 +14091,7 @@ var cohortNrrMetric = { id: "cohort.nrr", label: "Paying cohort NRR", value_type
 var cohortLogoSurvivalMetric = { id: "cohort.logo_survival", label: "Paying cohort logo survival", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "total", statistical_type: "binary", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "non_additive", layer: "derived", catalog_status: "unavailable", derivation: { carried_by: ["paying_cohort_rollup"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398). Plan 282 A.6: cohort accounts (first MRR > 0 in the cohort period) with MRR > 0 at age k \xF7 cohort size. Not cohort.retention_rate, which counts recurrence facts over a signup cohort. ${pendingPipe("paying_cohort_rollup")}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/mrr.ts
-var accountMrrMetric = { id: "account.mrr", label: "Account MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398), the identity map. Plan 282 A.7: the account's MRR V1 stock at the instant, per currency (A.1 revenue.mrr for one account). ${pendingPipe("account_profile")}` } };
+var accountMrrMetric = { id: "account.mrr", label: "Account MRR", value_type: "currency", source_scope: "total", statistical_type: "revenue", direction: "increase", preferred_analysis_unit: "account", aggregation_semantics: "semi_additive", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: "No account row yet: account_profile must serve the account's current MRR per currency. The timeline history reads stored mrr_movements_daily.account_closing and does not release this current-row metric." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/plan.ts
 var accountPlanMetric = { id: "account.plan", label: "Account plan", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_profile"], input_origin: "none", ingested_events: [], note: `Inputs when served: retired V1 stock; replacement source not yet designed (ST-1398) (each item's variation binding by stripe_price_id). Plan 282 A.7: the plan handle of the account's base (plan) items at the instant; an account on several plans reports each, never an arbitrary primary. ${pendingPipe("account_profile")}` } };
@@ -14137,10 +14139,10 @@ var accountCancelScheduledMetric = { id: "account.cancel_scheduled", label: "Can
 var accountTrialMetric = { id: "account.trial", label: "Account trial", description: "The account's latest trial episode: started, scheduled end, day in trial, and outcome (open, converted or ended).", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["trial_episodes"], input_origin: "none", ingested_events: [], note: `Inputs when served: trial_instances. Plan 282 A.7: the account's trial_instances row: started_at, expires_at (the scheduled end), the day in trial, and converted or ended from converted_at and actual_end_at. ${TRIAL_EPISODES_PENDING}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/credit.ts
-var accountCreditMetric = { id: "account.credit", label: "Conversion credit", value_type: "string", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_timeline"], input_origin: "none", ingested_events: [], note: `Inputs when served: conversion_touch_attribution. Plan 282 A.7: the rank-1 cta touch of the account's conversion with its credit_basis (confirmed or inferred), the credit row of the TASK-18 timeline union. ${pendingPipe("account_timeline", "TASK-18")}` } };
+var accountCreditMetric = { id: "account.credit", label: "Conversion credit", value_type: "string", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["account_timeline"], input_origin: "platform", ingested_events: [], ingested_datasources: ["attribution_credits", "attribution_touches", "attribution_runs"], note: "Live stored movement-attribution credit facts, joined by subject id (single movement or plan-switch pair) and live run. Each credit is a separate sub-line with target, lane, direction, credit_basis and split_share; stored gate-lane credit is retained without computing allocation. No live run means not attributed yet, never zero credit; a pair is shown once under its positive member." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/account/last_shown.ts
-var accountLastShownMetric = { id: "account.last_shown", label: "Last shown", description: "Placements recently shown to the account, served one row per placement with its most recent display.", value_type: "datetime", layer: "primitive", catalog_status: "unavailable", derivation: { carried_by: ["account_timeline"], input_origin: "none", ingested_events: [], note: `Inputs when served: placement_presentations. Plan 282 A.7: the most recent presented_at per placement over the account's rows with outcome presented, recorded exposures only (plan 274 REQ-18). Not placement.last_presented_at, which reads every interaction row. ${pendingPipe("account_timeline", "TASK-18")}` } };
+var accountLastShownMetric = { id: "account.last_shown", label: "Last shown", description: "Placements recently shown to the account, served one row per placement with its most recent display.", value_type: "datetime", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["account_timeline"], input_origin: "platform", ingested_events: [], ingested_datasources: ["placement_presentations"], note: "Plan 282 A.7: the most recent presented_at per placement over the account's rows with outcome presented, recorded exposures only (plan 274 REQ-18), in the final 28 days of the timeline period. Derived from the same exposure rows as the timeline; a CTA row in that window adds the clicked note. Not placement.last_presented_at, which reads every interaction row." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/entitlement/granted_account_count.ts
 var entitlementGrantedAccountCountMetric = { id: "entitlement.granted_account_count", label: "Granted accounts", value_type: "number", source_scope: "total", statistical_type: "count", direction: "increase", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["growth_funnel_signals"], input_origin: "platform", ingested_events: ["gate_evaluated"], note: "uniq accounts whose gate_evaluated outcome was `allowed`." } };
@@ -14253,7 +14255,7 @@ var revenueMrrMetric = {
   aggregation_semantics: "semi_additive",
   layer: "primitive",
   catalog_status: "tested",
-  derivation: { carried_by: ["mrr_daily"], input_origin: "platform", ingested_events: [], ingested_datasources: ["billing_observations"], note: "MRR V1 from subscription state (plan 282 TASK-11, D-51): \u03A3 over active and past_due items of quantity \xD7 unit_amount normalized to a month (year \xF7 12, week \xD7 52/12, day \xD7 365/12, \xF7 interval_count); every other status contributes 0. The mrr-daily-run worker derives Neon daily stock from billing_observations, effective payer and price bindings, and publishes the verified active series. V1 exclusions: discounts, prorations, schedules, multi-plan items, tax, currency transfers." }
+  derivation: { carried_by: ["mrr_daily", "account_timeline"], input_origin: "platform", ingested_events: [], ingested_datasources: ["billing_observations"], note: "MRR V1 (plan 282 TASK-11, D-51): subscription state active/past_due quantity \xD7 unit_amount monthly (year \xF7 12, week \xD7 52/12, day \xD7 365/12, \xF7 interval_count); other statuses 0. mrr-daily-run derives Neon stock from billing_observations and effective payer and price bindings in the verified active series. account_timeline reads stored account_closing per currency, nullable off Billing rows; never sums repeated stocks. V1 excludes discounts, prorations, schedules, multi-plan items, tax, currency transfers." }
 };
 
 // scaffold/src/analytics/catalog/entries/metrics/revenue/new_mrr.ts
@@ -15573,14 +15575,12 @@ var customerAccountProfileConcept = {
     "account.closest_to_limit",
     "account.renews_at",
     "account.cancel_scheduled",
-    "account.trial",
-    "account.credit",
-    "account.last_shown"
+    "account.trial"
   ],
   query_families: ["table"],
   source_scope: "total",
   sources: [
-    { kind: "unavailable", ref: "account rows from account_profile, account_lifecycle, account_billing_state, account_activity, account_usage_meters, trial_episodes and account_timeline", blocker: "No block serves an account row yet: web plan 282 TASK-17 phase 2 builds the account, lifecycle, billing-state, activity, usage-meter and trial blocks, and TASK-18 (BL-0447) the timeline union that carries credit and last shown." }
+    { kind: "unavailable", ref: "account rows from account_profile, account_lifecycle, account_billing_state, account_activity, account_usage_meters and trial_episodes", blocker: "No block serves an account row yet: web plan 282 TASK-17 phase 2 builds the account, lifecycle, billing-state, activity, usage-meter and trial blocks. Credit and last shown are carried separately by customer.account_timeline." }
   ],
   oracle_family: { family: "none", blocker: "No account-profile oracle exists; each attribute's pure twin is owed with the block that serves it." },
   policy_dependencies: [
@@ -15589,8 +15589,144 @@ var customerAccountProfileConcept = {
   ]
 };
 
+// scaffold/src/analytics/catalog/entries/concepts/customer/account_timeline.ts
+var customerAccountTimelineConcept = {
+  id: "customer.account_timeline",
+  version: 1,
+  label: "Account timeline",
+  description: "One account's ordered App, RevTurbine and Billing facts, with stored credit and touch facts. The same rows support last-shown placements and per-currency MRR history.",
+  when_to_use: "The Customers profile timeline, last-shown placements and MRR history over a 90-day period (at least 28 days for last shown).",
+  do_not_use_for: "Recomputing attribution, allocating gate credit, aggregating currencies, or replacing the current account-profile row.",
+  grain: ["tenant", "account"],
+  analytical_units: ["account"],
+  primary_time_dimension: "time.occurred_at",
+  historical_mode: "as_of_event",
+  dimensions: ["time.occurred_at", "customer.account", "customer.user", "event.type", "placement.placement", "entitlement.entitlement", "revenue.currency", "revenue.movement_reason", "revenue.churn_cause", "attribution.movement_kind", "timeline.source"],
+  dimension_groundings: {
+    "customer.account": { kind: "derived", source: "identity:resolved_account_key", anchor: "current", note: "Read-only Neon account/payer resolution; the stored Billing key and independently resolved telemetry users." },
+    "customer.user": { kind: "derived", source: "identity:resolved_user_set", anchor: "current", note: "The selected external user resolves the account; telemetry reads its users, including rows without account stamps." },
+    "event.type": { kind: "stamped", source: "column:event_name", anchor: "fact_time", note: "Telemetry event name or the stored Billing movement kind." },
+    "placement.placement": { kind: "stamped", source: "column:placement_id", anchor: "fact_time", partitions: false, note: "Recorded telemetry or stored credit/touch sub-lines; a Billing movement can credit several placements." },
+    "entitlement.entitlement": { kind: "stamped", source: "column:entitlement_handle", anchor: "fact_time", partitions: false, note: "Recorded gate touch or stored gate-lane credit; no inferred allocation." },
+    "revenue.currency": { kind: "stamped", source: "column:currency", anchor: "fact_time", note: "Native Billing currency; non-Billing rows have no monetary value." },
+    "revenue.movement_reason": { kind: "stamped", source: "column:reason", anchor: "fact_time" },
+    "revenue.churn_cause": { kind: "stamped", source: "column:churn_cause", anchor: "fact_time" },
+    "attribution.movement_kind": { kind: "stamped", source: "attribution_credits:movement_kind", anchor: "fact_time", served_metrics: ["account.credit"], unserved_blocker: "Only stored attribution_credits carry this credited-positive movement dimension; timeline MRR stocks/deltas and recorded last-shown exposures do not.", note: "The existing credited-positive movement dimension stays scoped to stored credits; negative movements retain their own event kind." },
+    "timeline.source": { kind: "derived", source: "account_timeline:source", anchor: "fact_time", partitions: true, note: "Billing, RevTurbine or App according to the row's actual carrier." }
+  },
+  metrics: ["account.credit", "account.last_shown", "revenue.mrr", "revenue.account_opening_mrr", "revenue.account_mrr_delta"],
+  query_families: ["timeline"],
+  source_scope: "total",
+  fact_kind: "transaction",
+  family: "behavioral",
+  primary_key: ["tenant_id", "source", "source_record_id"],
+  producer: "platform",
+  materialization: { mode: "raw" },
+  livemode_qualified: false,
+  record_contract: {
+    record_id: ["tenant_id", "source", "source_record_id"],
+    source_namespace: "account_timeline",
+    occurred_time_field: "occurred_at",
+    dedup: "recomputed_at_query",
+    revision: "recomputed_from_source",
+    late_arrival: "accepted_within_retention",
+    correlation_keys: ["account_key", "user_id", "subject_id"],
+    policy_version_fields: ["policy_version", "calendar_version", "attribution_policy_version"],
+    note: "Source-qualified identity preserves the movement tuple, exposure/CTA/gate identity or clickstream sorting tuple. Occurred time is source as_of, presented_at or event_ts. Billing selects the active series and live attribution run; telemetry uses FINAL or candidate View identity. Policies belong to the applicable stored source. No common received timestamp or Stripe livemode exists."
+  },
+  keys: [
+    { key: "tenant", path: "column:tenant_id", resolution: "source" },
+    { key: "account", path: "identity:resolved_account_key", resolution: "enriched" },
+    { key: "user", path: "column:user_id", resolution: "source", note: "Telemetry user, absent on stored Billing movement rows." },
+    { key: "placement", path: "column:placement_id", resolution: "source" },
+    { key: "entitlement", path: "column:entitlement_handle", resolution: "source" }
+  ],
+  measures: [
+    { name: "account_closing", source: "mrr_movements_daily:account_closing", unit: "currency_minor", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Nullable off Billing rows. The day's last account closing is one history point per currency; never sum repeated account stocks or currencies." },
+    { name: "account_opening", source: "mrr_movements_daily:account_opening", unit: "currency_minor", temporal: "stock", sign: "unsigned", aggregation_semantics: "semi_additive", note: "Nullable off Billing rows. The first movement opening anchors the history; never sum repeated account stocks or currencies." },
+    { name: "delta", source: "mrr_movements_daily:delta", unit: "currency_minor", temporal: "flow", sign: "signed", aggregation_semantics: "additive", note: "Stored signed movement delta per native currency, nullable off Billing rows; no new credit allocation." }
+  ],
+  event_attributes: [
+    { name: "source", path: "derived:source" },
+    { name: "event_name", path: "column:event_name" },
+    { name: "movement_kind", path: "mrr_movements_daily:kind" },
+    { name: "outcome", path: "column:outcome" },
+    { name: "credit_basis", path: "attribution_credits:credit_basis" }
+  ],
+  sources: [
+    { kind: "datasource", ref: "mrr_movements_daily" },
+    { kind: "datasource", ref: "attribution_credits" },
+    { kind: "datasource", ref: "attribution_touches" },
+    { kind: "datasource", ref: "attribution_runs" },
+    { kind: "build", ref: "analytics_customer_timeline" },
+    { kind: "build", ref: "exposure_touch_candidates" },
+    { kind: "build", ref: "cta_candidates" },
+    { kind: "build", ref: "gate_denial_candidates" },
+    { kind: "build", ref: "account_timeline", note: "Read-only web composite. revenue.mrr is each Billing row's account_closing; opening/delta are stored row facts, nullable elsewhere. Last shown uses presented exposures in the final 28 days. Stored credit sub-lines are never summed into a new allocation." }
+  ],
+  oracle_family: { family: "recurring" },
+  policy_dependencies: [{ kind: "mrr", stamped: true }, { kind: "attribution", stamped: true }]
+};
+
+// scaffold/src/analytics/catalog/entries/dimensions/timeline/source.ts
+var timelineSourceDimension = {
+  id: "timeline.source",
+  label: "Timeline source",
+  type: "enum",
+  description: "Billing (stored MRR movements), RevTurbine (recorded exposures, CTA and gate touches), or App (clickstream activity). Preserves each timeline row's source provenance.",
+  operators: ["eq", "in", "not_in"],
+  control: "multi_select",
+  capabilities: ["filter", "group"],
+  cardinality: "low",
+  classification: "unrestricted",
+  exclude_from_segment_picker: true
+};
+
+// scaffold/src/analytics/catalog/entries/metrics/revenue/account_opening_mrr.ts
+var revenueAccountOpeningMrrMetric = {
+  id: "revenue.account_opening_mrr",
+  label: "Account MRR before movement",
+  value_type: "currency",
+  source_scope: "total",
+  statistical_type: "revenue",
+  direction: "increase",
+  preferred_analysis_unit: "account",
+  aggregation_semantics: "semi_additive",
+  layer: "primitive",
+  catalog_status: "tested",
+  derivation: {
+    carried_by: ["account_timeline"],
+    input_origin: "platform",
+    ingested_events: [],
+    ingested_datasources: ["mrr_movements_daily"],
+    note: "The stored movement row's account_opening, per native currency, in the active Neon series. Nullable on non-Billing timeline rows. Not the interval-opening revenue.opening_mrr target; never sum repeated account stocks or currencies. The first movement opening anchors the account history."
+  }
+};
+
+// scaffold/src/analytics/catalog/entries/metrics/revenue/account_mrr_delta.ts
+var revenueAccountMrrDeltaMetric = {
+  id: "revenue.account_mrr_delta",
+  label: "Signed MRR movement",
+  value_type: "currency",
+  source_scope: "total",
+  statistical_type: "revenue",
+  direction: "increase",
+  preferred_analysis_unit: "account",
+  aggregation_semantics: "additive",
+  layer: "primitive",
+  catalog_status: "tested",
+  derivation: {
+    carried_by: ["account_timeline"],
+    input_origin: "platform",
+    ingested_events: [],
+    ingested_datasources: ["mrr_movements_daily"],
+    note: "The stored live movement row's signed delta in the active Neon series, per native currency; expansion positive, contraction/churn negative. Nullable on non-Billing timeline rows. A row fact, not aggregated revenue.net_new_mrr and not an allocated attribution amount; no cross-currency sum."
+  }
+};
+
 // scaffold/src/analytics/catalog/entries/index.ts
 var DIMENSION_ENTRIES = [
+  timelineSourceDimension,
   timeOccurredAtDimension,
   commercialVariationDimension,
   commercialItemKindDimension,
@@ -15766,6 +15902,8 @@ var AUTHORED_METRIC_ENTRIES = [
   conversionRateMetric,
   retentionRetainedMrr30dMetric,
   revenueMrrMetric,
+  revenueAccountOpeningMrrMetric,
+  revenueAccountMrrDeltaMetric,
   revenueNewMrrMetric,
   revenueExpansionMrrMetric,
   revenueContractionMrrMetric,
@@ -15840,6 +15978,7 @@ var CONCEPT_ENTRIES = [
   revenueAttributionConcept,
   experimentCausalResultConcept,
   customerTimelineConcept,
+  customerAccountTimelineConcept,
   optimizationOpportunityConcept,
   customerAccountStateConcept,
   revenuePaymentRecoveryConcept,
