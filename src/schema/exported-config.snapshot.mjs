@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.551
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.552
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -1458,13 +1458,36 @@ var AnalyticsGateOutcomeHeadlineSchema = z10.strictObject({
   tie: z10.boolean().meta(Unrestricted6),
   verdict: AnalyticsGateVerdictSchema.nullable().meta(Unrestricted6)
 }).meta(meta3("AnalyticsGateOutcomeHeadline"));
+var poolRedTotals = z10.strictObject({
+  pool: AnalyticsGatePoolSchema.or(z10.literal("all")).meta(Unrestricted6),
+  left: count.meta(Unrestricted6),
+  left_detail: z10.strictObject({ churned: count, quiet: count, downgraded: count }).meta(Unrestricted6)
+}).superRefine((value, ctx) => {
+  const { churned, quiet: quiet2, downgraded } = value.left_detail;
+  if (churned + quiet2 + downgraded !== value.left) {
+    ctx.addIssue({ code: "custom", path: ["left_detail"], message: "Red reasons must sum to the complete red count" });
+  }
+}).meta(meta3("AnalyticsGateOutcomePoolRedTotals"));
 var AnalyticsGateOutcomeDetailSchema = z10.strictObject({
   entitlement_handle: z10.string().min(1).max(200).meta(Unrestricted6),
   headline: AnalyticsGateOutcomeHeadlineSchema.meta(Unrestricted6),
+  /** Complete canonical counts, independent of the bounded account list. */
+  pool_red_totals: z10.array(poolRedTotals).length(3).meta(Unrestricted6),
   /** A bounded drill-in, not another source of aggregate counts. */
   accounts: z10.array(AnalyticsGateOutcomeAccountSchema).max(1e3).meta(Operational),
   accounts_truncated: z10.boolean().meta(Unrestricted6),
   credit_without_touch: count.meta(Unrestricted6)
+}).superRefine((value, ctx) => {
+  const all = value.pool_red_totals.find((row) => row.pool === "all");
+  const paying = value.pool_red_totals.find((row) => row.pool === "paying");
+  const notPaying = value.pool_red_totals.find((row) => row.pool === "not_paying");
+  if (!all || !paying || !notPaying) {
+    ctx.addIssue({ code: "custom", path: ["pool_red_totals"], message: "Require exactly one all, paying and not_paying pool" });
+    return;
+  }
+  if (all.left !== paying.left + notPaying.left || ["churned", "quiet", "downgraded"].some((reason2) => all.left_detail[reason2] !== paying.left_detail[reason2] + notPaying.left_detail[reason2])) {
+    ctx.addIssue({ code: "custom", path: ["pool_red_totals"], message: "Overall red totals must equal paying plus not_paying by reason" });
+  }
 }).meta(meta3("AnalyticsGateOutcomeDetail"));
 var AnalyticsGateOutcomesMetaSchema = z10.strictObject({
   status: status.meta(Unrestricted6),
@@ -15120,7 +15143,7 @@ var entitlementDecisionAccountsMetric = { id: "entitlement.decision_accounts", l
 var entitlementUnclassifiedExposuresMetric = { id: "entitlement.unclassified_exposures", label: "Unclassified exposures", value_type: "number", source_scope: "revturbine_tracked", statistical_type: "count", direction: "neutral", preferred_analysis_unit: "account", layer: "primitive", catalog_status: "tested", derivation: { carried_by: ["gate_table"], input_origin: "platform", ingested_events: [], ingested_datasources: ["placement_presentations"], note: `Disclosure: distinct presented exposures with no trigger_source stamp (an older SDK, or a slot not requested through a gate); gate_table.unclassified_exposures, the same value on every row. Placement touches only, never assigned to a gate or inferred from configuration. ${GATE_TABLE_TESTED_NOTE}` } };
 
 // scaffold/src/analytics/catalog/entries/metrics/entitlement/outcome_share.ts
-var entitlementOutcomeShareMetric = { id: "entitlement.outcome_share", label: "Gate outcome share", description: `Share of a gate's mature touched accounts in one outcome (Bought, No change, Left, went quiet or downgraded), served one row per gate, pool (paying, not paying, overall) and outcome. The shares partition the mature touched accounts of the pool; a share below the minimum sample is null ("not enough data yet"); shares never sum across gates.`, value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced", statistical_type: "binary", direction: "neutral", aggregation_semantics: "non_additive", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["gate_outcomes"], input_origin: "mixed", ingested_events: [], ingested_datasources: ["placement_presentations", "events_clickstream", "attribution_credits", "mrr_movements_daily", "mrr_daily"], note: "Served by the gate_outcomes block (BL-0498), classified by deriveGateOutcomes over gate_exposure_touches, account_active_days and Neon credits, movements and MRR. Touch: a gate-stamped exposure in [max(activation, T-84d), T-28d). Mature: the follow-up (and, if not Bought or churned, the quiet interval) has elapsed before the as-of. Precedence: Bought (a live positive gate-lane credit inside the follow-up), then Left (account churn, or a complete quiet interval), then No change. Window and horizons come from the approved tenant settings, declared on the result." } };
+var entitlementOutcomeShareMetric = { id: "entitlement.outcome_share", label: "Gate outcome share", description: `Share of a gate's mature touched accounts in one outcome (Bought, No change, Left, went quiet or downgraded), served one row per gate, pool (paying, not paying, overall) and outcome. The shares partition the mature touched accounts of the pool; a share below the minimum sample is null ("not enough data yet"); shares never sum across gates.`, value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced", statistical_type: "binary", direction: "neutral", aggregation_semantics: "non_additive", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["gate_outcomes"], input_origin: "mixed", ingested_events: [], ingested_datasources: ["placement_presentations", "events_clickstream", "attribution_credits", "mrr_movements_daily", "mrr_daily"], note: "deriveGateOutcomes classifies mature stamped exposures using declared tenant windows and qualified inactivity coverage. Precedence: Bought (eligible positive gate credit), then Left, went quiet or downgraded (account churn, eligible negative gate-lane contraction credit, then valid recorded inactivity with live gate attribution), then No change. Subjects must fall inside follow-up. The no-touch baseline uses the same outcomes without gate credit, including accepted current-series account contraction days. Verdicts use combined red; capped lists retain full pool/reason totals." } };
 
 // scaffold/src/analytics/catalog/entries/metrics/entitlement/baseline_share.ts
 var entitlementBaselineShareMetric = { id: "entitlement.baseline_share", label: "Gate baseline outcome share", description: "Share of the same-pool no-touch baseline in one outcome (Bought, No change, Left), followed from the touch-window end for the gate follow-up. The baseline is the same-pool accounts with tracked activity in the touch window and no gate-stamped exposure of this gate in [T-84d, T). The common window-end anchor is an approximation to the touched accounts' individual anchors, disclosed on the result.", value_type: "percent", format: { type: "percent", decimals: 1 }, source_scope: "revturbine_influenced", statistical_type: "binary", direction: "neutral", aggregation_semantics: "non_additive", preferred_analysis_unit: "account", layer: "derived", catalog_status: "tested", derivation: { carried_by: ["gate_outcomes"], input_origin: "mixed", ingested_events: [], ingested_datasources: ["placement_presentations", "events_clickstream", "mrr_movements_daily", "mrr_daily"], note: "Served by the gate_outcomes block (BL-0498), classified by deriveGateOutcomes with the same rules as the touched accounts, without the credit requirement: Bought is any positive movement (new, expansion, reactivation) in the follow-up. The minimum sample applies to the baseline denominator separately; pool membership is read at the window-end day." } };
