@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.552
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.553
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -6178,7 +6178,7 @@ var id3 = () => z21.string().min(1).max(255).refine((value) => value.trim().leng
 var revision3 = () => z21.int32().min(1);
 var time3 = () => z21.iso.datetime({ offset: true });
 var quiet = () => z21.int32().min(1);
-var generation = () => z21.union([z21.literal("live"), z21.string().regex(/^epoch:(0|[1-9]\d*)$/).refine((value) => Number(value.slice(6)) <= 2147483647)]);
+var generation = () => z21.string().regex(/^(live|epoch:(0|[1-9]\d*))$/).refine((value) => value === "live" || value.startsWith("epoch:") && Number(value.slice(6)) <= 2147483647);
 var tenant = { tenant_id: id3().meta(ops3), generation_id: generation().meta(ops3) };
 var named4 = (name) => ({
   id: name,
