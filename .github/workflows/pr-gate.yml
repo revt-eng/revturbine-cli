@@ -7,7 +7,8 @@ on:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || format('codebuild-helm-ci-backlog-{0}-{1}', github.run_id, github.run_attempt) }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -52,7 +53,8 @@ jobs:
     name: Packed CLI smoke (Node ${{ matrix.node }})
     # Proves the installed package validates configs with NO workspace siblings
     # present (scaffold/demo-data absent) at the supported floor and primary LTS.
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || format('codebuild-helm-ci-backlog-{0}-{1}', github.run_id, github.run_attempt) }}
+    timeout-minutes: 20
     strategy:
       matrix:
         node: ['22.13.0', '24']
