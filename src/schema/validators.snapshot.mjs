@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.554
+// Vendored validation engine bundled from @revt-eng/schema@0.1.555
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -223,6 +223,12 @@ var CATALOG = {
     severity: "error_draft",
     message: "Additive purchased allowances require matching reset periods and allocation scopes.",
     specRef: "plans-entitlements-studio-ui.md \xA72.6.5 (BUG-554)"
+  },
+  "VAL-ENT-03": {
+    id: "VAL-ENT-03",
+    severity: "error_draft",
+    message: "This entitlement rule is missing the value required by its entitlement type.",
+    specRef: "ST-1596 (BUG-1188)"
   },
   // placement / entitlement rule → objective (BL-0176, ruling D-15): the
   // optional `objective` field references an `objectives[]` entity by handle.
@@ -960,6 +966,7 @@ var SEMANTIC_RULE_CODES = [
   "VAL-EXP-01",
   "VAL-ENT-01",
   "VAL-ENT-02",
+  "VAL-ENT-03",
   "VAL-OBJ-01"
 ];
 function runSemanticRules(graph, opts = {}) {
@@ -971,6 +978,7 @@ function runSemanticRules(graph, opts = {}) {
       object_id: issue.ruleId,
       studio: "plans-entitlements"
     }, { message: issue.message, detail: `Conflicting rule: ${issue.otherRuleId}` })),
+    ...checkEntitlementRuleRequiredValues(graph),
     ...checkLimitRuleEnforcement(graph),
     ...checkPublicVariationCollisions(graph),
     ...checkPayloadCtaOverflow(graph),
@@ -983,6 +991,49 @@ function runSemanticRules(graph, opts = {}) {
     ...checkExperimentMetricRefs(graph, opts.knownMetricIds),
     ...checkDanglingReferences(graph)
   ];
+}
+var REQUIRED_RULE_VALUES = {
+  usage_limit: {
+    field: "limit_value",
+    message: "Usage limit rules require limit_value. Set a number or 'unlimited' explicitly."
+  },
+  rate_limit: {
+    field: "rate_value",
+    message: "Rate limit rules require rate_value or legacy limit_value. Set a number or an explicit 'unlimited' legacy limit."
+  },
+  credits: {
+    field: "allowance_value",
+    message: "Credits rules require allowance_value or initial_grant. Set allowance_value to a number or 'unlimited', or set initial_grant for a one-time grant."
+  },
+  seat: {
+    field: "included_count",
+    message: "Seat rules require included_count. Set a number or 'unlimited' explicitly."
+  }
+};
+function checkEntitlementRuleRequiredValues(graph) {
+  const entitlementTypes = /* @__PURE__ */ new Map();
+  for (const entitlement of graph.entitlements ?? []) {
+    if (typeof entitlement.unique_handle !== "string" || typeof entitlement.type !== "string") continue;
+    entitlementTypes.set(entitlement.unique_handle, entitlement.type);
+  }
+  const findings = [];
+  for (const [index, rule] of (graph.entitlement_rules ?? []).entries()) {
+    if (typeof rule.entitlement_id !== "string") continue;
+    const type = entitlementTypes.get(rule.entitlement_id);
+    if (!type || !(type in REQUIRED_RULE_VALUES)) continue;
+    const requirement = REQUIRED_RULE_VALUES[type];
+    const hasValue = type === "credits" ? rule.allowance_value != null || rule.initial_grant != null : type === "rate_limit" ? rule.rate_value != null || typeof rule.limit_value === "number" || rule.limit_value === "unlimited" : rule[requirement.field] != null;
+    if (hasValue) continue;
+    const id = String(rule.handle ?? rule.id ?? "");
+    findings.push(finding("VAL-ENT-03", {
+      object_type: "entitlement_rule",
+      object_id: id,
+      field: requirement.field,
+      path: ["entitlement_rules", index, requirement.field],
+      studio: "plans-entitlements"
+    }, { message: requirement.message }));
+  }
+  return findings;
 }
 function checkContentUiPlanRefs(graph) {
   const addons = referenceNamespace(graph, "addons", "unique_handle");
