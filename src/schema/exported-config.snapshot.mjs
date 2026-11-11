@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.555
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.556
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -12118,7 +12118,29 @@ var PlacementInteractionPayload = z48.looseObject({
    * Absent = a pre-BL-0182 producer or an interaction with no decision in
    * scope, `null` = no rule matched, string = the winning rule.
    */
-  rule_handle: onstr()
+  rule_handle: onstr(),
+  // EP-1692 TASK-1: the rest of the presentation record. The browser SDK no
+  // longer POSTs a typed row to `/api/events/interactions`; it reports each
+  // treatment interaction once, as this event, and the ingest worker derives
+  // the `placement_presentations` row from it (`presentationRowFromClickstream`,
+  // which reuses `buildInteractionRows`). Every field is optional AND nullable,
+  // the contract every earlier addition chose: `interaction_type` stays the
+  // only required key, so an older producer is never quarantined.
+  /** The treatment (payload) presented; the presentation row's payload id falls back to it. */
+  treatment_id: onstr(),
+  surface_slot_id: onstr(),
+  surface_template_id: onstr(),
+  message_block_handle: onstr(),
+  experiment_id: onstr(),
+  variant_key: onstr(),
+  /** Same vocabulary as `TreatmentInteractionInputSchema.trigger_source`: the only stamped value is `'gate'`. */
+  trigger_source: z48.enum(["gate"]).nullable().optional().meta(Unrestricted25),
+  entitlement_handle: onstr(),
+  playbook_version: onstr(),
+  /** Segment HANDLES (the analytics join key), as on the presentation row. */
+  segment_handles: z48.array(z48.string().min(1)).optional().meta(Unrestricted25),
+  account_id: onstr(),
+  metadata: z48.record(z48.string(), z48.unknown()).optional().meta(Unrestricted25)
 });
 var CheckoutStartedPayload = z48.looseObject({
   placement_id: str(),
