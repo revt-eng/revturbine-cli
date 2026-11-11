@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.558
+// Vendored validation engine bundled from @revt-eng/schema@0.1.559
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -251,10 +251,12 @@ var CATALOG = {
     specRef: "config-validation.md \xA75.2 (BL-0168)"
   },
   // BL-0168: the payload→placement parent lookup (`placementPayloads`) matches
-  // a standalone `placement_payloads` row on `row.id === payload.placement_id`
-  // only. A miss leaves `category` undefined, `categoryBucket` falls through to
-  // 99, and VAL-PLC-06's Access-Gate/Fixed cap check silently never runs for
-  // that payload. `warning`, never blocking, same rationale as above.
+  // a standalone `placement_payloads` row on the placement's handle (the
+  // reference VAL-PLC-10 requires), falling back to its id (BUG-831; it matched
+  // on id only before). A miss leaves `category` undefined, `categoryBucket`
+  // falls through to 99, and VAL-PLC-06's Access-Gate/Fixed cap check silently
+  // never runs for that payload. `warning`, never blocking, same rationale as
+  // above.
   "VAL-PLC-06-SKIPPED": {
     id: "VAL-PLC-06-SKIPPED",
     severity: "warning",
@@ -1361,7 +1363,7 @@ function* placementPayloads(graph) {
     }
   }
   for (const [index, payload] of (graph.placement_payloads ?? []).entries()) {
-    const placement = placements.find((row) => typeof row.id === "string" && row.id === payload.placement_id);
+    const placement = placements.find((row) => typeof row.handle === "string" && row.handle === payload.placement_id) ?? placements.find((row) => typeof row.id === "string" && row.id === payload.placement_id);
     yield { payload, category: placement?.category, path: ["placement_payloads", index], parentFound: placement !== void 0 };
   }
 }

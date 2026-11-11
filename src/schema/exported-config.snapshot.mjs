@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.558
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.559
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -23641,7 +23641,24 @@ var EntitlementCheckResultSchema = z71.object({
   /** All grants contributing to a composite allowance; rule_handle is its policy anchor. */
   contributing_rule_handles: z71.array(z71.string()).optional().meta(Unrestricted39),
   /** Upsell placement to render when entitlement is denied. */
-  placement: PlacementDecisionOutputSchema.optional().meta(Unrestricted39)
+  placement: PlacementDecisionOutputSchema.optional().meta(Unrestricted39),
+  /**
+   * Developer diagnostic about HOW the check was called, never about the
+   * user (ST-1696 cost rule). Present only on a single-handle check of a
+   * limit-enforcing rule (usage_limit, credits) with a finite limit, when the
+   * `cost` input was 0 (`entitlement_cost_zero`, warning), missing
+   * (`entitlement_cost_missing`, error) or invalid (`entitlement_cost_invalid`,
+   * error). It never changes `allowed`, `status` or `reason`; each runtime
+   * routes it to its own log channel.
+   */
+  diagnostic: z71.object({
+    level: z71.enum(["warning", "error"]).meta(Unrestricted39),
+    code: z71.enum(["entitlement_cost_zero", "entitlement_cost_missing", "entitlement_cost_invalid"]).meta(Unrestricted39),
+    /** The entitlement handle that was checked. */
+    handle: z71.string().meta(Unrestricted39),
+    /** Invalid cost only: the kind of the rejected value (never the value). */
+    received: z71.enum(["negative", "nan", "infinite", "non_number"]).optional().meta(Unrestricted39)
+  }).optional().meta(Unrestricted39)
 }).meta({ id: "EntitlementCheckResult", "x-revturbine-schema-persistence": Transient30, "x-revturbine-schema-exposure": External14 });
 var RuntimePromotionSnapshotSchema = z71.object({
   id: z71.string().meta(Unrestricted39),
