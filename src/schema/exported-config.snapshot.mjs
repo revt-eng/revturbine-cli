@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.557
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.558
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -18898,8 +18898,8 @@ var eventPaths = {
   "/api/sdk/meta": {
     post: operation({
       operationId: "ingestSdkMeta",
-      summary: "Ingest anonymous SDK telemetry (keyless, non-authed, rate-limited)",
-      description: "Accepts a small batch of anonymous, keyless SDK telemetry without a public ingest key. Carries config-shape metrics and a one-way hashed config id only \u2014 no user context, no tenant binding. Rate-limited per IP; only the SdkMetaEventType allowlist is accepted.",
+      summary: "Ingest anonymous SDK telemetry (non-authed, rate-limited)",
+      description: "Accepts a small batch of anonymous SDK telemetry. No credential is required. The tenant's public ingest key MAY be sent as a Bearer token; when present and valid it is used only to attribute the stored rows to its tenant, and when absent or unrecognised the rows are stored tenantless. The request body has no user or tenant field. Carries config-shape metrics and a one-way hashed config id only \u2014 no user context. Rate-limited per IP; only the SdkMetaEventType allowlist is accepted.",
       tags: ["events"],
       requestBody: { required: true, content: { "application/json": { schema: SdkMetaIngestBatchSchema } } },
       responses: {
@@ -24294,7 +24294,7 @@ var commit = z75.string().regex(/^[a-f0-9]{40}$/);
 var count4 = z75.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 var timestamp = z75.iso.datetime({ precision: 3 });
 var version = z75.string().max(64).regex(/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/);
-var lane = z75.enum(["clickstream", "interactions", "billing"]);
+var lane = z75.enum(["clickstream", "billing"]);
 var resource = z75.enum(SIMULATION_RESET_LEGACY_RESOURCES);
 var resetResource = z75.enum(SIMULATION_RESET_LEGACY_RESOURCES);
 var RESOURCE_COUNT = simulationRunnerResources.length;
@@ -24686,8 +24686,8 @@ var SimulationPreparationReceiptSchema = z75.strictObject({
   prepared_at: timestamp,
   expires_at: timestamp,
   config_read_authorized: z75.boolean(),
-  lanes: z75.array(lanePlan).length(3),
-  measurements: z75.array(measurement).length(3),
+  lanes: z75.array(lanePlan).length(2),
+  measurements: z75.array(measurement).length(2),
   prior_lanes: z75.array(drain).min(1).max(20),
   budget,
   pending_reset_entries: z75.array(key3).max(20),
@@ -24700,7 +24700,7 @@ var SimulationPreparationReceiptSchema = z75.strictObject({
     issue2(ctx, "actual app/worker identity must match fingerprint");
   }
   for (const list of [v.lanes, v.measurements]) {
-    if (new Set(list.map((x) => x.lane)).size !== 3) issue2(ctx, "every lane must occur exactly once");
+    if (new Set(list.map((x) => x.lane)).size !== 2) issue2(ctx, "every lane must occur exactly once");
   }
   if (!exactReceiptResources(v.resources)) issue2(ctx, "every runner resource must occur exactly once");
   for (const r of v.resources) {
@@ -24717,10 +24717,6 @@ var SimulationPreparationReceiptSchema = z75.strictObject({
       }
     }
   }
-  const interactionsUnknown = v.measurements.some((m) => m.lane === "interactions" && m.status === "unknown");
-  if (interactionsUnknown && (v.budget.estimated_seconds !== null || !v.budget.assumptions.some((a) => /interactions/i.test(a) && /unknown|unmeasured/i.test(a)))) {
-    issue2(ctx, "unmeasured interactions require no estimate and an explicit uncertainty assumption");
-  }
   if (v.budget.estimated_seconds !== null && (v.measurements.some((m) => m.status !== "measured" || !m.observed_rows) || v.budget.estimated_seconds > v.budget.deadline_seconds - v.budget.convergence_seconds)) {
     issue2(ctx, "estimate requires measured observations within the execution budget");
   }
@@ -24733,7 +24729,7 @@ var SimulationPreparationReceiptSchema = z75.strictObject({
   if (v.provenance && (v.provenance.collector.workflow_commit !== v.fingerprint.app_commit || v.provenance.verified_at > v.prepared_at)) issue2(ctx, "preparation provenance source/time mismatch");
   if (v.child_qualification && (v.child_qualification.parent_event_id !== v.identity.event_id || v.child_qualification.parent_run_id !== v.identity.run_id || v.child_qualification.environment_id !== v.identity.inngest_environment_id || v.child_qualification.worker_commit !== v.identity.worker_commit || v.child_qualification.fingerprint_digest !== sha256Hex(canonicalizeJson(v.fingerprint)) || v.child_qualification.observed_at > v.prepared_at)) issue2(ctx, "qualification must bind actual preparation parent/source/fingerprint");
   if (v.status === "prepared" && (!v.provenance || v.child_qualification?.status !== "qualified")) issue2(ctx, "prepared requires verified provenance and qualified child association");
-  if (v.status === "prepared" && (!v.config_read_authorized || v.errors.length || v.pending_reset_entries.length || v.prior_lanes.some((x) => x.disposition !== "clear") || v.measurements.some((m) => m.status !== "measured" && m.lane !== "interactions" || m.status === "measured" && (!m.observed_rows || m.measured_at > v.prepared_at)))) {
+  if (v.status === "prepared" && (!v.config_read_authorized || v.errors.length || v.pending_reset_entries.length || v.prior_lanes.some((x) => x.disposition !== "clear") || v.measurements.some((m) => m.status !== "measured" || m.status === "measured" && (!m.observed_rows || m.measured_at > v.prepared_at)))) {
     issue2(ctx, "prepared requires authority, drained lanes and genuine supported measurements");
   }
   if (v.status !== "prepared" && !v.errors.length) issue2(ctx, "refusal/failure requires explicit diagnostic");
@@ -24897,7 +24893,7 @@ var SimulationRunReceiptSchema = z75.strictObject({
     readback_receipt_id: key3,
     price_inventory_digest: digest2
   }).nullable(),
-  planned_lanes: z75.array(lanePlan).length(3),
+  planned_lanes: z75.array(lanePlan).length(2),
   slices: z75.array(sliceSummary).max(512),
   resources: z75.array(reconciliation).max(RECEIPT_RESOURCE_COUNT),
   replay: replay.nullable(),
@@ -24912,7 +24908,7 @@ var SimulationRunReceiptSchema = z75.strictObject({
   if (v.fingerprint_digest !== sha256Hex(canonicalizeJson(v.fingerprint))) issue2(ctx, "fingerprint content digest mismatch");
   const sliceKey = (s) => `${s.lane}:${s.index}`;
   const plannedCount = v.planned_lanes.reduce((n, p) => n + p.slices, 0);
-  if (new Set(v.planned_lanes.map((p) => p.lane)).size !== 3 || plannedCount > 512 || new Set(v.slices.map(sliceKey)).size !== v.slices.length || new Set(v.slices.map((s) => s.child_run_id)).size !== v.slices.length) issue2(ctx, "duplicate/invalid planned lane or returned child");
+  if (new Set(v.planned_lanes.map((p) => p.lane)).size !== 2 || plannedCount > 512 || new Set(v.slices.map(sliceKey)).size !== v.slices.length || new Set(v.slices.map((s) => s.child_run_id)).size !== v.slices.length) issue2(ctx, "duplicate/invalid planned lane or returned child");
   for (const p of v.planned_lanes) {
     const size = p.lane === "billing" ? 25 : 500;
     if (p.slices !== Math.ceil(p.items / size) || p.max_http_payload_bytes > p.door_limit_bytes) issue2(ctx, "invalid lane plan");
