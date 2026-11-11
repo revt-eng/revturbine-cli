@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.556
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.557
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -12120,7 +12120,7 @@ var PlacementInteractionPayload = z48.looseObject({
    */
   rule_handle: onstr(),
   // EP-1692 TASK-1: the rest of the presentation record. The browser SDK no
-  // longer POSTs a typed row to `/api/events/interactions`; it reports each
+  // longer POSTs a typed row to a separate interactions route (removed); it reports each
   // treatment interaction once, as this event, and the ingest worker derives
   // the `placement_presentations` row from it (`presentationRowFromClickstream`,
   // which reuses `buildInteractionRows`). Every field is optional AND nullable,
@@ -18564,21 +18564,6 @@ var TreatmentInteractionInputSchema = z53.object({
     "x-revturbine-schema-exposure": External12
   }
 );
-var MAX_TREATMENT_INTERACTIONS_PER_BATCH = 500;
-var TreatmentInteractionBatchSchema = z53.array(TreatmentInteractionInputSchema).min(1).max(MAX_TREATMENT_INTERACTIONS_PER_BATCH).meta(
-  {
-    id: "TreatmentInteractionBatch",
-    "x-revturbine-schema-persistence": Transient22,
-    "x-revturbine-schema-exposure": External12
-  }
-);
-var TreatmentInteractionRequestSchema = z53.union([TreatmentInteractionInputSchema, TreatmentInteractionBatchSchema]).meta(
-  {
-    id: "TreatmentInteractionRequest",
-    "x-revturbine-schema-persistence": Transient22,
-    "x-revturbine-schema-exposure": External12
-  }
-);
 var TriggerEventTypeSchema = z53.enum([
   "trial_midpoint",
   "trial_expiring",
@@ -18935,19 +18920,6 @@ var eventPaths = {
         default: { description: "Error response", content: { "application/json": { schema: ErrorEnvelope } } }
       },
       "x-revturbine-operation": { exposure: "internal", resource: "events" }
-    })
-  },
-  "/api/events/interactions": {
-    post: operation({
-      operationId: "recordTreatmentInteraction",
-      summary: "Record one placement treatment interaction, or a batch of them",
-      tags: ["events"],
-      requestBody: { required: true, content: { "application/json": { schema: TreatmentInteractionRequestSchema } } },
-      responses: {
-        "202": { description: "Interaction accepted", content: { "application/json": { schema: EventIngestResponseSchema } } },
-        default: { description: "Error response", content: { "application/json": { schema: ErrorEnvelope } } }
-      },
-      "x-revturbine-operation": { exposure: "external", resource: "events" }
     })
   },
   "/api/webhook-events": {
@@ -25836,7 +25808,6 @@ export {
   MAX_EVENT_TAGS,
   MAX_EVENT_TAG_LENGTH,
   MAX_SEGMENT_MESSAGES_PER_BATCH,
-  MAX_TREATMENT_INTERACTIONS_PER_BATCH,
   METRIC_IMPACT_COMMENT_MARKER,
   METRIC_SEMANTICS,
   METRIC_TIMEZONE_SETTING,
@@ -26205,9 +26176,7 @@ export {
   TimestampFields,
   TrackEventSchema,
   TrackIngestBatchSchema,
-  TreatmentInteractionBatchSchema,
   TreatmentInteractionInputSchema,
-  TreatmentInteractionRequestSchema,
   TreatmentInteractionTypeSchema,
   TrendFeaturesSchema,
   TrialEligibilityScopeSchema,
