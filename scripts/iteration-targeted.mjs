@@ -10,7 +10,8 @@ export function selectTargets(files) {
   const unsupported = [];
   let policy = false;
   for (const file of files) {
-    if (file === 'scripts/iteration-targeted.mjs' || file === 'scripts/iteration-targeted.check.mjs' || file === '.github/workflows/pr-gate.yml') {
+    // The gate's own policy: the selector, its checks, the workflow and the L1 script that decides targeted runs.
+    if (file === 'scripts/iteration-targeted.mjs' || file === 'scripts/iteration-targeted.check.mjs' || file === '.github/workflows/pr-gate.yml' || file === 'scripts/ci-l1.mjs') {
       policy = true;
     } else if (/^tests\/.*\.test\.ts$/.test(file)) {
       tests.add(file);

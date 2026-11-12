@@ -63,6 +63,7 @@ tests/                ← vitest; no config file, defaults apply
 ## CI
 
 `verify` (typecheck + lint + **check:schema** + test) and `Packed CLI smoke` on Node 22.13 and 24. All must pass; never bypass.
+Both run check level L1 (EP-1747) through `.github/workflows/ci-level.yml`, a generated copy of the devkit's shared workflow: never edit it here. `npm run ci:l1` and `npm run ci:l1:smoke` (`scripts/ci-l1.mjs`) run exactly what those jobs run.
 
 There is deliberately **no cross-repo drift check here.** This repo is public and scaffold is private, so such a check needed a credential it never had — it skipped every step while reporting green, and the snapshot silently fell 26 versions behind. Keeping the snapshot *current* is now scaffold's job: its release opens a PR here with the regenerated files (plan 143). This side runs only the part that needs no credential — `check:schema`, which proves the four generated artifacts agree with each other.
 

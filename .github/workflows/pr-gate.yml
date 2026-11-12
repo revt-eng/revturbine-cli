@@ -1,141 +1,68 @@
 name: PR gate
 
+# Check level L1 (EP-1747) through the shared check-level workflow on our
+# CodeBuild runners. This repository is public, so it calls the generated copy
+# in .github/workflows/ci-level.yml (never edit it here; the devkit regenerates
+# it), which owns the runner label and sends pull requests from forks to
+# GitHub-hosted runners. Each job installs the npm pinned in package.json, then
+# `npm ci`, and runs scripts/ci-l1.mjs:
+#   verify            `npm run ci:l1`: selector checks, line endings, typecheck,
+#                     lint, schema consistency, tests (targeted for iteration
+#                     pull requests), build.
+#   package-smoke     `npm run ci:l1:smoke` on Node 22.13.0 and 24: the packed
+#                     CLI installed in a clean consumer.
+#   Iteration exhaustive  push to main only: requires both. Backlog reads
+#                     "Iteration exhaustive / aggregate" as the release evidence.
+
 on:
   push:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   verify:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || format('codebuild-helm-ci-backlog-{0}-{1}', github.run_id, github.run_attempt) }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-      - name: Use the npm version pinned in package.json
-        run: |
-          NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
-          npm install --global "npm@$NPM_VERSION"
-          npm --version
-      - run: npm ci
-      - name: Iteration selector regression checks
-        run: node --test scripts/iteration-targeted.check.mjs
-
-      - name: Line-ending check (BL-0216)
-        run: node scripts/check-line-endings.mjs --all
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run check:schema
-      - name: Targeted iteration tests
-        if: github.event_name == 'pull_request' && (startsWith(github.base_ref, 'iteration/') || startsWith(github.head_ref, 'iteration/'))
-        env:
-          ITERATION_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          ITERATION_BASE_REF: ${{ github.base_ref }}
-          ITERATION_HEAD_REF: ${{ github.head_ref }}
-        run: |
-          if [[ ! "$ITERATION_BASE_REF" =~ ^iteration/(IT|it)-[0-9]+([/-][a-zA-Z0-9_/-]+)?$ && ! "$ITERATION_HEAD_REF" =~ ^iteration/(IT|it)-[0-9]+([/-][a-zA-Z0-9_/-]+)?$ ]]; then
-            echo "::error::Iteration branch must use iteration/it-<number> with an optional slug"
-            exit 1
-          fi
-          git show "${ITERATION_BASE_SHA}:scripts/iteration-targeted.mjs" > "$RUNNER_TEMP/iteration-targeted.mjs"
-          node "$RUNNER_TEMP/iteration-targeted.mjs" "$ITERATION_BASE_SHA"
-      - name: Exhaustive tests
-        if: github.event_name != 'pull_request' || (!startsWith(github.base_ref, 'iteration/') && !startsWith(github.head_ref, 'iteration/'))
-        run: npm run test
-      - run: npm run build
+    uses: ./.github/workflows/ci-level.yml
+    with:
+      level: l1
+      node-version: '24'
+      fetch-depth: 0
+      install-command: |
+        NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+        npm install --global "npm@$NPM_VERSION"
+        npm --version
+        npm ci
 
   package-smoke:
     name: Packed CLI smoke (Node ${{ matrix.node }})
     # Proves the installed package validates configs with NO workspace siblings
     # present (scaffold/demo-data absent) at the supported floor and primary LTS.
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || format('codebuild-helm-ci-backlog-{0}-{1}', github.run_id, github.run_attempt) }}
-    timeout-minutes: 20
     strategy:
       matrix:
         node: ['22.13.0', '24']
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-      - name: Use the npm version pinned in package.json
-        run: |
-          NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
-          npm install --global "npm@$NPM_VERSION"
-          npm --version
-      - run: npm ci
-      - run: npm run build
-      - name: Pack and install in a clean consumer
-        run: |
-          set -euo pipefail
-          PACK_DIR="${RUNNER_TEMP}/cli-pack"
-          SMOKE_DIR="$(mktemp -d)"
-          mkdir -p "$PACK_DIR"
-          npm pack --pack-destination "$PACK_DIR"
-          TARBALL=$(find "$PACK_DIR" -maxdepth 1 -type f -name '*.tgz' -print -quit)
-          if [ -z "$TARBALL" ]; then
-            echo "::error::npm pack did not produce a CLI tarball"
-            exit 1
-          fi
-          cd "$SMOKE_DIR"
-          npm init --yes >/dev/null
-          npm install --ignore-scripts "$TARBALL"
-          echo "CLI_BIN=$SMOKE_DIR/node_modules/.bin/revturbine" >> "$GITHUB_ENV"
-          echo "REVTURBINE_TEST_CLI=$SMOKE_DIR/node_modules/@revturbine/cli/dist/cli.js" >> "$GITHUB_ENV"
-      - name: init preserves existing integrations and targets one skills agent
-        run: npm test -- tests/init-process.test.ts
-      - name: whoami reports authentication evidence and bounds unavailable services
-        run: npm test -- tests/whoami-process.test.ts
-      - name: shared placement warnings remain advisory and validate offline
-        run: npm test -- tests/placement-validation-process.test.ts
-      - name: latest SDK guidance preserves projects and bounds registry failures
-        run: npm test -- tests/sdk-version-process.test.ts
-      - name: CI mode (env token, extra headers, diff --exit-code) never prints secrets
-        run: npm test -- tests/ci-mode-process.test.ts
-      - name: customer provisioning preserves scope, selectors and safe retry behavior
-        run: npm test -- tests/customer-provisioning-http.test.ts
-      - name: validate a valid config (expect exit 0)
-        run: '"$CLI_BIN" validate tests/fixtures/valid.export-config.json'
-      - name: validate an invalid config (expect exit 4)
-        run: |
-          set +e
-          "$CLI_BIN" validate tests/fixtures/invalid.export-config.json
-          STATUS=$?
-          set -e
-          if [ "$STATUS" -ne 4 ]; then
-            echo "::error::invalid config exited $STATUS; expected 4"
-            exit 1
-          fi
-          echo "invalid config correctly rejected"
-      - name: --version reports CLI + schema versions
-        run: '"$CLI_BIN" --version'
-      - name: help snapshot — the 0.5.x surface, nothing retired (plan 131 AC-3)
-        run: |
-          HELP=$("$CLI_BIN" --help)
-          for cmd in login logout signup whoami schema docs download validate diff show upload launch discard restore status history preview evaluate; do
-            echo "$HELP" | grep -qE "^  $cmd" || { echo "::error::missing command '$cmd' in --help"; exit 1; }
-          done
-          for gone in promote submit approve reject deploy rollback verify export; do
-            if echo "$HELP" | grep -qE "^  $gone( |\[|<)"; then
-              echo "::error::retired command '$gone' still in --help"; exit 1
-            fi
-          done
-          echo "help surface matches the 0.5.x spec"
+    uses: ./.github/workflows/ci-level.yml
+    with:
+      level: l1
+      # Distinct per Node version: the shared workflow's concurrency group includes the name.
+      name: smoke-node-${{ matrix.node }}
+      node-version: ${{ matrix.node }}
+      install-command: |
+        NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+        npm install --global "npm@$NPM_VERSION"
+        npm --version
+        npm ci
+      command: npm run ci:l1:smoke
 
   iteration-exhaustive:
     name: Iteration exhaustive
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [verify, package-smoke]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every exhaustive job
-        env:
-          VERIFY_RESULT: ${{ needs.verify.result }}
-          SMOKE_RESULT: ${{ needs.package-smoke.result }}
-        run: test "$VERIFY_RESULT" = success && test "$SMOKE_RESULT" = success
+    uses: ./.github/workflows/ci-level.yml
+    with:
+      level: l1
+      name: aggregate
+      node-version: none
+      package-manager: none
+      command: test "${{ needs.verify.result }}" = success && test "${{ needs.package-smoke.result }}" = success
