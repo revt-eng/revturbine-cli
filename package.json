@@ -27,7 +27,9 @@
     "test": "vitest run --maxWorkers=1",
     "lint": "eslint .",
     "check:schema": "node scripts/check-schema-consistency.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run check:schema && npm run test"
+    "verify": "npm run typecheck && npm run lint && npm run check:schema && npm run test",
+    "ci:l1": "node scripts/ci-l1.mjs",
+    "ci:l1:smoke": "node scripts/ci-l1.mjs --package-smoke"
   },
   "dependencies": {
     "@revturbine/sdk": ">=0.12.5 <1",
