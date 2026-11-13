@@ -1,5 +1,6 @@
 // Tests for scripts/release-prerelease.mjs (EP-1747 phase 5), run by `node --test` in scripts/ci-l1.mjs (named .check.mjs so vitest does not collect it): the version scheme,
-// the dist-tag guards, lockstep promotion and the commit check on a re-run.
+// the dist-tag guards, lockstep promotion, the commit check on a re-run, and a
+// plan file that does not match the run.
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -7,7 +8,10 @@ import path from 'node:path';
 import test from 'node:test';
 import {
   buildNumber,
+  isLaterBuild,
   pack,
+  trustedPlan,
+  writableTag,
   compareSemver,
   distTagRefusal,
   latestAfterPublish,
@@ -162,6 +166,16 @@ function options(root, dirs, extra = {}) {
   return { package: dirs.map((dir) => path.join(root, dir)), positional: [], passthrough: [], branch: 'release/RL-12', build: '40', state: path.join(root, 'out', 'state.json'), ...extra };
 }
 
+/** What the workflow's context says for these options, and the commit's manifests (here, the files themselves). */
+function ctx(opts, run, extra = {}) {
+  return {
+    npm: run,
+    env: { GITHUB_REF_NAME: opts.branch, GITHUB_RUN_NUMBER: opts.build, GITHUB_SHA: SHA },
+    readManifest: (dir) => JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')),
+    ...extra,
+  };
+}
+
 /** Stamp each planned version and the commit into the checkout, as the workflow does before publishing. */
 function stampAll(root, opts, versions) {
   for (const [dir, version] of Object.entries(versions)) {
@@ -223,18 +237,18 @@ test('publish and promote: the run tag first, rl-<n> only after every package, t
   const opts = options(root, ['a', 'b'], { lockstep: true });
   await plan(opts, { npm: run, checkRuns: async () => [], sha: SHA });
 
-  assert.throws(() => publish({ ...opts, positional: [path.join(root, 'a')] }, { npm: run }), /stamp 0\.1\.562-rl\.12\.40/);
+  assert.throws(() => publish({ ...opts, positional: [path.join(root, 'a')] }, ctx(opts, run)), /stamp 0\.1\.562-rl\.12\.40/);
   stampAll(root, opts, { a: '0.1.562-rl.12.40', b: '0.1.562-rl.12.40' });
 
-  publish({ ...opts, positional: [path.join(root, 'a')] }, { npm: run });
+  publish({ ...opts, positional: [path.join(root, 'a')] }, ctx(opts, run));
   assert.deepEqual(calls.filter((c) => c.startsWith('publish')), ['publish --tag rl-12-40 --registry']);
   assert.equal(registry['@revt-eng/a'].tags['rl-12'], '0.1.562-rl.12.30', 'rl-12 does not move per package');
-  assert.throws(() => promote(opts, { npm: run }), /not every package was published \(@revt-eng\/b\); rl-12 stays/);
+  assert.throws(() => promote(opts, ctx(opts, run)), /not every package was published \(@revt-eng\/b\); rl-12 stays/);
   assert.equal(registry['@revt-eng/b'].tags['rl-12'], '0.1.562-rl.12.30');
 
-  publish({ ...opts, all: true }, { npm: run });
+  publish({ ...opts, all: true }, ctx(opts, run));
   assert.equal(calls.filter((c) => c.startsWith('publish')).length, 2, 'a re-run of the same commit does not publish a again');
-  promote(opts, { npm: run });
+  promote(opts, ctx(opts, run));
   for (const name of ['@revt-eng/a', '@revt-eng/b']) {
     assert.deepEqual(registry[name].tags, { latest: '0.1.561', 'rl-12': '0.1.562-rl.12.40' });
   }
@@ -250,8 +264,8 @@ test('promote never moves rl-<n> backwards: a re-run of an older run leaves it f
   const opts = options(root, ['a', 'b'], { lockstep: true });
   await plan(opts, { npm: run, checkRuns: async () => [], sha: SHA });
   stampAll(root, opts, { a: '0.1.562-rl.12.40', b: '0.1.562-rl.12.40' });
-  publish({ ...opts, all: true }, { npm: run });
-  const state = promote(opts, { npm: run });
+  publish({ ...opts, all: true }, ctx(opts, run));
+  const state = promote(opts, ctx(opts, run));
   assert.equal(state.promoted, 'superseded');
   assert.equal(registry['@revt-eng/a'].tags['rl-12'], '0.1.562-rl.12.41');
   assert.equal(registry['@revt-eng/b'].tags['rl-12'], '0.1.562-rl.12.39', 'the set is left as the later run left it');
@@ -266,9 +280,9 @@ test('publish: a version already in the registry from another commit fails inste
   await plan(opts, { npm: run, checkRuns: async () => [], sha: SHA });
   stampAll(root, opts, { a: '1.0.1-rl.12.40' });
   registry.a.versions['1.0.1-rl.12.40'] = OTHER_SHA;
-  assert.throws(() => publish({ ...opts, all: true }, { npm: run }), /already in the registry from commit b{40}, not a{40}/);
+  assert.throws(() => publish({ ...opts, all: true }, ctx(opts, run)), /already in the registry from commit b{40}, not a{40}/);
   registry.a.versions['1.0.1-rl.12.40'] = null;
-  assert.throws(() => publish({ ...opts, all: true }, { npm: run }), /from commit \(unknown\)/);
+  assert.throws(() => publish({ ...opts, all: true }, ctx(opts, run)), /from commit \(unknown\)/);
 });
 
 test('publish: latest moved to the prerelease is put back; moved to another release is left and fails; a prerelease latest is refused', async () => {
@@ -281,21 +295,21 @@ test('publish: latest moved to the prerelease is put back; moved to another rele
   stampAll(root, opts, { a: '1.0.1-rl.12.40' });
 
   move = (version) => version;
-  publish({ ...opts, all: true }, { npm: run });
+  publish({ ...opts, all: true }, ctx(opts, run));
   assert.equal(registry.a.tags.latest, '1.0.0', 'the registry moved latest to our prerelease; it is put back');
   assert.ok(calls.includes('dist-tag add a@1.0.0 latest --registry'));
 
   delete registry.a.versions['1.0.1-rl.12.40'];
   move = () => '1.0.1';
   const before = calls.length;
-  assert.throws(() => publish({ ...opts, all: true }, { npm: run }), /latest moved from 1\.0\.0 to 1\.0\.1 during this publish; another publish did that/);
+  assert.throws(() => publish({ ...opts, all: true }, ctx(opts, run)), /latest moved from 1\.0\.0 to 1\.0\.1 during this publish; another publish did that/);
   assert.equal(registry.a.tags.latest, '1.0.1', 'a real release is never rolled back');
   assert.ok(!calls.slice(before).some((call) => call.startsWith('dist-tag add')), 'nothing was written');
 
   delete registry.a.versions['1.0.1-rl.12.40'];
   registry.a.tags.latest = '1.0.1-rl.11.2';
   move = null;
-  assert.throws(() => publish({ ...opts, all: true }, { npm: run }), /latest is the prerelease 1\.0\.1-rl\.11\.2/);
+  assert.throws(() => publish({ ...opts, all: true }, ctx(opts, run)), /latest is the prerelease 1\.0\.1-rl\.11\.2/);
 });
 
 test('report: one name@version per line in the check run text, success only when every package published and rl-<n> was handled', async () => {
@@ -311,17 +325,17 @@ test('report: one name@version per line in the check run text, success only when
   const partial = JSON.parse(readFileSync(state, 'utf8'));
   partial.packages[0].published = true;
   writeFileSync(state, JSON.stringify(partial));
-  const failed = await report({ state }, { createCheckRun: async (body) => created.push(body) });
+  const failed = await report(opts, ctx(opts, run, { createCheckRun: async (body) => created.push(body) }));
   assert.equal(failed.ok, false);
   assert.equal(created[0].conclusion, 'failure');
   assert.equal(created[0].output.text, '@revt-eng/a@0.1.562-rl.3.9');
 
   partial.packages[1].published = true;
   writeFileSync(state, JSON.stringify(partial));
-  assert.equal((await report({ state }, { createCheckRun: async (body) => created.push(body) })).ok, false, 'not promoted yet');
+  assert.equal((await report(opts, ctx(opts, run, { createCheckRun: async (body) => created.push(body) }))).ok, false, 'not promoted yet');
   partial.promoted = true;
   writeFileSync(state, JSON.stringify(partial));
-  const done = await report({ state }, { createCheckRun: async (body) => created.push(body) });
+  const done = await report(opts, ctx(opts, run, { createCheckRun: async (body) => created.push(body) }));
   assert.equal(done.ok, true);
   assert.equal(created[2].name, 'release-prerelease');
   assert.equal(created[2].external_id, 'RL-3');
@@ -338,8 +352,120 @@ test('a build job packs each package next to the plan, and the publish job publi
   stampAll(root, opts, { a: '0.1.562-rl.12.40' });
   assert.equal(pack({ ...opts, positional: [path.join(root, 'a')] }, { npm: run }), 'revt-eng-a-0.1.562-rl.12.40.tgz');
   const readTarball = (file) => JSON.parse(readFileSync(file, 'utf8'));
-  publish({ ...opts, all: true }, { npm: run, readTarball });
+  publish({ ...opts, all: true }, ctx(opts, run, { readTarball }));
   const published = calls.find((call) => call.startsWith('publish'));
   assert.match(published, /^publish \S+revt-eng-a-0\.1\.562-rl\.12\.40\.tgz --tag rl-12-40 --registry$/);
   assert.equal(registry['@revt-eng/a'].versions['0.1.562-rl.12.40'], SHA, 'the stamped gitHead reaches the registry');
+});
+
+test('two builds of one Release compare by build number; anything else by semver', () => {
+  assert.equal(isLaterBuild('0.2.0-rl.12.40', '0.1.562-rl.12.41'), false, 'a reverted bump: build 41 is newer despite a lower <next>');
+  assert.equal(isLaterBuild('0.1.562-rl.12.41', '0.2.0-rl.12.40'), true);
+  assert.equal(isLaterBuild('0.1.562-rl.13.1', '0.1.562-rl.12.40'), true, 'another Release: semver');
+  assert.equal(isLaterBuild('0.1.562', '0.1.562-rl.12.40'), true, 'a release: semver');
+});
+
+test('promote moves rl-<n> forward after a reverted version bump', async () => {
+  const root = workspace({ a: { name: '@revt-eng/a', version: '0.1.561' } });
+  const registry = { '@revt-eng/a': { versions: { '0.1.561': null }, tags: { latest: '0.1.561', 'rl-12': '0.2.0-rl.12.40' } } };
+  const { run } = fakeRegistry(registry);
+  const opts = options(root, ['a'], { build: '41' });
+  await plan(opts, { npm: run, checkRuns: async () => [], sha: SHA });
+  stampAll(root, opts, { a: '0.1.562-rl.12.41' });
+  publish({ ...opts, all: true }, ctx(opts, run));
+  const state = promote(opts, ctx(opts, run));
+  assert.equal(state.promoted, true);
+  assert.equal(registry['@revt-eng/a'].tags['rl-12'], '0.1.562-rl.12.41');
+});
+
+test('promote never leaves rl-<n> split: a failed move puts back the packages already moved', async () => {
+  const root = workspace({ a: { name: '@revt-eng/a', version: '0.1.561' }, b: { name: '@revt-eng/b', version: '0.1.561' }, c: { name: '@revt-eng/c', version: '0.1.561' } });
+  const registry = {
+    '@revt-eng/a': { versions: { '0.1.561': null }, tags: { latest: '0.1.561', 'rl-12': '0.1.562-rl.12.30' } },
+    '@revt-eng/b': { versions: { '0.1.561': null }, tags: { latest: '0.1.561' } },
+    '@revt-eng/c': { versions: { '0.1.561': null }, tags: { latest: '0.1.561', 'rl-12': '0.1.562-rl.12.30' } },
+  };
+  const fake = fakeRegistry(registry);
+  const run = (args, opt) => (args[0] === 'dist-tag' && args[1] === 'add' && args[2].startsWith('@revt-eng/c@') && args[3] === 'rl-12'
+    ? { status: 1, stdout: '', stderr: 'E500 registry error' }
+    : fake.run(args, opt));
+  const opts = options(root, ['a', 'b', 'c'], { lockstep: true });
+  await plan(opts, { npm: run, checkRuns: async () => [], sha: SHA });
+  stampAll(root, opts, { a: '0.1.562-rl.12.40', b: '0.1.562-rl.12.40', c: '0.1.562-rl.12.40' });
+  publish({ ...opts, all: true }, ctx(opts, run));
+  assert.throws(() => promote(opts, ctx(opts, run)), /could not point rl-12 at @revt-eng\/c@0\.1\.562-rl\.12\.40 \(E500 registry error\); rl-12 was put back for the 2 package\(s\) already moved/);
+  assert.equal(registry['@revt-eng/a'].tags['rl-12'], '0.1.562-rl.12.30', 'a is back on its previous build');
+  assert.equal(registry['@revt-eng/b'].tags['rl-12'], undefined, 'b had no rl-12, so it has none again');
+  assert.equal(registry['@revt-eng/c'].tags['rl-12'], '0.1.562-rl.12.30');
+});
+
+test('promote only warns when the temporary tag cannot be removed', async () => {
+  const root = workspace({ a: { name: '@revt-eng/a', version: '0.1.561' } });
+  const registry = { '@revt-eng/a': { versions: { '0.1.561': null }, tags: { latest: '0.1.561' } } };
+  const fake = fakeRegistry(registry);
+  const run = (args, opt) => (args[0] === 'dist-tag' && args[1] === 'rm' ? { status: 1, stdout: '', stderr: 'E405' } : fake.run(args, opt));
+  const opts = options(root, ['a']);
+  await plan(opts, { npm: run, checkRuns: async () => [], sha: SHA });
+  stampAll(root, opts, { a: '0.1.562-rl.12.40' });
+  publish({ ...opts, all: true }, ctx(opts, run));
+  assert.equal(promote(opts, ctx(opts, run)).promoted, true);
+  assert.equal(registry['@revt-eng/a'].tags['rl-12'], '0.1.562-rl.12.40');
+  assert.equal(registry['@revt-eng/a'].tags['rl-12-40'], '0.1.562-rl.12.40', 'left behind, with a warning');
+});
+
+test('only rl-<n> and rl-<n>-<k> are writable, never latest', () => {
+  const context = { tag: 'rl-12', runTag: 'rl-12-40' };
+  assert.equal(writableTag('rl-12', context), 'rl-12');
+  assert.equal(writableTag('rl-12-40', context), 'rl-12-40');
+  for (const tag of ['latest', 'rl-13', 'rl-12-41', 'next', '']) assert.throws(() => writableTag(tag, context), /refusing to write dist-tag/, tag);
+});
+
+test('a plan file that does not match the run writes nothing', async () => {
+  const root = workspace({ a: { name: '@revt-eng/a', version: '0.1.561', publishConfig: { registry: 'https://npm.pkg.github.com' } }, b: { name: '@revt-eng/b', version: '0.1.561', publishConfig: { registry: 'https://npm.pkg.github.com' } } });
+  const registry = {
+    '@revt-eng/a': { versions: { '0.1.561': null }, tags: { latest: '0.1.561' } },
+    '@revt-eng/b': { versions: { '0.1.561': null }, tags: { latest: '0.1.561' } },
+    '@revt-eng/other': { versions: { '1.0.0': null }, tags: { latest: '1.0.0' } },
+  };
+  const { run, calls } = fakeRegistry(registry);
+  const opts = options(root, ['a', 'b'], { lockstep: true, registry: 'https://npm.pkg.github.com/' });
+  await plan(opts, { npm: run, checkRuns: async () => [], sha: SHA });
+  stampAll(root, opts, { a: '0.1.562-rl.12.40', b: '0.1.562-rl.12.40' });
+  const good = JSON.parse(readFileSync(opts.state, 'utf8'));
+  for (const p of good.packages) p.published = true;
+  const tamper = (change) => {
+    const bad = JSON.parse(JSON.stringify(good));
+    change(bad);
+    writeFileSync(opts.state, JSON.stringify(bad));
+  };
+  const cases = [
+    ['tag latest', (bad) => { bad.tag = 'latest'; }, /tag is "latest", not "rl-12"/],
+    ['run tag latest', (bad) => { bad.runTag = 'latest'; }, /runTag is "latest", not "rl-12-40"/],
+    ['another Release', (bad) => { bad.release = 'RL-13'; bad.n = 13; bad.tag = 'rl-13'; }, /release is "RL-13"/],
+    ['another build', (bad) => { bad.k = 39; }, /k is 39, not 40/],
+    ['another commit', (bad) => { bad.sha = OTHER_SHA; }, /sha is "b{40}"/],
+    ['another package', (bad) => { bad.packages[0].name = '@revt-eng/other'; }, /is @revt-eng\/a at this commit, not @revt-eng\/other/],
+    ['another registry', (bad) => { bad.packages[0].registry = 'https://registry.npmjs.org/'; }, /publishes to https:\/\/npm\.pkg\.github\.com\/ at this commit/],
+    ['a version from another run', (bad) => { bad.packages[0].version = '0.1.562-rl.12.39'; }, /is not a build of RL-12 from run 40/],
+    ['a version that is not a prerelease', (bad) => { bad.packages[0].version = '9.9.9'; }, /9\.9\.9 is not a build of RL-12/],
+    ['a tarball outside the plan', (bad) => { bad.packages[0].tarball = '../../etc/x.tgz'; }, /tarball is "\.\.\/\.\.\/etc\/x\.tgz"/],
+    ['a missing package', (bad) => { bad.packages.pop(); }, /it lists .*, not /],
+    ['an extra package', (bad) => { bad.packages.push({ ...bad.packages[0] }); }, /it lists .*, not /],
+  ];
+  for (const [label, change, error] of cases) {
+    tamper(change);
+    const before = calls.length;
+    assert.throws(() => promote(opts, ctx(opts, run)), error, label);
+    assert.throws(() => publish({ ...opts, all: true }, ctx(opts, run)), error, label);
+    assert.ok(!calls.slice(before).some((call) => /^(publish|dist-tag)/.test(call)), `${label}: nothing was written`);
+    const created = [];
+    const result = await report(opts, ctx(opts, run, { createCheckRun: async (body) => created.push(body) }));
+    assert.equal(result.ok, false, `${label}: the report fails`);
+    assert.equal(created[0].conclusion, 'failure');
+  }
+  tamper(() => {});
+  assert.throws(() => trustedPlan(good, { ...opts, registry: 'https://registry.npmjs.org/' }, ctx(opts, run)), /this workflow publishes only to https:\/\/registry\.npmjs\.org\//);
+  assert.throws(() => trustedPlan(good, { ...opts, package: [] }, ctx(opts, run)), /--package/);
+  assert.throws(() => trustedPlan(good, opts, ctx(opts, run, { env: { GITHUB_REF_NAME: 'main', GITHUB_RUN_NUMBER: '40', GITHUB_SHA: SHA } })), /not a Release branch/);
+  assert.equal(trustedPlan(good, opts, ctx(opts, run)).packages.length, 2, 'the untouched plan passes');
 });
