@@ -23,6 +23,11 @@ name: Release prerelease
 # confirms against the registry. Final versions still publish only from main
 # (publish-on-main.yml).
 #
+# The plan file is written by the same job that runs npm ci, verify and build, so
+# publish, promote and report trust none of it on its own: the Release, build
+# number, dist-tags and commit come from this run's context, the package name and
+# registry from the commit's own manifest, and any mismatch writes nothing.
+#
 # Runner: GitHub-hosted, like publish-on-main.yml and release.yml. npm generates
 # provenance only on a cloud-hosted runner and the registry refuses a statement
 # from a self-hosted one (revturbine-devkit docs/ops/ci-levels.md).
@@ -50,6 +55,10 @@ jobs:
     name: Publish
     if: startsWith(github.ref, 'refs/heads/release/RL-')
     runs-on: ubuntu-latest
+    env:
+      # What publish, promote and report check the plan file against: the packages this
+      # repository publishes, read from the commit's own manifests, and their registry.
+      TRUSTED: --package . --registry https://registry.npmjs.org/
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
@@ -87,18 +96,18 @@ jobs:
         if: steps.plan.outputs.reuse == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: node scripts/release-prerelease.mjs publish --all -- --access public --provenance
+        run: node scripts/release-prerelease.mjs publish --all $TRUSTED -- --access public --provenance
       - name: Point rl-<n> at it
         if: steps.plan.outputs.reuse == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: node scripts/release-prerelease.mjs promote
+        run: node scripts/release-prerelease.mjs promote $TRUSTED
       - name: Report
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/release-prerelease.mjs report
+        run: node scripts/release-prerelease.mjs report $TRUSTED
       - name: Report the failure
         if: failure()
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/release-prerelease.mjs report --failed
+        run: node scripts/release-prerelease.mjs report --failed $TRUSTED
