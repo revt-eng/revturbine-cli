@@ -2,7 +2,8 @@
 // Check level L1 for the CLI, run in CI by the shared check-level workflow (.github/workflows/ci-level.yml,
 // EP-1747) after it sets up Node, the pinned npm and `npm ci`. The same steps the PR gate's jobs ran, in order:
 //
-//   npm run ci:l1        (job `verify`) selector regression checks, line endings (BL-0216), typecheck, lint,
+//   npm run ci:l1        (job `verify`) selector regression checks, release workflow script checks (EP-1747 phase
+//                        5), line endings (BL-0216), typecheck, lint,
 //                        schema consistency, tests, build. Pull requests into or out of an iteration/ branch run
 //                        the tests the PR base's own selector picks; everything else runs every test.
 //   npm run ci:l1:smoke  (job `Packed CLI smoke`, Node 22.13.0 and 24) build, pack, install the tarball into a
@@ -63,6 +64,8 @@ function step(label, [command, args], options = {}) {
 
 function verify() {
   step('Iteration selector regression checks', [process.execPath, ['--test', 'scripts/iteration-targeted.check.mjs']]);
+  // EP-1747 phase 5: the Release prerelease and pin scripts behind release-prerelease.yml and release-pin.yml.
+  step('Release workflow script checks', [process.execPath, ['--test', 'scripts/release-prerelease.check.mjs', 'scripts/release-pin.check.mjs']]);
   step('Line-ending check (BL-0216)', [process.execPath, ['scripts/check-line-endings.mjs', '--all']]);
   step('npm run typecheck', npm(['run', 'typecheck']));
   step('npm run lint', npm(['run', 'lint']));

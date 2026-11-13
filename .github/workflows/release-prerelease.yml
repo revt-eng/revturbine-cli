@@ -1,0 +1,92 @@
+name: Release prerelease
+
+# EP-1747 phase 5 (ST-1757): a push to a Release branch, release/RL-<n>,
+# publishes @revturbine/cli to public npm as <next>-rl.<n>.<k> under the dist-tag
+# rl-<n>, so the Release spot check and the Dev Community Manager can install the
+# Release's CLI by exact version (npm install @revturbine/cli@rl-<n>) before it
+# goes public.
+#   <next>  package.json's version when it is not on npm yet (a bump already in
+#           the Release), else its next patch; only a prediction, the final
+#           version is read from the registry after the merge (decision 7).
+#   <k>     this workflow's run number: it only grows, and a re-run keeps it, so a
+#           re-run of the same commit finds its version already published.
+# The build is publish-on-main.yml's (the pinned npm, npm ci, verify, build) with
+# the version stamped into this job's checkout only, never committed.
+# scripts/release-prerelease.mjs publishes under rl-<n> only, never moves
+# `latest` or any other dist-tag (it checks before and after the publish), and
+# reports `@revturbine/cli@<version>` to the job summary and to a check run named
+# `release-prerelease` on the commit, which Backlog reads and confirms against
+# the registry. Final versions still publish only from main (publish-on-main.yml).
+#
+# Runner: GitHub-hosted, like publish-on-main.yml and release.yml. npm generates
+# provenance only on a cloud-hosted runner and the registry refuses a statement
+# from a self-hosted one (revturbine-devkit docs/ops/ci-levels.md).
+#
+# workflow_dispatch re-runs it for a Release branch's head: release-pin.yml
+# dispatches it after committing a pin, because a push made with a workflow's
+# GITHUB_TOKEN starts no push-triggered workflow. Any other ref is skipped.
+
+on:
+  push:
+    branches: ['release/RL-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+  checks: write # the release-prerelease check run
+
+concurrency:
+  group: release-prerelease-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish
+    if: startsWith(github.ref, 'refs/heads/release/RL-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+      - name: Use the npm version pinned in package.json
+        run: |
+          NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          npm install --global "npm@$NPM_VERSION"
+          npm --version
+      - name: Plan the prerelease version
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # reads an earlier report on this commit
+        run: node scripts/release-prerelease.mjs plan --package . --github-output
+      - if: steps.plan.outputs.reuse == 'false'
+        run: npm ci
+      - if: steps.plan.outputs.reuse == 'false'
+        run: npm run verify
+      - name: Stamp the version into this checkout (never committed)
+        if: steps.plan.outputs.reuse == 'false'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version
+      - if: steps.plan.outputs.reuse == 'false'
+        run: npm run build
+      - name: Publish under the Release's dist-tag
+        if: steps.plan.outputs.reuse == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/release-prerelease.mjs publish . -- --access public --provenance
+      - name: Report
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release-prerelease.mjs report
+      - name: Report the failure
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release-prerelease.mjs report --failed
