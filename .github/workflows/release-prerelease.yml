@@ -1,22 +1,27 @@
 name: Release prerelease
 
 # EP-1747 phase 5 (ST-1757): a push to a Release branch, release/RL-<n>,
-# publishes @revturbine/cli to public npm as <next>-rl.<n>.<k> under the dist-tag
-# rl-<n>, so the Release spot check and the Dev Community Manager can install the
-# Release's CLI by exact version (npm install @revturbine/cli@rl-<n>) before it
-# goes public.
+# publishes @revturbine/cli to public npm as <next>-rl.<n>.<k> and points the
+# dist-tag rl-<n> at it, so the Release spot check and the Dev Community Manager
+# can install the Release's CLI by exact version (npm install
+# @revturbine/cli@rl-<n>) before it goes public.
 #   <next>  package.json's version when it is not on npm yet (a bump already in
 #           the Release), else its next patch; only a prediction, the final
 #           version is read from the registry after the merge (decision 7).
 #   <k>     this workflow's run number: it only grows, and a re-run keeps it, so a
-#           re-run of the same commit finds its version already published.
+#           re-run of the same commit finds its version already published from
+#           that commit (the registry's gitHead says so) and does not publish it
+#           again.
 # The build is publish-on-main.yml's (the pinned npm, npm ci, verify, build) with
-# the version stamped into this job's checkout only, never committed.
-# scripts/release-prerelease.mjs publishes under rl-<n> only, never moves
-# `latest` or any other dist-tag (it checks before and after the publish), and
-# reports `@revturbine/cli@<version>` to the job summary and to a check run named
-# `release-prerelease` on the commit, which Backlog reads and confirms against
-# the registry. Final versions still publish only from main (publish-on-main.yml).
+# the version and the commit (as gitHead) stamped into this job's checkout only,
+# never committed. scripts/release-prerelease.mjs first checks the dist-tags (a
+# `latest` that is a release), publishes under this run's own dist-tag
+# rl-<n>-<k>, then points rl-<n> at it (never backwards) and removes rl-<n>-<k>.
+# It never writes `latest`, except to put back a `latest` the registry moved to a
+# prerelease, and reports `@revturbine/cli@<version>` to the job summary and to a
+# check run named `release-prerelease` on the commit, which Backlog reads and
+# confirms against the registry. Final versions still publish only from main
+# (publish-on-main.yml).
 #
 # Runner: GitHub-hosted, like publish-on-main.yml and release.yml. npm generates
 # provenance only on a cloud-hosted runner and the registry refuses a statement
@@ -69,18 +74,25 @@ jobs:
         run: npm ci
       - if: steps.plan.outputs.reuse == 'false'
         run: npm run verify
-      - name: Stamp the version into this checkout (never committed)
+      - name: Stamp the version and the commit into this checkout (never committed)
         if: steps.plan.outputs.reuse == 'false'
         env:
           VERSION: ${{ steps.plan.outputs.version }}
-        run: npm version "$VERSION" --no-git-tag-version
+        run: |
+          npm version "$VERSION" --no-git-tag-version
+          node scripts/release-prerelease.mjs stamp .
       - if: steps.plan.outputs.reuse == 'false'
         run: npm run build
-      - name: Publish under the Release's dist-tag
+      - name: Publish under this run's dist-tag
         if: steps.plan.outputs.reuse == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: node scripts/release-prerelease.mjs publish . -- --access public --provenance
+        run: node scripts/release-prerelease.mjs publish --all -- --access public --provenance
+      - name: Point rl-<n> at it
+        if: steps.plan.outputs.reuse == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/release-prerelease.mjs promote
       - name: Report
         env:
           GITHUB_TOKEN: ${{ github.token }}

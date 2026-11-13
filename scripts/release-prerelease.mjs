@@ -2,33 +2,47 @@
 // Release prereleases (EP-1747 phase 5; ST-1754, ST-1755, ST-1757, ST-1758).
 //
 // A push to release/RL-<n> publishes this repository's packages as
-// <next>-rl.<n>.<k> under the dist-tag rl-<n>, so the other repositories in the
-// same Release can pin them by exact version before anything is final. It never
-// moves `latest` or any other dist-tag and never commits: the version is stamped
-// into the job's checkout only. .github/workflows/release-prerelease.yml calls:
+// <next>-rl.<n>.<k> and points the dist-tag rl-<n> at them, so the other
+// repositories in the same Release can pin them by exact version before anything
+// is final. It never commits (versions are stamped into the job's checkout only)
+// and never writes `latest`, except to put back a `latest` that the registry
+// moved to this run's own prerelease. .github/workflows/release-prerelease.yml
+// calls, in order:
 //
-//   plan     Compute the versions. <n> comes from the branch name. <next> is the
+//   plan     Compute the versions and check every package's dist-tags before
+//            anything is published: each must have a `latest`, and it must not be
+//            a prerelease. <n> comes from the branch name. <next> is the
 //            manifest's version when that version is not published yet (a bump
 //            already waiting in the Release), else its next patch; it is only a
-//            prediction, and the final version is read from the registry after
-//            the merge (decision 7). <k> is the workflow's run number. When an
-//            earlier run already reported this commit for this Release, the plan
-//            reuses those versions and nothing is published again.
+//            prediction, and the final version is read from the registry after the
+//            merge (decision 7). <k> is the workflow's run number. When an earlier
+//            run already reported this commit for this Release, and the registry
+//            says those versions came from this commit, the plan reuses them and
+//            nothing is published again.
 //   version  Print the planned version for one package directory.
-//   publish  Publish one package under rl-<n>, unless that version is already in
-//            the registry (a re-run). Refuses a package with no `latest` yet (its
-//            first publish would set `latest`), and puts `latest` back if the
-//            registry moved it.
+//   stamp    Write the commit into a package's manifest as `gitHead`, so the
+//            registry records it even for a tarball publish.
+//   pack     `npm pack` a package into a directory next to the plan, for a publish
+//            job that does not build.
+//   publish  Publish each package (or one) under the run's own dist-tag,
+//            rl-<n>-<k>, never under rl-<n> directly. A version already in the
+//            registry is accepted only when its gitHead is this commit (a re-run);
+//            from any other commit it fails. `latest` is read before and after: a
+//            `latest` moved to this prerelease, or to any prerelease, is put back;
+//            a `latest` moved to another release is left alone and the run fails.
+//   promote  Once every package is published, point rl-<n> at this run's versions
+//            and remove rl-<n>-<k>. rl-<n> never moves backwards: if it already
+//            points at a later build for any package, it is left for all of them.
+//            A partial publish never reaches this step, so rl-<n> is untouched.
 //   report   Write the `name@version` lines to the job summary and to a check run
 //            named `release-prerelease` on the commit, which Backlog reads and
 //            confirms against the registry. `--failed` reports a failed run.
 //
 // Why the run number for <k>: it only grows, so a later build of the Release
 // always sorts after an earlier one, and a re-run of a run keeps its number, so a
-// re-run recomputes the same version and finds it already published. Counting
-// the Release's versions in the registry would need the registry to say which
-// commit each version came from, and in a repository that publishes several
-// packages the counts can disagree after a partial failure.
+// re-run recomputes the same version and finds it already published by the same
+// commit. Counting the Release's versions in the registry would race across
+// packages and runs, and could disagree between packages after a partial failure.
 //
 // Identical copies live in revturbine-scaffold, revturbine-sdk-internal,
 // revturbine-cli and create-revturbine; change them together.
@@ -37,12 +51,15 @@
 //   node scripts/release-prerelease.mjs plan --package <dir> [--package <dir>...] [--lockstep]
 //        [--branch release/RL-<n>] [--build <k>] [--state <file>] [--env-out <file>] [--github-output]
 //   node scripts/release-prerelease.mjs version <dir> [--state <file>]
-// (--env-out, not --env-file: Node reads --env-file from anywhere on its command line.)
-//   node scripts/release-prerelease.mjs publish <dir> [--state <file>] [-- <npm publish args>]
+//   node scripts/release-prerelease.mjs stamp <dir> [--state <file>]
+//   node scripts/release-prerelease.mjs pack <dir> [--state <file>]
+//   node scripts/release-prerelease.mjs publish [<dir> | --all] [--state <file>] [-- <npm publish args>]
+//   node scripts/release-prerelease.mjs promote [--state <file>]
 //   node scripts/release-prerelease.mjs report [--failed] [--state <file>]
+// (--env-out, not --env-file: Node reads --env-file from anywhere on its command line.)
 
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -52,7 +69,7 @@ export const CHECK_NAME = 'release-prerelease';
 export const RELEASE_BRANCH = /^release\/RL-([1-9][0-9]*)$/;
 const EXACT = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
-const SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org/';
 
 /** The Release a branch belongs to: release/RL-12 -> { release: 'RL-12', n: 12, tag: 'rl-12' }. */
@@ -80,6 +97,38 @@ export function nextVersion(base, published) {
 /** <next>-rl.<n>.<k>. */
 export function prereleaseVersion(next, n, k) {
   return `${next}-rl.${n}.${k}`;
+}
+
+/** The run's own dist-tag, rl-<n>-<k>: publishes land here, and rl-<n> moves only once all of them succeeded. */
+export function runTag(n, k) {
+  return `rl-${n}-${k}`;
+}
+
+/** True for a semver version with a prerelease part. */
+export function isPrerelease(version) {
+  const match = SEMVER.exec(String(version ?? ''));
+  return Boolean(match && match[4] !== undefined);
+}
+
+/** Semver precedence: negative when a sorts before b, 0 when equal, positive after. */
+export function compareSemver(a, b) {
+  const pa = SEMVER.exec(String(a ?? ''));
+  const pb = SEMVER.exec(String(b ?? ''));
+  if (!pa || !pb) throw new Error(`not a semver version: ${JSON.stringify(pa ? b : a)}`);
+  for (let i = 1; i <= 3; i += 1) if (Number(pa[i]) !== Number(pb[i])) return Number(pa[i]) - Number(pb[i]);
+  if (pa[4] === undefined || pb[4] === undefined) return (pa[4] === undefined ? 1 : 0) - (pb[4] === undefined ? 1 : 0);
+  const xa = pa[4].split('.');
+  const xb = pb[4].split('.');
+  for (let i = 0; i < Math.max(xa.length, xb.length); i += 1) {
+    if (xa[i] === undefined) return -1;
+    if (xb[i] === undefined) return 1;
+    const na = /^[0-9]+$/.test(xa[i]);
+    const nb = /^[0-9]+$/.test(xb[i]);
+    if (na && nb && Number(xa[i]) !== Number(xb[i])) return Number(xa[i]) - Number(xb[i]);
+    if (na !== nb) return na ? -1 : 1;
+    if (!na && xa[i] !== xb[i]) return xa[i] < xb[i] ? -1 : 1;
+  }
+  return 0;
 }
 
 /** `name@version` lines (a report's text); anything else on a line is ignored. */
@@ -119,6 +168,24 @@ export function reportText(packages) {
   return packages.map((p) => `${p.name}@${p.version}`).join('\n');
 }
 
+/** Why a package's dist-tags forbid a prerelease publish, or null when they allow one. */
+export function distTagRefusal(name, tags) {
+  if (!tags?.latest) return `${name} has no latest dist-tag yet; its first publish would set latest, so it is not published as a prerelease`;
+  if (isPrerelease(tags.latest)) return `${name} latest is the prerelease ${tags.latest}; put latest back on a release before publishing prereleases`;
+  return null;
+}
+
+/**
+ * What to do when `latest` changed during a publish: 'keep' when it did not,
+ * 'restore' when it moved to this prerelease or any prerelease (the registry's
+ * doing; put it back), 'fail' when another publish moved it to a release.
+ */
+export function latestAfterPublish(before, after, version) {
+  if (after === before) return 'keep';
+  if (after === version || isPrerelease(after)) return 'restore';
+  return 'fail';
+}
+
 // ── registry ────────────────────────────────────────────────────────────────
 
 function npm(args, options = {}) {
@@ -126,7 +193,7 @@ function npm(args, options = {}) {
   return spawnSync('npm', args, { encoding: 'utf8', shell: process.platform === 'win32', ...options });
 }
 
-/** `npm view <spec> <field> --json`: the value, or null when the registry has no such package or version. */
+/** `npm view <spec> <field> --json`: the value, or null when the registry has no such package, version or field. */
 export function npmView(spec, field, registry, run = npm) {
   const result = run(['view', spec, field, '--json', '--registry', registry]);
   const out = String(result.stdout ?? '').trim();
@@ -150,6 +217,11 @@ export function isPublished(name, version, registry, run = npm) {
 
 export function distTags(name, registry, run = npm) {
   return npmView(name, 'dist-tags', registry, run) ?? {};
+}
+
+/** The commit a published version came from (its gitHead), or null. */
+export function publishedCommit(name, version, registry, run = npm) {
+  return npmView(`${name}@${version}`, 'gitHead', registry, run);
 }
 
 // ── GitHub ──────────────────────────────────────────────────────────────────
@@ -195,7 +267,7 @@ function parseArgs(argv) {
       options.passthrough = argv.slice(i + 1);
       break;
     }
-    if (arg === '--lockstep' || arg === '--failed' || arg === '--github-output') options[arg.slice(2)] = true;
+    if (['--lockstep', '--failed', '--github-output', '--all'].includes(arg)) options[arg.slice(2)] = true;
     else if (arg === '--package') options.package.push(argv[++i]);
     else if (arg.startsWith('--')) options[arg.slice(2)] = argv[++i];
     else options.positional.push(arg);
@@ -214,7 +286,15 @@ function readState(options) {
 }
 
 function writeState(options, state) {
-  writeFileSync(statePath(options), `${JSON.stringify(state, null, 2)}\n`);
+  const file = statePath(options);
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+function plannedPackage(state, dir) {
+  const found = state.packages.find((p) => p.dir === normalizeDir(dir ?? ''));
+  if (!found) throw new Error(`no planned package in ${dir}`);
+  return found;
 }
 
 /** Plan this run's versions (see the header). Returns the state it writes. */
@@ -232,14 +312,19 @@ export async function plan(options, deps = {}) {
   });
   if (new Set(packages.map((p) => p.name)).size !== packages.length) throw new Error('a package is listed twice');
 
-  const state = { release, n, tag, k, sha: process.env.GITHUB_SHA ?? '', reuse: false, packages };
-  const context = deps.checkRuns ? { repository: 'local', sha: state.sha } : githubContext();
+  // Every package's dist-tags are checked before anything is published, so one bad package stops the whole set.
+  const refusals = packages.map((p) => distTagRefusal(p.name, distTags(p.name, p.registry, run))).filter(Boolean);
+  if (refusals.length) throw new Error(refusals.join('; '));
+
+  const sha = deps.sha ?? process.env.GITHUB_SHA ?? '';
+  const state = { release, n, tag, k, runTag: runTag(n, k), sha, reuse: false, promoted: false, packages };
+  const context = deps.checkRuns ? { repository: 'local', sha } : githubContext();
   const prior = context ? priorReport(await (deps.checkRuns ?? checkRunsFor)(context), release) : null;
-  if (prior) {
+  if (prior && sha) {
     const byName = new Map(prior.map((line) => [line.name, line.version]));
-    const complete = packages.every((p) => byName.has(p.name) && isPublished(p.name, byName.get(p.name), p.registry, run));
-    if (complete) {
-      state.reuse = true;
+    const fromThisCommit = packages.every((p) => byName.has(p.name) && publishedCommit(p.name, byName.get(p.name), p.registry, run) === sha);
+    if (fromThisCommit) {
+      Object.assign(state, { reuse: true, promoted: true });
       for (const p of packages) p.version = byName.get(p.name);
     }
   }
@@ -267,62 +352,141 @@ export async function plan(options, deps = {}) {
   }
   console.log(state.reuse
     ? `${release}: this commit was already published for the Release; reusing ${reportText(packages).replaceAll('\n', ', ')}`
-    : `${release}: ${packages.map((p) => `${p.name} ${p.base} -> ${p.version}`).join(', ')} under dist-tag ${tag}`);
+    : `${release}: ${packages.map((p) => `${p.name} ${p.base} -> ${p.version}`).join(', ')}, published under ${state.runTag}, then ${tag}`);
   return state;
 }
 
 export function version(options) {
-  const state = readState(options);
-  const dir = normalizeDir(options.positional[0] ?? '');
-  const found = state.packages.find((p) => p.dir === dir);
-  if (!found) throw new Error(`no planned package in ${dir}`);
+  const found = plannedPackage(readState(options), options.positional[0]);
   console.log(found.version);
   return found.version;
 }
 
-/** Publish one planned package under the Release's dist-tag (see the header). */
-export function publish(options, deps = {}) {
+/** Record the commit as the manifest's gitHead: npm keeps it, and `publish` checks it on a re-run. */
+export function stamp(options) {
+  const state = readState(options);
+  const p = plannedPackage(state, options.positional[0]);
+  if (!state.sha) throw new Error('the plan has no commit (GITHUB_SHA) to stamp');
+  const file = path.join(p.dir, 'package.json');
+  const manifest = readJson(file);
+  if (manifest.version !== p.version) throw new Error(`${file} is at ${manifest.version}; stamp ${p.version} into it first`);
+  manifest.gitHead = state.sha;
+  writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+  return manifest;
+}
+
+/** `npm pack` one package into the directory that holds the plan; the publish job publishes the tarball. */
+export function pack(options, deps = {}) {
   const run = deps.npm ?? npm;
   const state = readState(options);
-  const dir = normalizeDir(options.positional[0] ?? '');
-  const p = state.packages.find((candidate) => candidate.dir === dir);
-  if (!p) throw new Error(`no planned package in ${dir}`);
-  if (state.reuse) {
-    console.log(`${p.name}@${p.version} was published by an earlier run for this commit; nothing to do.`);
-    return p;
-  }
-  const manifest = readJson(path.join(dir, 'package.json'));
+  const p = plannedPackage(state, options.positional[0]);
+  const out = path.resolve(path.dirname(statePath(options)));
+  // Lifecycle scripts (prepack, prepare) print to stdout too, so the tarball is found by npm's file name, not parsed output.
+  const result = run(['pack', '--pack-destination', out], { cwd: p.dir, stdio: 'inherit' });
+  if (result.status !== 0) throw new Error(`npm pack failed in ${p.dir} (exit ${result.status})`);
+  p.tarball = `${p.name.replace(/^@/, '').replace('/', '-')}-${p.version}.tgz`;
+  if (!existsSync(path.join(out, p.tarball))) throw new Error(`npm pack wrote no ${p.tarball} in ${out}`);
+  writeState(options, state);
+  console.log(`Packed ${p.name}@${p.version} as ${p.tarball}`);
+  return p.tarball;
+}
+
+/** The manifest inside a packed tarball. */
+function tarballManifest(file) {
+  // Run beside the file: GNU tar reads a "C:" in a Windows path as a remote host.
+  const result = spawnSync('tar', ['-xzOf', path.basename(file), 'package/package.json'], { cwd: path.dirname(path.resolve(file)), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  if (result.status !== 0) throw new Error(`could not read package/package.json from ${file}: ${result.stderr}`);
+  return JSON.parse(result.stdout);
+}
+
+function publishOne(options, state, p, run) {
+  const tarball = p.tarball ? path.join(path.dirname(statePath(options)), p.tarball) : null;
+  const manifest = tarball ? (options.readTarball ?? tarballManifest)(tarball) : readJson(path.join(p.dir, 'package.json'));
   if (manifest.name !== p.name || manifest.version !== p.version) {
-    throw new Error(`${dir}/package.json is ${manifest.name}@${manifest.version}; stamp ${p.version} into the checkout before publishing`);
+    throw new Error(`${tarball ?? `${p.dir}/package.json`} is ${manifest.name}@${manifest.version}; stamp ${p.version} before publishing`);
   }
+  if (state.sha && manifest.gitHead !== state.sha) throw new Error(`${p.name}@${p.version} carries gitHead ${manifest.gitHead ?? '(none)'}, not ${state.sha}; run \`stamp\` before packing or publishing`);
+
   const before = distTags(p.name, p.registry, run);
-  if (!before.latest) throw new Error(`${p.name} has no latest dist-tag yet; its first publish would set latest, so it is not published as a prerelease`);
+  const refusal = distTagRefusal(p.name, before);
+  if (refusal) throw new Error(refusal);
   if (isPublished(p.name, p.version, p.registry, run)) {
-    console.log(`${p.name}@${p.version} is already in the registry (a re-run); not publishing it again.`);
+    const commit = publishedCommit(p.name, p.version, p.registry, run);
+    if (!state.sha || commit !== state.sha) {
+      throw new Error(`${p.name}@${p.version} is already in the registry from commit ${commit ?? '(unknown)'}, not ${state.sha || '(unknown)'}; not reporting it as this run's`);
+    }
+    console.log(`${p.name}@${p.version} is already in the registry from this commit (a re-run); not publishing it again.`);
   } else {
-    console.log(`Publishing ${p.name}@${p.version} under dist-tag ${state.tag} to ${p.registry}`);
-    const result = run(['publish', '--tag', state.tag, '--registry', p.registry, ...options.passthrough], { cwd: dir });
+    console.log(`Publishing ${p.name}@${p.version} under ${state.runTag} to ${p.registry}`);
+    const result = run(['publish', ...(tarball ? [path.resolve(tarball)] : []), '--tag', state.runTag, '--registry', p.registry, ...options.passthrough], tarball ? {} : { cwd: p.dir });
     process.stdout.write(String(result.stdout ?? ''));
     process.stderr.write(String(result.stderr ?? ''));
     if (result.status !== 0) {
       const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
       const conflict = /cannot publish over|previously published version|EPUBLISHCONFLICT|E409|409 Conflict/i.test(output);
-      if (!conflict || !isPublished(p.name, p.version, p.registry, run)) throw new Error(`npm publish failed for ${p.name}@${p.version} (exit ${result.status})`);
-      console.log(`${p.name}@${p.version} was published concurrently; continuing.`);
+      if (!conflict || publishedCommit(p.name, p.version, p.registry, run) !== state.sha) throw new Error(`npm publish failed for ${p.name}@${p.version} (exit ${result.status})`);
+      console.log(`${p.name}@${p.version} was published concurrently from this commit; continuing.`);
     }
   }
   const after = distTags(p.name, p.registry, run);
-  if (after.latest !== before.latest) {
+  const decision = latestAfterPublish(before.latest, after.latest, p.version);
+  if (decision === 'fail') {
+    throw new Error(`${p.name} latest moved from ${before.latest} to ${after.latest} during this publish; another publish did that, so it is left alone`);
+  }
+  if (decision === 'restore') {
     console.log(`::warning::The registry moved ${p.name} latest from ${before.latest} to ${after.latest}; putting it back.`);
     const restored = run(['dist-tag', 'add', `${p.name}@${before.latest}`, 'latest', '--registry', p.registry]);
     if (restored.status !== 0 || distTags(p.name, p.registry, run).latest !== before.latest) {
       throw new Error(`${p.name} latest is ${after.latest}, not ${before.latest}; restore it with: npm dist-tag add ${p.name}@${before.latest} latest`);
     }
   }
-  if (after[state.tag] !== p.version) console.log(`::warning::${p.name} dist-tag ${state.tag} points at ${after[state.tag] ?? 'nothing'}, not ${p.version}.`);
   p.published = true;
   writeState(options, state);
-  return p;
+}
+
+/** Publish one planned package, or every one with --all (see the header). */
+export function publish(options, deps = {}) {
+  const run = deps.npm ?? npm;
+  const state = readState(options);
+  if (state.reuse) {
+    console.log(`${reportText(state.packages).replaceAll('\n', ', ')} came from an earlier run on this commit; nothing to publish.`);
+    return state;
+  }
+  const targets = options.all ? state.packages : [plannedPackage(state, options.positional[0])];
+  for (const p of targets) publishOne({ ...options, readTarball: deps.readTarball }, state, p, run);
+  return state;
+}
+
+/** Point rl-<n> at this run's versions once all of them are published (see the header). */
+export function promote(options, deps = {}) {
+  const run = deps.npm ?? npm;
+  const state = readState(options);
+  if (state.reuse) {
+    console.log(`${state.tag} was handled by the earlier run on this commit.`);
+    return state;
+  }
+  const missing = state.packages.filter((p) => !p.published);
+  if (missing.length) throw new Error(`not every package was published (${missing.map((p) => p.name).join(', ')}); ${state.tag} stays where it is`);
+  const current = state.packages.map((p) => ({ p, at: distTags(p.name, p.registry, run)[state.tag] }));
+  const later = current.filter(({ p, at }) => at && SEMVER.test(at) && compareSemver(at, p.version) > 0);
+  if (later.length) {
+    state.promoted = 'superseded';
+    console.log(`${state.tag} already points at a later build (${later.map(({ p, at }) => `${p.name}@${at}`).join(', ')}); leaving it for every package.`);
+  } else {
+    for (const { p, at } of current) {
+      if (at === p.version) continue;
+      const moved = run(['dist-tag', 'add', `${p.name}@${p.version}`, state.tag, '--registry', p.registry]);
+      if (moved.status !== 0) throw new Error(`could not point ${state.tag} at ${p.name}@${p.version}: ${String(moved.stderr ?? '').trim()}`);
+      console.log(`${state.tag} -> ${p.name}@${p.version}`);
+    }
+    state.promoted = true;
+  }
+  for (const p of state.packages) {
+    const removed = run(['dist-tag', 'rm', p.name, state.runTag, '--registry', p.registry]);
+    if (removed.status !== 0) console.log(`::warning::Could not remove the temporary dist-tag ${state.runTag} from ${p.name}; it is harmless, remove it with: npm dist-tag rm ${p.name} ${state.runTag}`);
+  }
+  writeState(options, state);
+  return state;
 }
 
 /** Report the run (see the header). */
@@ -330,17 +494,21 @@ export async function report(options, deps = {}) {
   const file = statePath(options);
   const state = existsSync(file) ? readJson(file) : { ...releaseFromBranch(options.branch ?? process.env.GITHUB_REF_NAME), reuse: false, packages: [] };
   const done = state.packages.filter((p) => p.published);
-  const ok = !options.failed && state.packages.length > 0 && done.length === state.packages.length;
+  const ok = !options.failed && state.packages.length > 0 && done.length === state.packages.length && Boolean(state.promoted);
   const text = reportText(done);
   const title = ok
     ? `${state.release}: ${done.length} prerelease${done.length === 1 ? '' : 's'} under dist-tag ${state.tag}`
     : `${state.release}: prerelease publish failed`;
+  const notes = [
+    state.reuse ? ' This commit was already published by an earlier run, so nothing was published again.' : '',
+    state.promoted === 'superseded' ? ` ${state.tag} already pointed at a later build, so it was left there; install these by exact version.` : '',
+  ].join('');
   const summary = [
     `### ${title}`,
     '',
     ok
-      ? `Install by exact version. The versions predict the next release; the final versions are read from the registry after the Release merges.${state.reuse ? ' This commit was already published by an earlier run, so nothing was published again.' : ''}`
-      : `Not every package was published${done.length ? '; these were' : ''}. See the workflow run.`,
+      ? `Install by exact version. The versions predict the next release; the final versions are read from the registry after the Release merges.${notes}`
+      : `Not every package was published and tagged${done.length ? '; these were published' : ''}, and ${state.tag} was not moved. See the workflow run.`,
     '',
     ...(text ? ['```', text, '```'] : []),
   ].join('\n');
@@ -368,7 +536,7 @@ export async function report(options, deps = {}) {
     output: { title, summary, text },
   };
   await (deps.createCheckRun ?? ((payload) => github('POST', `/repos/${context.repository}/check-runs`, payload)))(body);
-  console.log(`Created the ${CHECK_NAME} check run (${body.conclusion}) on ${context.sha}.`);
+  console.log(`Created the ${CHECK_NAME} check run (${body.conclusion}).`);
   return { ok, text, created: true, body };
 }
 
@@ -377,11 +545,14 @@ async function main(argv) {
   const options = parseArgs(rest);
   if (command === 'plan') await plan(options);
   else if (command === 'version') version(options);
+  else if (command === 'stamp') stamp(options);
+  else if (command === 'pack') pack(options);
   else if (command === 'publish') publish(options);
+  else if (command === 'promote') promote(options);
   else if (command === 'report') {
     const result = await report(options);
     if (!result.ok && !options.failed) process.exitCode = 1;
-  } else throw new Error('usage: release-prerelease.mjs plan|version|publish|report (see the header)');
+  } else throw new Error('usage: release-prerelease.mjs plan|version|stamp|pack|publish|promote|report (see the header)');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
