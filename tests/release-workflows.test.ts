@@ -23,6 +23,7 @@ describe('snapshot -> patch release chain', () => {
     expect(snapshot).toContain('npm view "@revturbine/cli@$VERSION"');
     expect(snapshot).toContain('npm version patch --no-git-tag-version');
     expect(snapshot).toContain('git add package.json package-lock.json');
+    expect(snapshot).toContain('npm install --global --ignore-scripts "npm@$NPM_VERSION"');
   });
 
   it('pushes the bump with the push App, not a PAT, so the push starts publish-on-main', () => {
