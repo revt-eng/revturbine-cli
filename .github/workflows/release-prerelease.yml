@@ -33,7 +33,7 @@ name: Release prerelease
 # from a self-hosted one (revturbine-devkit docs/ops/ci-levels.md).
 #
 # workflow_dispatch re-runs it by hand for a Release branch's head. A pin needs
-# no dispatch: release-pin.yml pushes with the revturbine-ci-bot App's token,
+# no dispatch: release-pin.yml pushes with the push App's token,
 # and that push starts this workflow like any other. Any other ref is skipped.
 
 on:

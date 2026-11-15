@@ -26,7 +26,7 @@ on:
     paths:
       - 'package.json'
   # Re-runs by hand. snapshot-patch-release.yml needs no dispatch: it pushes its
-  # bump with the revturbine-ci-bot App's token, which starts the push above.
+  # bump with the push App's token, which starts the push above.
   workflow_dispatch:
 
 permissions:

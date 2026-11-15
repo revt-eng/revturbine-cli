@@ -12,9 +12,10 @@ name: Snapshot patch release
 #
 # Push credential (EP-1747 phase 7): main takes changes only through a pull
 # request ("Pull requests into main and staging"), except from the bypass Apps.
-# The bump is pushed with a token from revturbine-ci-bot (App 3195587), scoped to
-# this repository's contents and minted only when a bump is due. The key is
-# CI_BOT_APP_PRIVATE_KEY in the ci-bot environment, which only main may use. A
+# The bump is pushed, and committed, as the push App (app id vars.CI_PUSH_APP_ID),
+# with a token scoped to this repository's contents and minted only when a bump
+# is due. The key is CI_PUSH_APP_PRIVATE_KEY in the ci-push environment, which
+# only main may use. A
 # push made with the App's token starts push-triggered workflows, so the
 # existing publish path (provenance, registry-idempotent, tag record) runs on the
 # bump commit with no dispatch. No PAT: this repo is public and the org
@@ -43,7 +44,7 @@ concurrency:
 jobs:
   bump-and-dispatch:
     runs-on: ubuntu-latest
-    environment: ci-bot
+    environment: ci-push
     steps:
       - uses: actions/checkout@v7
         with:
@@ -71,13 +72,13 @@ jobs:
             echo "release=false" >> "$GITHUB_OUTPUT"
             echo "@revturbine/cli@$VERSION is not on npm yet — a release is already pending; publish-on-main owns it."
           fi
-      - name: Mint the revturbine-ci-bot token for the push
+      - name: Mint the push App token for the push
         if: steps.decide.outputs.release == 'true'
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: '3195587'
-          private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.CI_PUSH_APP_ID }}
+          private-key: ${{ secrets.CI_PUSH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
@@ -85,16 +86,19 @@ jobs:
         if: steps.decide.outputs.release == 'true'
         env:
           PUSH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           env -u PUSH_TOKEN npm version patch --no-git-tag-version
           NEXT=$(node -p "require('./package.json').version")
-          git config user.name "revturbine-ci-bot[bot]"
-          git config user.email "271352006+revturbine-ci-bot[bot]@users.noreply.github.com"
+          bot="${APP_SLUG}[bot]"
+          git config user.name "$bot"
+          git config user.email "$(gh api "users/${APP_SLUG}%5Bbot%5D" --jq .id)+${bot}@users.noreply.github.com"
           git add package.json package-lock.json
           git commit -m "chore(release): v$NEXT (bundles schema ${{ steps.decide.outputs.schema }})"
           # The App token goes to git only, through a credential helper that reads it
           # from the environment; it is never written to the checkout.
-          git -c credential.helper= \
+          git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c credential.helper= \
             -c 'credential.helper=!f() { test "$1" = get || return 0; echo username=x-access-token; echo "password=$PUSH_TOKEN"; }; f' \
             push origin HEAD:main
