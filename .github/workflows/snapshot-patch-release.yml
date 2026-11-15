@@ -6,13 +6,18 @@ name: Snapshot patch release
 #   1. scaffold's release opens the `chore: vendor schema snapshot` PR (plan 143),
 #      waits for this repo's gate on the exact head and squash-merges it;
 #   2. that merge changes `src/schema/version.ts` on main — this workflow's trigger;
-#   3. this workflow bumps the patch version and pushes it to main, then
-#      dispatches `publish-on-main`, which verifies, publishes and tags.
+#   3. this workflow bumps the patch version and pushes it to main; that push
+#      changes package.json, which starts `publish-on-main`, and it verifies,
+#      publishes and tags.
 #
-# Why a dispatch: a push made with the default GITHUB_TOKEN does not start other
-# push-triggered workflows, but `workflow_dispatch` is the documented exception,
-# so the existing publish path (provenance, registry-idempotent, tag record) is
-# reused unchanged and no PAT is introduced — this repo is public and the org
+# Push credential (EP-1747 phase 7): main takes changes only through a pull
+# request ("Pull requests into main and staging"), except from the bypass Apps.
+# The bump is pushed with a token from revturbine-ci-bot (App 3195587), scoped to
+# this repository's contents and minted only when a bump is due. The key is
+# CI_BOT_APP_PRIVATE_KEY in the ci-bot environment, which only main may use. A
+# push made with the App's token starts push-triggered workflows, so the
+# existing publish path (provenance, registry-idempotent, tag record) runs on the
+# bump commit with no dispatch. No PAT: this repo is public and the org
 # REVTURBINE_GIT_TOKEN is withheld from public repos by design.
 #
 # Release decision, kept deliberately small:
@@ -29,8 +34,7 @@ on:
       - 'src/schema/version.ts'
 
 permissions:
-  contents: write # push the bump commit
-  actions: write # dispatch publish-on-main
+  contents: read # the checkout; the bump is pushed with the App's token
 
 concurrency:
   group: snapshot-patch-release
@@ -39,10 +43,12 @@ concurrency:
 jobs:
   bump-and-dispatch:
     runs-on: ubuntu-latest
+    environment: ci-bot
     steps:
       - uses: actions/checkout@v7
         with:
           ref: main
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -65,19 +71,30 @@ jobs:
             echo "release=false" >> "$GITHUB_OUTPUT"
             echo "@revturbine/cli@$VERSION is not on npm yet — a release is already pending; publish-on-main owns it."
           fi
+      - name: Mint the revturbine-ci-bot token for the push
+        if: steps.decide.outputs.release == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: '3195587'
+          private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
       - name: Bump the patch version and push it to main
         if: steps.decide.outputs.release == 'true'
+        env:
+          PUSH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          npm version patch --no-git-tag-version
+          env -u PUSH_TOKEN npm version patch --no-git-tag-version
           NEXT=$(node -p "require('./package.json').version")
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "revturbine-ci-bot[bot]"
+          git config user.email "271352006+revturbine-ci-bot[bot]@users.noreply.github.com"
           git add package.json package-lock.json
           git commit -m "chore(release): v$NEXT (bundles schema ${{ steps.decide.outputs.schema }})"
-          git push origin HEAD:main
-      - name: Dispatch the publish workflow
-        if: steps.decide.outputs.release == 'true'
-        run: gh workflow run publish-on-main.yml --ref main
-        env:
-          GH_TOKEN: ${{ github.token }}
+          # The App token goes to git only, through a credential helper that reads it
+          # from the environment; it is never written to the checkout.
+          git -c credential.helper= \
+            -c 'credential.helper=!f() { test "$1" = get || return 0; echo username=x-access-token; echo "password=$PUSH_TOKEN"; }; f' \
+            push origin HEAD:main
