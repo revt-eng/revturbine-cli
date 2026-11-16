@@ -6,13 +6,14 @@ name: PR gate
 # it), which owns the runner label and sends pull requests from forks to
 # GitHub-hosted runners. Each job installs the npm pinned in package.json, then
 # `npm ci`, and runs scripts/ci-l1.mjs:
-#   verify            `npm run ci:l1`: selector checks, line endings, typecheck,
-#                     lint, schema consistency, tests (targeted for iteration
-#                     pull requests), build.
+#   verify            `npm run ci:l1`: workflow checks, line endings, typecheck,
+#                     lint, schema consistency, every test, build.
 #   package-smoke     `npm run ci:l1:smoke` on Node 22.13.0 and 24: the packed
 #                     CLI installed in a clean consumer.
 #   Iteration exhaustive  push to main only: requires both. Backlog reads
 #                     "Iteration exhaustive / aggregate" as the release evidence.
+#                     The name is a cross-repository contract that outlived
+#                     Iterations (Releases replaced them, EP-1747): keep it.
 
 on:
   push:
