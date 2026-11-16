@@ -10,6 +10,17 @@ import { describe, expect, it } from 'vitest';
 const workflow = (name: string) =>
   readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), 'utf8');
 
+// The push App is revturbine-ci-bot, whose installation can do more than push. Every token it mints here
+// is narrowed: contents: write and no other permission, on this repository only, from a pinned action.
+const tokenAction = 'uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0';
+const expectNarrowedToken = (text: string) => {
+  expect(text).toContain(tokenAction);
+  expect(text).not.toMatch(/create-github-app-token@v\d/);
+  expect([...text.matchAll(/^\s+(permission-[\w-]+): (\S+)$/gm)].map(m => `${m[1]}: ${m[2]}`)).toEqual(['permission-contents: write']);
+  expect(text).toContain('owner: ${{ github.repository_owner }}');
+  expect(text).toContain('repositories: ${{ github.event.repository.name }}');
+};
+
 describe('snapshot -> patch release chain', () => {
   const snapshot = workflow('snapshot-patch-release.yml');
   const publish = workflow('publish-on-main.yml');
@@ -23,15 +34,62 @@ describe('snapshot -> patch release chain', () => {
     expect(snapshot).toContain('npm view "@revturbine/cli@$VERSION"');
     expect(snapshot).toContain('npm version patch --no-git-tag-version');
     expect(snapshot).toContain('git add package.json package-lock.json');
+    expect(snapshot).toContain('npm install --global --ignore-scripts "npm@$NPM_VERSION"');
   });
 
-  it('hands off to the existing publish workflow by dispatch, not by a PAT', () => {
-    expect(snapshot).toContain('gh workflow run publish-on-main.yml --ref main');
-    expect(snapshot).not.toMatch(/\$\{\{\s*secrets\./);
+  it('pushes the bump with the push App, not a PAT, so the push starts publish-on-main', () => {
+    // EP-1747 phase 7: only the bypass Apps may push to main without a pull request.
+    expectNarrowedToken(snapshot);
+    expect(snapshot).toContain("app-id: ${{ vars.CI_PUSH_APP_ID }}");
+    expect(snapshot).toMatch(/^ {4}environment: ci-push$/m);
+    expect([...snapshot.matchAll(/\$\{\{\s*secrets\.(\w+)/g)].map(m => m[1])).toEqual(['CI_PUSH_APP_PRIVATE_KEY']);
+    expect(snapshot).not.toContain('REVTURBINE_GIT_TOKEN }}');
+    expect(snapshot).toContain('push origin HEAD:main');
+    expect(snapshot).not.toContain('gh workflow run publish-on-main.yml');
+    expect(publish).toMatch(/^ {2}push:\r?\n {4}branches: \[main\]\r?\n {4}paths:\r?\n {6}- 'package\.json'/m);
     expect(publish).toMatch(/^ {2}workflow_dispatch:/m);
   });
 
   it('keeps publishing idempotent against the registry', () => {
     expect(publish).toContain('npm view "@revturbine/cli@$VERSION"');
+  });
+});
+
+describe('release pin: the branch runs no code next to the push key (EP-1747 phase 7)', () => {
+  const attempt = workflow('release-pin-attempt.yml');
+  const caller = workflow('release-pin.yml');
+  const job = (name: string) => {
+    const start = attempt.indexOf(`\n  ${name}:\n`);
+    expect(start).toBeGreaterThan(-1);
+    const rest = attempt.slice(start + 1);
+    const next = rest.slice(1).search(/\n {2}[a-z][\w-]*:\n/);
+    return next === -1 ? rest : rest.slice(0, next + 2);
+  };
+
+  it('pins with no environment and no secrets', () => {
+    const pin = job('pin');
+    expect(pin).not.toMatch(/environment:/);
+    expect(pin).not.toMatch(/secrets\./);
+    expect(pin).toContain('release-pin.mjs package-manager --dir work');
+    expect(pin).toContain('npm install --global --ignore-scripts "$pm"');
+    expect(pin).toContain('persist-credentials: false');
+  });
+
+  it('pushes from the ci-push environment without checking the branch out', () => {
+    const push = job('push');
+    expect(push).toMatch(/^ {4}environment: ci-push$/m);
+    expect(push).toContain('app-id: ${{ vars.CI_PUSH_APP_ID }}');
+    expectNarrowedToken(push);
+    expect([...push.matchAll(/\$\{\{\s*secrets\.(\w+)/g)].map(m => m[1])).toEqual(['CI_PUSH_APP_PRIVATE_KEY']);
+    expect(push).not.toMatch(/ref: refs\/heads\/\$\{\{ inputs\.branch \}\}/);
+    expect(push).toContain('fetch --quiet --depth=1 --no-tags');
+    expect(push).toContain('release-pin.mjs commit');
+    expect(push).toContain('-c core.hooksPath=/dev/null -c core.fsmonitor=false');
+  });
+
+  it('retries a moved branch inside one run', () => {
+    expect(caller).toMatch(/attempt-2:\n\s+needs: attempt-1\n\s+if: needs\.attempt-1\.outputs\.moved == 'true'/);
+    expect(caller).toMatch(/attempt-3:\n\s+needs: attempt-2\n\s+if: needs\.attempt-2\.outputs\.moved == 'true'/);
+    expect(caller).not.toMatch(/^\s*run: gh workflow run/m);
   });
 });

@@ -32,9 +32,9 @@ name: Release prerelease
 # provenance only on a cloud-hosted runner and the registry refuses a statement
 # from a self-hosted one (revturbine-devkit docs/ops/ci-levels.md).
 #
-# workflow_dispatch re-runs it for a Release branch's head: release-pin.yml
-# dispatches it after committing a pin, because a push made with a workflow's
-# GITHUB_TOKEN starts no push-triggered workflow. Any other ref is skipped.
+# workflow_dispatch re-runs it by hand for a Release branch's head. A pin needs
+# no dispatch: release-pin.yml pushes with the push App's token,
+# and that push starts this workflow like any other. Any other ref is skipped.
 
 on:
   push:

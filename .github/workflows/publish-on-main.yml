@@ -25,8 +25,8 @@ on:
     branches: [main]
     paths:
       - 'package.json'
-  # snapshot-patch-release.yml dispatches this after pushing a bump with the
-  # default GITHUB_TOKEN (whose pushes do not start push-triggered workflows).
+  # Re-runs by hand. snapshot-patch-release.yml needs no dispatch: it pushes its
+  # bump with the push App's token, which starts the push above.
   workflow_dispatch:
 
 permissions:
