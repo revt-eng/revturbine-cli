@@ -4,12 +4,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-// "Iteration exhaustive" is the job name Backlog matches on across repositories. It outlived Iterations
-// (Releases replaced them, EP-1747): do not rename it.
+// "Release exhaustive" is the job name Backlog matches on across repositories (named "Iteration exhaustive" until
+// 2026-11-16, which Backlog still accepts): rename it only together with Backlog.
 test('exhaustive release evidence is push-only and requires verify and package smoke', () => {
   const workflow = readFileSync('.github/workflows/pr-gate.yml', 'utf8');
-  const aggregate = workflow.slice(workflow.indexOf('  iteration-exhaustive:'));
-  assert.match(aggregate, /^ {4}name: Iteration exhaustive$/m);
+  const aggregate = workflow.slice(workflow.indexOf('  release-exhaustive:'));
+  assert.match(aggregate, /^ {4}name: Release exhaustive$/m);
+  assert.doesNotMatch(workflow, /name: Iteration exhaustive|iteration-exhaustive:/, 'the job is no longer named after Iterations');
   assert.match(aggregate, /github.event_name == 'push' && github.ref == 'refs\/heads\/main'/);
   assert.match(aggregate, /needs: \[verify, package-smoke\]/);
   assert.match(aggregate, /test "\$\{\{ needs\.verify\.result \}\}" = success && test "\$\{\{ needs\.package-smoke\.result \}\}" = success/);
