@@ -101,13 +101,23 @@ Renaming or deleting an annotated symbol *does* change the graph, so say so in
 the PR body. It will not fail this repository's gate; devkit's scheduled run
 catches it afterwards and names the commit.
 
-## Iteration delivery
+## Release delivery
 
-For stories assigned to a hosted iteration, branch from and target its registered
-`iteration/IT-*` branch. Promotion PRs target `main`. Both PR boundaries use
-`node scripts/iteration-targeted.mjs <PR-base-SHA>`; keep typecheck, lint,
-schema consistency, build and packed-consumer checks. Missing targeted mappings
-block the PR rather than running the full suite. `npm test` remains the
-exhaustive post-promotion integration check and the legacy unassigned-work path.
-The push-only `Iteration exhaustive` job is the release evidence for that exact
-integration merge SHA. A feature merge does not complete release verification.
+Backlog Releases replaced Iterations (EP-1747). A Release has the key `RL-<n>`
+and moves through the phases planning, in progress, verification, merging and
+complete. `iteration/IT-<n>` branches, registered iteration bindings, Iteration
+promotion to `main` and the targeted-tests mode for `iteration/` pull requests
+are gone.
+
+- Backlog creates this repository's `release/RL-<n>` branch. A story in the
+  Release branches from it and opens its PR into it, not into `main`.
+- The PR runs the PR gate at check level L1 (`verify` and `Packed CLI smoke`):
+  typecheck, lint, schema consistency, every test, build and the
+  packed-consumer checks. Backlog merges the PR once L1 passes and the item's QA
+  run accepts it; do not merge it yourself.
+- Only Backlog merges the Release branch onward to `main`.
+
+The push-only `Iteration exhaustive` job is the release evidence for the exact
+merge SHA on `main`. It keeps that name because Backlog matches on it across
+repositories; do not rename it. A story merge into the Release branch does not
+complete release verification.
