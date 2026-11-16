@@ -10,10 +10,11 @@ name: PR gate
 #                     lint, schema consistency, every test, build.
 #   package-smoke     `npm run ci:l1:smoke` on Node 22.13.0 and 24: the packed
 #                     CLI installed in a clean consumer.
-#   Iteration exhaustive  push to main only: requires both. Backlog reads
-#                     "Iteration exhaustive / aggregate" as the release evidence.
-#                     The name is a cross-repository contract that outlived
-#                     Iterations (Releases replaced them, EP-1747): keep it.
+#   Release exhaustive  push to main only: requires both. Backlog reads
+#                     "Release exhaustive / aggregate" as the release evidence.
+#                     The name is a cross-repository contract (named
+#                     "Iteration exhaustive" until 2026-11-16, which Backlog
+#                     still accepts): rename it only together with Backlog.
 
 on:
   push:
@@ -56,8 +57,8 @@ jobs:
         npm ci
       command: npm run ci:l1:smoke
 
-  iteration-exhaustive:
-    name: Iteration exhaustive
+  release-exhaustive:
+    name: Release exhaustive
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [verify, package-smoke]
     uses: ./.github/workflows/ci-level.yml

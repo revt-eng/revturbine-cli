@@ -117,7 +117,8 @@ are gone.
   run accepts it; do not merge it yourself.
 - Only Backlog merges the Release branch onward to `main`.
 
-The push-only `Iteration exhaustive` job is the release evidence for the exact
-merge SHA on `main`. It keeps that name because Backlog matches on it across
-repositories; do not rename it. A story merge into the Release branch does not
+The push-only `Release exhaustive` job (named `Iteration exhaustive` until
+2026-11-16) is the release evidence for the exact merge SHA on `main`. Backlog
+matches on that name across repositories; rename it only together with
+Backlog. A story merge into the Release branch does not
 complete release verification.
