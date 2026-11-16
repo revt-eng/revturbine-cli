@@ -12,8 +12,8 @@ name: Snapshot patch release
 #
 # Push credential (EP-1747 phase 7): main takes changes only through a pull
 # request ("Pull requests into main and staging"), except from the bypass Apps.
-# The bump is pushed, and committed, as the push App (app id vars.CI_PUSH_APP_ID),
-# with a token scoped to this repository's contents and minted only when a bump
+# The bump is pushed, and committed, as the push App (revturbine-ci-bot, app id
+# vars.CI_PUSH_APP_ID), with a token narrowed to contents: write on this repository and minted only when a bump
 # is due. The key is CI_PUSH_APP_PRIVATE_KEY in the ci-push environment, which
 # only main may use. A
 # push made with the App's token starts push-triggered workflows, so the
@@ -81,12 +81,14 @@ jobs:
       - name: Mint the push App token for the push
         if: steps.decide.outputs.release == 'true'
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
         with:
           app-id: ${{ vars.CI_PUSH_APP_ID }}
           private-key: ${{ secrets.CI_PUSH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
+          # The push App is revturbine-ci-bot, whose installation can do more than push
+          # (actions, pull requests). This token gets contents: write on one repository only.
           permission-contents: write
       - name: Bump the patch version and push it to main
         if: steps.decide.outputs.release == 'true'

@@ -10,6 +10,17 @@ import { describe, expect, it } from 'vitest';
 const workflow = (name: string) =>
   readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), 'utf8');
 
+// The push App is revturbine-ci-bot, whose installation can do more than push. Every token it mints here
+// is narrowed: contents: write and no other permission, on this repository only, from a pinned action.
+const tokenAction = 'uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0';
+const expectNarrowedToken = (text: string) => {
+  expect(text).toContain(tokenAction);
+  expect(text).not.toMatch(/create-github-app-token@v\d/);
+  expect([...text.matchAll(/^\s+(permission-[\w-]+): (\S+)$/gm)].map(m => `${m[1]}: ${m[2]}`)).toEqual(['permission-contents: write']);
+  expect(text).toContain('owner: ${{ github.repository_owner }}');
+  expect(text).toContain('repositories: ${{ github.event.repository.name }}');
+};
+
 describe('snapshot -> patch release chain', () => {
   const snapshot = workflow('snapshot-patch-release.yml');
   const publish = workflow('publish-on-main.yml');
@@ -28,9 +39,8 @@ describe('snapshot -> patch release chain', () => {
 
   it('pushes the bump with the push App, not a PAT, so the push starts publish-on-main', () => {
     // EP-1747 phase 7: only the bypass Apps may push to main without a pull request.
-    expect(snapshot).toContain('uses: actions/create-github-app-token@v1');
+    expectNarrowedToken(snapshot);
     expect(snapshot).toContain("app-id: ${{ vars.CI_PUSH_APP_ID }}");
-    expect(snapshot).toContain('permission-contents: write');
     expect(snapshot).toMatch(/^ {4}environment: ci-push$/m);
     expect([...snapshot.matchAll(/\$\{\{\s*secrets\.(\w+)/g)].map(m => m[1])).toEqual(['CI_PUSH_APP_PRIVATE_KEY']);
     expect(snapshot).not.toContain('REVTURBINE_GIT_TOKEN }}');
@@ -69,6 +79,7 @@ describe('release pin: the branch runs no code next to the push key (EP-1747 pha
     const push = job('push');
     expect(push).toMatch(/^ {4}environment: ci-push$/m);
     expect(push).toContain('app-id: ${{ vars.CI_PUSH_APP_ID }}');
+    expectNarrowedToken(push);
     expect([...push.matchAll(/\$\{\{\s*secrets\.(\w+)/g)].map(m => m[1])).toEqual(['CI_PUSH_APP_PRIVATE_KEY']);
     expect(push).not.toMatch(/ref: refs\/heads\/\$\{\{ inputs\.branch \}\}/);
     expect(push).toContain('fetch --quiet --depth=1 --no-tags');
