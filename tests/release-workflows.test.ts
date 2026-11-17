@@ -87,6 +87,36 @@ describe('release pin: the branch runs no code next to the push key (EP-1747 pha
     expect(push).toContain('-c core.hooksPath=/dev/null -c core.fsmonitor=false');
   });
 
+  // The first Backlog-dispatched pins (2026-11-16) failed in the push job with "Input required and not supplied:
+  // private-key". A called workflow's secrets context holds only what its caller passes, and release-pin.yml passed
+  // nothing, so the ci-push environment's key read as empty. The caller now passes that one name. The key still
+  // reaches the push job alone: it is an environment secret, and only that job declares the environment.
+  const code = (text: string) => text.split('\n').filter(line => !/^\s*#/.test(line)).join('\n');
+  // Every use of the secrets context: secrets.NAME by name, anything else (secrets['NAME'], toJSON(secrets)) as '*'.
+  const secretUses = (text: string) => [...code(text).matchAll(/\bsecrets\b(?!:)(?:\.(\w+))?/g)].map(m => m[1] ?? '*');
+
+  it('passes the called workflow the push key by name and no other secret', () => {
+    const declared = /\n {4}secrets:\n((?: {6,}.*\n)+)/.exec(code(attempt.slice(0, attempt.indexOf('\njobs:\n') + 1)))?.[1] ?? '';
+    expect([...declared.matchAll(/^ {6}(\w+):/gm)].map(m => m[1])).toEqual(['CI_PUSH_APP_PRIVATE_KEY']);
+    expect(code(caller)).not.toMatch(/secrets:\s*inherit/);
+    const calls = code(caller).split(/\n(?= {2}[\w-]+:\n)/).filter(block => block.includes('uses: ./.github/workflows/release-pin-attempt.yml'));
+    expect(calls.map(block => /^ {2}([\w-]+):/.exec(block)?.[1])).toEqual(['attempt-1', 'attempt-2', 'attempt-3']);
+    for (const call of calls) {
+      expect(call).toMatch(/\n {4}secrets:\n {6}CI_PUSH_APP_PRIVATE_KEY: \$\{\{ secrets\.CI_PUSH_APP_PRIVATE_KEY \}\}\n(?! {6})/);
+      expect(call).not.toMatch(/^ {4}environment:/m);
+    }
+    expect(secretUses(caller)).toEqual(['CI_PUSH_APP_PRIVATE_KEY', 'CI_PUSH_APP_PRIVATE_KEY', 'CI_PUSH_APP_PRIVATE_KEY']);
+  });
+
+  it('reads the push key only in the job that declares the ci-push environment', () => {
+    const jobs = attempt.slice(attempt.indexOf('\njobs:\n'));
+    expect([...jobs.matchAll(/^ {2}([\w-]+):$/gm)].map(m => m[1])).toEqual(['pin', 'push']);
+    expect(secretUses(job('pin'))).toEqual([]);
+    expect(job('pin')).not.toMatch(/^ {4}environment:/m);
+    expect(secretUses(job('push'))).toEqual(['CI_PUSH_APP_PRIVATE_KEY']);
+    expect(job('push')).toMatch(/^ {4}environment: ci-push$/m);
+  });
+
   it('retries a moved branch inside one run', () => {
     expect(caller).toMatch(/attempt-2:\n\s+needs: attempt-1\n\s+if: needs\.attempt-1\.outputs\.moved == 'true'/);
     expect(caller).toMatch(/attempt-3:\n\s+needs: attempt-2\n\s+if: needs\.attempt-2\.outputs\.moved == 'true'/);
