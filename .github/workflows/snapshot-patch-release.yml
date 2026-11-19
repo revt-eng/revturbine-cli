@@ -7,8 +7,8 @@ name: Snapshot patch release
 #      waits for this repo's gate on the exact head and squash-merges it;
 #   2. that merge changes `src/schema/version.ts` on main — this workflow's trigger;
 #   3. this workflow bumps the patch version and pushes it to main; that push
-#      changes package.json, which starts `publish-on-main`, and it verifies,
-#      publishes and tags.
+#      changes package.json, which starts `publish-on-main`; it waits for the
+#      PR gate's run on the bump commit, then publishes and tags.
 #
 # Push credential (EP-1747 phase 7): main takes changes only through a pull
 # request ("Pull requests into main and staging"), except from the bypass Apps.
