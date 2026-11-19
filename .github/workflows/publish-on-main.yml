@@ -19,6 +19,23 @@ name: Publish on main
 # the version already on npm publishes nothing and only self-heals a missing
 # tag. release.yml (tag-triggered) remains the manual escape hatch: hand-push
 # a `v<version>` tag to publish a version missing from npm.
+#
+# The checks are the PR gate's, not a second copy. The push that starts this
+# workflow starts pr-gate.yml on the same commit, and it used to run `npm run
+# verify` again here, beside the gate's own (4m17s of a 5m19s run), and publish
+# without waiting for the packed-CLI smoke jobs. Now:
+#   gate     no secrets. Reads the registry; when the version is not on npm it
+#            waits for the PR gate's push run on exactly this commit
+#            (scripts/gate-result.mjs) and passes only when that run succeeded
+#            with `verify` and every `Packed CLI smoke` job green. A failed,
+#            cancelled or missing gate run publishes nothing. Fix the gate (or
+#            re-run its failed jobs) and re-run this workflow; release.yml stays
+#            the escape hatch that runs its own verify.
+#   publish  installs, builds and publishes the commit the gate proved, then
+#            tags. It runs no checks of its own.
+# The publish therefore lands when the gate finishes, not before it: the gate's
+# jobs wait for our CodeBuild runners, and two pushes to main in a row queue
+# behind each other in the gate.
 
 on:
   push:
@@ -30,16 +47,64 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # tag push
-  id-token: write # npm provenance
+  contents: read
 
 concurrency:
   group: publish-on-main
   cancel-in-progress: false
 
 jobs:
-  publish:
+  gate:
+    name: PR gate result for this commit
     runs-on: ubuntu-latest
+    # The wait below is 40 minutes at most; the rest is checkout and one registry read.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read # the PR gate's run and jobs on this commit
+    outputs:
+      version: ${{ steps.state.outputs.version }}
+      published: ${{ steps.state.outputs.published }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Resolve version state against the registry
+        id: state
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "@revturbine/cli@$VERSION" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "@revturbine/cli@$VERSION already on npm — nothing to publish."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      # Every gate job, on this commit: `verify`, both `Packed CLI smoke` jobs and
+      # the run as a whole. The names are pr-gate.yml's (tests/release-workflows.test.ts
+      # holds the two files together).
+      - name: Wait for the PR gate on this commit
+        if: steps.state.outputs.published == 'false'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node scripts/gate-result.mjs --workflow pr-gate.yml --sha "$GITHUB_SHA"
+          --require 'verify / l1' --require-prefix 'Packed CLI smoke ('
+          --whole-run --wait-minutes 40 --absent-after-minutes 5 --expect success
+
+  publish:
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # tag push
+      id-token: write # npm provenance
+    env:
+      VERSION: ${{ needs.gate.outputs.version }}
+      PUBLISHED: ${{ needs.gate.outputs.published }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -52,32 +117,24 @@ jobs:
           NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
           npm install --global "npm@$NPM_VERSION"
           npm --version
-      - name: Resolve version state against the registry
-        id: state
+      - name: The checkout is the commit the gate proved
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if npm view "@revturbine/cli@$VERSION" version >/dev/null 2>&1; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "@revturbine/cli@$VERSION already on npm — nothing to publish."
-          else
-            echo "published=false" >> "$GITHUB_OUTPUT"
-          fi
-      - if: steps.state.outputs.published == 'false'
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(node -p "require('./package.json').version")" = "$VERSION"
+      - if: env.PUBLISHED == 'false'
         run: npm ci
-      - if: steps.state.outputs.published == 'false'
-        run: npm run verify
-      - if: steps.state.outputs.published == 'false'
+      - if: env.PUBLISHED == 'false'
         run: npm run build
       - name: Publish to public npm
-        if: steps.state.outputs.published == 'false'
+        if: env.PUBLISHED == 'false'
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Tag the shipped version (record only)
         run: |
           set -euo pipefail
-          TAG="v${{ steps.state.outputs.version }}"
+          TAG="v$VERSION"
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already on origin."
             exit 0

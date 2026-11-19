@@ -55,6 +55,57 @@ describe('snapshot -> patch release chain', () => {
   });
 });
 
+describe('publish-on-main reuses the PR gate on the same commit', () => {
+  const publish = workflow('publish-on-main.yml');
+  const gate = workflow('pr-gate.yml');
+  const job = (text: string, id: string) => {
+    const start = text.indexOf(`\n  ${id}:\n`);
+    expect(start, `job ${id}`).toBeGreaterThan(-1);
+    const rest = text.slice(start + 1);
+    const next = rest.slice(1).search(/\n {2}[a-z][\w-]*:\n/);
+    return next === -1 ? rest : rest.slice(0, next + 2);
+  };
+
+  it('waits for the gate push run on exactly this commit and requires all of it', () => {
+    const wait = job(publish, 'gate');
+    expect(wait).toContain('node scripts/gate-result.mjs --workflow pr-gate.yml --sha "$GITHUB_SHA"');
+    expect(wait).toContain("--require 'verify / l1' --require-prefix 'Packed CLI smoke ('");
+    expect(wait).toContain('--whole-run --wait-minutes 40 --absent-after-minutes 5 --expect success');
+    expect(wait).toMatch(/^ {6}actions: read/m);
+    // The wait is skipped only when there is nothing to publish.
+    expect(wait).toContain("if: steps.state.outputs.published == 'false'");
+    // The waiting job holds no publish credential.
+    expect(wait).not.toMatch(/secrets\.|id-token|contents: write/);
+  });
+
+  it('names the gate jobs as pr-gate.yml names them', () => {
+    // "verify / l1": the job id, then the shared workflow's job name (the level, when `name` is not passed).
+    const verify = job(gate, 'verify');
+    expect(verify).toContain('uses: ./.github/workflows/ci-level.yml');
+    expect(verify).toMatch(/^ {6}level: l1$/m);
+    expect(verify).not.toMatch(/^ {4}name:|^ {6}name:/m);
+    expect(job(gate, 'package-smoke')).toMatch(/^ {4}name: Packed CLI smoke \(Node \$\{\{ matrix\.node \}\}\)$/m);
+    // A push to main starts both workflows on the same commit.
+    expect(gate).toMatch(/^ {2}push:\r?\n {4}branches: \[main\]/m);
+    expect(workflow('ci-level.yml')).toContain("name: ${{ inputs.name != '' && inputs.name || inputs.level }}");
+  });
+
+  it('publishes only after the gate job, and runs no second verify', () => {
+    const ship = job(publish, 'publish');
+    expect(ship).toMatch(/^ {4}needs: gate$/m);
+    expect(ship).not.toMatch(/always\(\)|!cancelled\(\)|continue-on-error/);
+    expect(publish).not.toContain('npm run verify');
+    expect(ship.indexOf('npm run build')).toBeLessThan(ship.indexOf('npm publish --access public --provenance'));
+    expect(ship).toContain('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"');
+  });
+
+  it('bounds every job', () => {
+    expect(job(publish, 'gate')).toMatch(/^ {4}timeout-minutes: 45$/m);
+    expect(job(publish, 'publish')).toMatch(/^ {4}timeout-minutes: 15$/m);
+    expect(workflow('release.yml')).toMatch(/^ {4}timeout-minutes: 20$/m);
+  });
+});
+
 describe('release pin: the branch runs no code next to the push key (EP-1747 phase 7)', () => {
   const attempt = workflow('release-pin-attempt.yml');
   const caller = workflow('release-pin.yml');

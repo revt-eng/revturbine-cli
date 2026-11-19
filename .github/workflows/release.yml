@@ -19,6 +19,8 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Install, verify (about 4.5 minutes), build and one publish.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
