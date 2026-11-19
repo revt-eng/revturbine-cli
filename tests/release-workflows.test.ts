@@ -70,12 +70,54 @@ describe('publish-on-main reuses the PR gate on the same commit', () => {
     const wait = job(publish, 'gate');
     expect(wait).toContain('node scripts/gate-result.mjs --workflow pr-gate.yml --sha "$GITHUB_SHA"');
     expect(wait).toContain("--require 'verify / l1' --require-prefix 'Packed CLI smoke ('");
-    expect(wait).toContain('--whole-run --wait-minutes 40 --absent-after-minutes 5 --expect success');
+    expect(wait).toContain('--whole-run --wait-minutes 40 --absent-after-minutes 5 --github-output');
     expect(wait).toMatch(/^ {6}actions: read/m);
     // The wait is skipped only when there is nothing to publish.
     expect(wait).toContain("if: steps.state.outputs.published == 'false'");
     // The waiting job holds no publish credential.
     expect(wait).not.toMatch(/secrets\.|id-token|contents: write/);
+  });
+
+  it('fails the gate job when the gate failed or never finished, and only then', () => {
+    const wait = job(publish, 'gate');
+    expect(wait).toMatch(/^ {6}result: \$\{\{ steps\.wait\.outputs\.result \}\}$/m);
+    // The script reports the result and exits 0; this step decides. A real failure is never retried here.
+    expect(wait).not.toContain('--expect');
+    expect(wait).toMatch(/^ {12}success\) /m);
+    expect(wait).toMatch(/^ {12}cancelled\|absent\|unknown\) echo "::warning::/m);
+    expect(wait).toMatch(/^ {12}\*\) echo "::error::.*; exit 1 ;;$/m);
+  });
+
+  it('runs the gate\'s own checks itself when the gate was cancelled, is absent or could not be read', () => {
+    // A third push to main cancels the second push's queued gate jobs (one pending run per concurrency
+    // group): that must not strand the second push's release.
+    const condition = "if: ${{ needs.gate.outputs.published == 'false' && contains(fromJSON('[\"cancelled\", \"absent\", \"unknown\"]'), needs.gate.outputs.result) }}";
+    // What a job runs: from `uses:` on, without comments. Identical text means identical checks.
+    const runs = (text: string) => text.slice(text.indexOf('    uses: ')).split('\n').filter(line => line.trim() && !/^\s*#/.test(line)).join('\n');
+    const strategy = (text: string) => /\n {4}strategy:\n(?: {6,}.*\n)+/.exec(text)?.[0];
+    for (const [fallback, original] of [['fallback-verify', 'verify'], ['fallback-smoke', 'package-smoke']]) {
+      const mine = job(publish, fallback);
+      expect(mine).toMatch(/^ {4}needs: gate$/m);
+      expect(mine).toContain(condition);
+      expect(runs(mine)).toContain('uses: ./.github/workflows/ci-level.yml');
+      expect(runs(mine), `${fallback} must run exactly what pr-gate.yml's ${original} runs`).toBe(runs(job(gate, original)));
+      expect(strategy(mine)).toBe(strategy(job(gate, original)));
+      expect(mine).not.toMatch(/secrets|id-token|contents: write/);
+    }
+    expect(strategy(job(publish, 'fallback-smoke'))).toContain("node: ['22.13.0', '24']");
+    // The commands themselves live in one script, for the gate and the fallback alike.
+    expect(job(gate, 'verify')).not.toMatch(/^ {6}command:/m);
+    expect(job(gate, 'package-smoke')).toMatch(/^ {6}command: npm run ci:l1:smoke$/m);
+  });
+
+  it('publishes on the gate\'s success or on both fallback jobs, never on a failed gate', () => {
+    const ship = job(publish, 'publish');
+    expect(ship).toMatch(/^ {4}needs: \[gate, fallback-verify, fallback-smoke\]$/m);
+    expect(ship).toContain("!cancelled() && needs.gate.result == 'success' &&");
+    expect(ship).toContain("(needs.gate.outputs.published == 'true' ||");
+    expect(ship).toContain("needs.gate.outputs.result == 'success' ||");
+    expect(ship).toContain("(needs.fallback-verify.result == 'success' && needs.fallback-smoke.result == 'success'))");
+    expect(ship).not.toMatch(/always\(\)|continue-on-error/);
   });
 
   it('names the gate jobs as pr-gate.yml names them', () => {
@@ -92,9 +134,7 @@ describe('publish-on-main reuses the PR gate on the same commit', () => {
 
   it('publishes only after the gate job, and runs no second verify', () => {
     const ship = job(publish, 'publish');
-    expect(ship).toMatch(/^ {4}needs: gate$/m);
-    expect(ship).not.toMatch(/always\(\)|!cancelled\(\)|continue-on-error/);
-    expect(publish).not.toContain('npm run verify');
+    expect(publish.split('\n').filter(line => !/^\s*#/.test(line)).join('\n')).not.toContain('npm run verify');
     expect(ship.indexOf('npm run build')).toBeLessThan(ship.indexOf('npm publish --access public --provenance'));
     expect(ship).toContain('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"');
   });

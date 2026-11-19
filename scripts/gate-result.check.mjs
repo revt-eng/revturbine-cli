@@ -2,7 +2,7 @@
 // not collect it): which workflow runs prove a commit, how one run is judged, and when the wait ends.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { gateResult, isGateRun, judgeRun, parseArgs, readEntries, waitForGate } from './gate-result.mjs';
+import { MAX_READ_FAILURES, gateResult, isGateRun, judgeRun, parseArgs, readEntries, waitForGate } from './gate-result.mjs';
 
 const SHA = 'a'.repeat(40);
 const REPO = 'revt-eng/revturbine-cli';
@@ -42,8 +42,8 @@ test('a green run with every required job green is a success', () => {
   assert.equal(gateResult([{ run: run(), jobs: green() }], OPTIONS).result, 'success');
 });
 
-test('a failed, cancelled or skipped required job is a failure', () => {
-  for (const conclusion of ['failure', 'cancelled', 'skipped', 'timed_out']) {
+test('a required job that ran and did not pass is a failure', () => {
+  for (const conclusion of ['failure', 'timed_out', 'action_required', 'startup_failure']) {
     const jobs = green();
     jobs[2] = job('Packed CLI smoke (Node 22.13.0) / smoke-node-22.13.0', conclusion);
     const judged = judgeRun(run({ conclusion: 'failure' }), jobs, OPTIONS);
@@ -52,9 +52,41 @@ test('a failed, cancelled or skipped required job is a failure', () => {
   }
 });
 
-test('a completed run that never ran a required job is a failure, not a success', () => {
-  const judged = judgeRun(run(), [job('verify / l1'), job('Release exhaustive / aggregate')], OPTIONS);
+test('a cancelled or skipped required job is not a verdict on the commit: cancelled, never failure or success', () => {
+  for (const conclusion of ['cancelled', 'skipped']) {
+    const jobs = green();
+    jobs[0] = job('verify / l1', conclusion);
+    const judged = judgeRun(run({ conclusion: 'failure' }), jobs, OPTIONS);
+    assert.equal(judged.result, 'cancelled', conclusion);
+    assert.match(judged.why, new RegExp(`verify / l1 was ${conclusion}`));
+  }
+  // What a third push to main does to the second push's gate: its queued jobs are cancelled before they start, and
+  // the aggregate job (always()) then fails because they did not succeed. Run 64297c89's verify waited six minutes
+  // in that queue on 2026-11-19; one more push would have cancelled it.
+  const superseded = [
+    job('verify / l1', 'cancelled'),
+    job('Packed CLI smoke (Node 24) / smoke-node-24', 'cancelled'),
+    job('Packed CLI smoke (Node 22.13.0) / smoke-node-22.13.0', 'cancelled'),
+    job('Release exhaustive / aggregate', 'failure'),
+  ];
+  assert.equal(judgeRun(run({ conclusion: 'failure' }), superseded, OPTIONS).result, 'cancelled');
+  assert.equal(judgeRun(run({ conclusion: 'cancelled' }), superseded.slice(0, 3), OPTIONS).result, 'cancelled');
+  // Cancelled while still winding down: no need to wait for the run to complete.
+  assert.equal(judgeRun(run({ status: 'in_progress', conclusion: null }), [job('verify / l1', 'cancelled'), job('Packed CLI smoke (Node 24) / smoke-node-24', null, 'in_progress')], OPTIONS).result, 'cancelled');
+  // The required jobs passed and the run itself was cancelled (the aggregate never ran).
+  assert.equal(judgeRun(run({ conclusion: 'cancelled' }), green().slice(0, 3), OPTIONS).result, 'cancelled');
+});
+
+test('a real failure beside a cancelled job is still a failure', () => {
+  const jobs = [job('verify / l1', 'cancelled'), job('Packed CLI smoke (Node 24) / smoke-node-24', 'failure'), job('Packed CLI smoke (Node 22.13.0) / smoke-node-22.13.0', 'cancelled')];
+  const judged = judgeRun(run({ conclusion: 'failure' }), jobs, OPTIONS);
   assert.equal(judged.result, 'failure');
+  assert.match(judged.why, /smoke-node-24 concluded failure/);
+});
+
+test('a completed run that never ran a required job is cancelled, not a success', () => {
+  const judged = judgeRun(run(), [job('verify / l1'), job('Release exhaustive / aggregate')], OPTIONS);
+  assert.equal(judged.result, 'cancelled');
   assert.match(judged.why, /without a job named Packed CLI smoke \(\*/);
 });
 
@@ -92,6 +124,61 @@ test('across several gate runs on one commit: any success wins, then pending, th
   assert.equal(gateResult([failed, pending, ok], OPTIONS).result, 'success');
   assert.equal(gateResult([failed, pending], OPTIONS).result, 'pending');
   assert.equal(gateResult([failed], OPTIONS).result, 'failure');
+  // A gate that judged the commit and said no outranks one that never judged it.
+  const cancelled = { run: run({ id: 4, conclusion: 'cancelled' }), jobs: [job('verify / l1', 'cancelled')] };
+  assert.equal(gateResult([cancelled, failed], OPTIONS).result, 'failure');
+  assert.equal(gateResult([cancelled, pending], OPTIONS).result, 'pending');
+  assert.equal(gateResult([cancelled], OPTIONS).result, 'cancelled');
+});
+
+test('with a maximum age, an older gate run is no proof', () => {
+  const now = () => Date.parse('2026-11-19T18:14:13Z');
+  const fresh = { run: run({ created_at: '2026-11-19T18:09:39Z' }), jobs: green() };
+  const old = { run: run({ created_at: '2026-11-12T23:03:49Z' }), jobs: green() };
+  assert.equal(gateResult([fresh], { ...OPTIONS, maxAgeHours: 6, now }).result, 'success');
+  const stale = gateResult([old], { ...OPTIONS, maxAgeHours: 6, now });
+  assert.equal(stale.result, 'absent');
+  assert.match(stale.why, /created in the last 6 hours/);
+  assert.equal(gateResult([{ run: run({ created_at: undefined }), jobs: green() }], { ...OPTIONS, maxAgeHours: 6, now }).result, 'absent', 'a run with no date is not within the window');
+  // Without the option the age does not matter.
+  assert.equal(gateResult([old], OPTIONS).result, 'success');
+  assert.equal(parseArgs(['--workflow', 'pr-gate.yml', '--sha', SHA, '--require', 'a', '--max-age-hours', '6']).maxAgeHours, 6);
+});
+
+test('the wait ends at once on a cancelled gate', async () => {
+  const c = clock();
+  const outcome = await waitForGate(async () => ({ result: 'cancelled', why: 'superseded' }), { waitMinutes: 40, ...c });
+  assert.equal(outcome.result, 'cancelled');
+  assert.equal(c.now(), 0);
+});
+
+test('a failed API read is read again with backoff, and the poll carries on', async () => {
+  const c = clock();
+  const answers = [new Error('GET /x: HTTP 502'), new Error('GET /x: HTTP 503'), { result: 'pending', why: 'a' }, new Error('fetch failed'), { result: 'success', why: 'b' }];
+  const read = async () => {
+    const next = answers.shift();
+    if (next instanceof Error) throw next;
+    return next;
+  };
+  const outcome = await waitForGate(read, { waitMinutes: 40, pollSeconds: 20, ...c });
+  assert.equal(outcome.result, 'success');
+  // 5 s and 10 s after the two failures, 20 s of polling, then 5 s again: the count starts over after a good read.
+  assert.equal(c.now(), 5000 + 10000 + 20000 + 5000);
+  assert.equal(c.logs.filter((line) => line.startsWith('::warning::')).length, 3);
+});
+
+test('only repeated read failures end the wait, as unknown', async () => {
+  const c = clock();
+  let reads = 0;
+  const outcome = await waitForGate(async () => { reads += 1; throw new Error('GET /x: HTTP 500'); }, { waitMinutes: 40, ...c });
+  assert.equal(outcome.result, 'unknown');
+  assert.match(outcome.why, /5 times in a row \(GET \/x: HTTP 500\)/);
+  assert.equal(reads, MAX_READ_FAILURES);
+  assert.equal(c.now(), 5000 + 10000 + 20000 + 40000);
+  // The same without a wait: one lookup is still several reads before it gives up.
+  reads = 0;
+  assert.equal((await waitForGate(async () => { reads += 1; throw new Error('down'); }, clock())).result, 'unknown');
+  assert.equal(reads, MAX_READ_FAILURES);
 });
 
 function clock() {
