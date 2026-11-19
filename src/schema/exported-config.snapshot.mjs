@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.561
+// Vendored ExportedConfigSchema snapshot bundled from @revt-eng/schema@0.1.562
 // (revturbine-scaffold/src/core/zod/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -458,6 +458,51 @@ var CtaActionTypeSchema = z2.enum([
   "snooze",
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var MAX_SURFACE_CTAS = 5;
+var BUILT_IN_CTA_ROLES = [
+  "upgrade",
+  "downgrade",
+  "purchase",
+  "pause",
+  "continue",
+  "not_now",
+  "learn_more",
+  "contact",
+  "manage",
+  "engage",
+  "snooze",
+  "dismiss"
+];
+var CUSTOM_CTA_ROLE_PATTERN = /^[a-z][a-z0-9_]{1,31}$/;
+var CtaRoleSchema = z2.union([z2.enum(BUILT_IN_CTA_ROLES), z2.string().regex(CUSTOM_CTA_ROLE_PATTERN)]).meta({ id: "CtaRole", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var CtaEmphasisSchema = z2.enum(["primary", "secondary", "link"]).meta({ id: "CtaEmphasis", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var LINK_CTA_ROLES = ["dismiss", "not_now", "snooze"];
+var CTA_PATH_DEFAULT_ROLES = Object.freeze({
+  open_checkout: "purchase",
+  view_plans: "learn_more",
+  book_demo: "contact",
+  contact_sales: "contact",
+  complete_onboarding: "engage",
+  invite_teammate: "engage",
+  refer_friend: "engage",
+  verify_work_email: "engage",
+  extend_trial: "engage",
+  update_payment_method: "continue",
+  manage_subscription: "continue",
+  enable_auto_renewal: "manage",
+  switch_billing_period: "manage",
+  open_rt_placement: "learn_more",
+  snooze: "snooze",
+  dismiss: "dismiss"
+});
+var NOTIFICATION_COMPONENT_TYPES = ["banner", "toast"];
+var OUT_OF_APP_COMPONENT_TYPES = ["email", "sms", "push", "cli", "agent"];
+var NOTIFICATION_TEMPLATE_IDS = Object.freeze(
+  Object.entries(BUILT_IN_TEMPLATE_COMPONENT_TYPES).filter(([, type]) => NOTIFICATION_COMPONENT_TYPES.includes(type)).map(([id14]) => id14).sort()
+);
+var IN_APP_TEMPLATE_IDS = Object.freeze(
+  Object.entries(BUILT_IN_TEMPLATE_COMPONENT_TYPES).filter(([, type]) => !OUT_OF_APP_COMPONENT_TYPES.includes(type)).map(([id14]) => id14).sort()
+);
 var ObjectiveField = HandleField.optional();
 
 // scaffold/src/settings/gate-settings-policy.ts
@@ -2571,7 +2616,11 @@ function validatePlacementThresholdWarnings(placement, lookup) {
 var CtaObjectSchema = z14.object({
   label: z14.string().min(1).max(200).meta(Unrestricted10),
   cta_path_type: CtaPathTypeSchema.meta(Unrestricted10),
-  config_fields: z14.record(z14.string(), z14.unknown()).default({}).meta(Unrestricted10)
+  config_fields: z14.record(z14.string(), z14.unknown()).default({}).meta(Unrestricted10),
+  /** Semantic role; overrides the path default (ST-1425 REQ-2). */
+  role: z14.string().optional().meta(Unrestricted10),
+  /** Visual emphasis; overrides the derived default (ST-1425 REQ-4). */
+  emphasis: z14.string().optional().meta(Unrestricted10)
 }).meta(
   { id: "CtaObject", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4 }
 );
@@ -3581,6 +3630,70 @@ var userContextPaths = {
 
 // scaffold/src/customers/models/customer-provisioning.ts
 import { z as z19 } from "zod";
+
+// scaffold/src/core/cta-resolution.ts
+var UI_PATH_ACTION_TO_CTA_PATH = Object.freeze({
+  open_checkout_modal: "open_checkout",
+  navigate_to_plans: "view_plans",
+  open_placement: "open_rt_placement"
+});
+function nonEmptyString(value) {
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function templateComponentType(templateId, customTemplates) {
+  const builtIn = BUILT_IN_TEMPLATE_COMPONENT_TYPES[templateId];
+  if (builtIn) return builtIn;
+  const custom = (customTemplates ?? []).find((t) => t.id === templateId);
+  return typeof custom?.surface_type === "string" ? resolveComponentType(custom.surface_type) : void 0;
+}
+function isNotificationComponentType(componentType) {
+  return componentType !== void 0 && NOTIFICATION_COMPONENT_TYPES.includes(componentType);
+}
+function defaultRoleForPath(path, componentType) {
+  const type = path ?? "dismiss";
+  if (type === "dismiss") return isNotificationComponentType(componentType) ? "dismiss" : "not_now";
+  return CTA_PATH_DEFAULT_ROLES[type];
+}
+function customPathDefinition(cta, uiPaths) {
+  if (cta.path !== "custom") return void 0;
+  const handle2 = nonEmptyString(cta.config?.handle);
+  return handle2 ? (uiPaths ?? []).find((p) => p.name === handle2) : void 0;
+}
+function inheritedCtaRole(cta, ctx) {
+  if (cta.path === "custom") {
+    const definition = customPathDefinition(cta, ctx.uiPaths);
+    if (!definition) return void 0;
+    if (nonEmptyString(definition.role)) return definition.role;
+    const actionType = definition.action_type;
+    if (!actionType || actionType === "custom") return void 0;
+    return defaultRoleForPath(UI_PATH_ACTION_TO_CTA_PATH[actionType] ?? actionType, ctx.componentType);
+  }
+  return defaultRoleForPath(cta.path, ctx.componentType);
+}
+function ctaAuthoringIssues(ctas, templateId, componentType, uiPaths) {
+  if (!ctas.some((c) => c.role !== void 0 || c.emphasis !== void 0)) return [];
+  const issues = [];
+  let primarySeen = false;
+  ctas.forEach((cta, index) => {
+    if (cta.emphasis === "primary") {
+      if (primarySeen) {
+        issues.push({ index, field: "emphasis", message: `Only one CTA on a surface can have emphasis "primary"; CTA ${index + 1} ("${cta.label}") is a second one.` });
+      }
+      primarySeen = true;
+    }
+    if (cta.role === "dismiss" && componentType !== void 0 && !isNotificationComponentType(componentType)) {
+      issues.push({ index, field: "role", message: `CTA ${index + 1} ("${cta.label}") has role "dismiss", which is only allowed on notification-style templates (banner, toast); template "${templateId}" is not one. Use "not_now" or the close icon.` });
+    }
+    if (cta.path === "custom" && cta.role === void 0) {
+      const handle2 = nonEmptyString(cta.config?.handle);
+      const resolvable = handle2 !== void 0 && (uiPaths === void 0 || inheritedCtaRole(cta, { componentType, uiPaths }) !== void 0);
+      if (!resolvable) {
+        issues.push({ index, field: "role", message: `CTA ${index + 1} ("${cta.label}") uses a custom path with no role: set a role on the button or on its custom path definition.` });
+      }
+    }
+  });
+  return issues;
+}
 
 // scaffold/src/config/models/schema.ts
 import { z as z18 } from "zod";
@@ -4878,7 +4991,9 @@ var ContentUiPathSchema = z18.object({
   url: z18.string().optional().meta(Unrestricted14),
   tour_id: z18.string().optional().meta(Unrestricted14),
   target_billing_period: z18.enum(["monthly", "annual"]).optional().meta(Unrestricted14),
-  description: z18.string().optional().meta(Unrestricted14)
+  description: z18.string().optional().meta(Unrestricted14),
+  /** Default semantic role for buttons that use this path (ST-1425 REQ-2). */
+  role: z18.string().optional().meta(Unrestricted14)
 }).meta(
   { id: "ContentUiPath", "x-revturbine-schema-persistence": Transient9, "x-revturbine-schema-exposure": External6, ...PLAYBOOK_SDK_FACETS5 }
 );
@@ -4913,8 +5028,16 @@ var RevTurbineConfigObjectivesItemSchema = z18.object({
 var MessageBlockContentSchema = z18.object({
   header: z18.string().optional().meta(Unrestricted14),
   body: z18.string().optional().meta(Unrestricted14),
+  /** @deprecated Use ctas. Kept for compatibility (ST-1425 D-11). */
   cta_label: z18.string().optional().meta(Unrestricted14),
-  secondary_cta_label: z18.string().optional().meta(Unrestricted14)
+  /** @deprecated Use ctas. Kept for compatibility (ST-1425 D-11). */
+  secondary_cta_label: z18.string().optional().meta(Unrestricted14),
+  /** Message-block CTA overrides by index (ST-1425 REQ-19 b). */
+  ctas: z18.array(z18.object({
+    label: z18.string(),
+    role: z18.string().optional(),
+    emphasis: z18.string().optional()
+  })).optional().meta(Unrestricted14)
 }).catchall(z18.unknown()).meta(
   { id: "MessageBlockContent", "x-revturbine-schema-persistence": Transient9, "x-revturbine-schema-exposure": External6 }
 );
@@ -4942,7 +5065,11 @@ var MessageBlockSchema = z18.object({
 var RevTurbineConfigStudioCtaConfigSchema = z18.object({
   label: z18.string().meta(Unrestricted14),
   path: CtaActionTypeSchema.meta(Unrestricted14),
-  config: z18.record(z18.string(), z18.string()).optional().meta(Unrestricted14)
+  config: z18.record(z18.string(), z18.string()).optional().meta(Unrestricted14),
+  /** Semantic role; overrides the path default (ST-1425 REQ-2). */
+  role: z18.string().optional().meta(Unrestricted14),
+  /** Visual emphasis; overrides the derived default (ST-1425 REQ-4). */
+  emphasis: z18.string().optional().meta(Unrestricted14)
 }).meta(
   { id: "RevTurbineConfigStudioCtaConfig", "x-revturbine-schema-persistence": Transient9, "x-revturbine-schema-exposure": External6 }
 );
@@ -4950,6 +5077,16 @@ var RevTurbineConfigStudioPayloadSurfaceSchema = z18.object({
   template_id: z18.string().min(1).meta(Unrestricted14),
   fields: z18.record(z18.string(), z18.string()).meta(Unrestricted14),
   ctas: z18.array(RevTurbineConfigStudioCtaConfigSchema).meta(Unrestricted14)
+}).superRefine((surface, ctx) => {
+  const issues = ctaAuthoringIssues(surface.ctas, surface.template_id, templateComponentType(surface.template_id), void 0);
+  issues.forEach((issue3) => {
+    ctx.addIssue({
+      code: z18.ZodIssueCode.custom,
+      message: issue3.message,
+      path: ["ctas", issue3.index, issue3.field],
+      params: { code: "VAL-PLC-13" }
+    });
+  });
 }).meta(
   { id: "RevTurbineConfigStudioPayloadSurface", "x-revturbine-schema-persistence": Transient9, "x-revturbine-schema-exposure": External6 }
 );
@@ -12086,6 +12223,12 @@ var PlacementOutcomePayload = z48.looseObject({
 var PlacementInteractionPayload = z48.looseObject({
   /** The canonical interaction discriminator (plan 181: TYPE is never a name). */
   interaction_type: str(),
+  // ST-1425: optional for legacy producers; free-text labels are not stored.
+  cta_index: z48.number().int().min(0).max(4).nullable().optional().meta(Unrestricted25),
+  cta_label: onstr(),
+  cta_role: onstr(),
+  cta_role_overridden: z48.boolean().nullable().optional().meta(Unrestricted25),
+  cta_target: onstr(),
   placement_id: onstr(),
   payload_id: onstr(),
   decision_id: onstr(),
@@ -18460,6 +18603,12 @@ var TreatmentInteractionInputSchema = z53.object({
   payload_id: z53.string().min(1).optional().meta(Unrestricted29),
   interaction_type: TreatmentInteractionTypeSchema.meta(Unrestricted29),
   interaction_at: z53.string().datetime().optional().meta(Unrestricted29),
+  // ST-1425: absent on pre-0.18 clients; labels stay event-only.
+  cta_index: z53.number().int().min(0).max(4).nullable().optional().meta(Unrestricted29),
+  cta_label: z53.string().nullable().optional().meta(Unrestricted29),
+  cta_role: z53.string().nullable().optional().meta(Unrestricted29),
+  cta_role_overridden: z53.boolean().nullable().optional().meta(Unrestricted29),
+  cta_target: z53.string().nullable().optional().meta(Unrestricted29),
   // Attribution context (plan 182 TASK-2a). Without these the presentation row
   // is written with nulls and the message / experiment analytics pipes return
   // nothing at all — `message_impact` filters on an equality that a null can
@@ -19942,6 +20091,8 @@ var PayerAccountLinkItemSchema = z57.strictObject({
   payer_key: PayerKeySchema.meta(safe2),
   state: PayerAccountLinkStateSchema.meta(safe2),
   rt_account_id: tenantAccountIdSchema(255).nullable().meta(safe2),
+  /** Existing active provisional account, separate from a verified app-account link (ST-1565). */
+  provisional_account_id: tenantAccountIdSchema(255).nullable().optional().meta(safe2),
   evidence_kind: z57.enum(BILLING_ACCOUNT_BINDING_EVIDENCE_KINDS).nullable().meta(safe2),
   confidence: z57.enum(BILLING_ACCOUNT_BINDING_CONFIDENCE).nullable().meta(safe2),
   /** The latest binding revision (0 with none): an operator's change names it. */
@@ -19952,6 +20103,8 @@ var PayerAccountLinkItemSchema = z57.strictObject({
   mrr: z57.array(PayerAccountMoneySchema).max(8).meta(safe2),
   last_payment_at: isoTime2().nullable().meta(safe2),
   active_subscriptions: z57.number().int().min(0).meta(safe2),
+  /** All distinct, nondeleted subscriptions in the current mirrored provider scope. */
+  subscription_count: z57.number().int().min(0).optional().meta(safe2),
   /** Plan or product handles the payer's current items are bound to, when the Playbook binds them. */
   plans: z57.array(browserSafeTextSchema(120)).max(8).meta(safe2)
 }).superRefine((item, ctx) => {
@@ -19967,6 +20120,8 @@ var PayerAccountLinkSummarySchema = z57.strictObject({
   unmatched: z57.number().int().min(0).meta(safe2),
   linked: z57.number().int().min(0).meta(safe2),
   no_account: z57.number().int().min(0).meta(safe2),
+  /** Distinct existing provisional account IDs, not a count of unmatched payers. */
+  provisional_accounts: z57.number().int().min(0).optional().meta(safe2),
   /** Unmatched payers that pay something at the last complete day. */
   unmatched_paying: z57.number().int().min(0).meta(safe2),
   /** The MRR those unmatched payers pay, per currency. */
@@ -23573,9 +23728,18 @@ var PlacementDecisionOutputSchema = z71.object({
   }).meta(Unrestricted39),
   content: z71.record(z71.string(), z71.unknown()).meta(Unrestricted39),
   promotion: z71.record(z71.string(), z71.unknown()).optional().meta(Unrestricted39),
+  /** @deprecated Use ctas. Kept for compatibility with older SDK consumers (ST-1425 D-11). */
   cta_path: z71.record(z71.string(), z71.unknown()).optional().meta(Unrestricted39),
-  /** @deprecated Use cta_path. Kept for compatibility with older SDK consumers. */
+  /** @deprecated Use ctas. Kept for compatibility with older SDK consumers (ST-1425 D-11). */
   ui_path: z71.record(z71.string(), z71.unknown()).optional().meta(Unrestricted39),
+  /** Up to five CTA buttons with semantic roles (ST-1425 REQ-1). */
+  ctas: z71.array(z71.object({
+    label: z71.string(),
+    path: z71.record(z71.string(), z71.unknown()),
+    role: z71.string().optional(),
+    role_overridden: z71.boolean(),
+    emphasis: z71.enum(["primary", "secondary", "link"])
+  })).optional().meta(Unrestricted39),
   rule_id: z71.string().meta(Unrestricted39),
   decision_id: z71.string().meta(Unrestricted39),
   config_version: z71.string().meta(Unrestricted39),
@@ -25525,6 +25689,7 @@ export {
   BILLING_PROFILE_NAMES,
   BILLING_PROFILE_VERSION,
   BILLING_UNIQUE_KEYS,
+  BUILT_IN_CTA_ROLES,
   BUILT_IN_TEMPLATE_COMPONENT_TYPES,
   BillingAccountBindingActorSchema,
   BillingAccountBindingEvidenceSchema,
@@ -25623,7 +25788,9 @@ export {
   BillingTransactionProfileSchema,
   BrandingConfigSchema,
   CONTROL_PLANE_EVENT_NAMES,
+  CTA_PATH_DEFAULT_ROLES,
   CUSTOMER_SETTABLE_BUILTIN_DIMENSION_KEYS,
+  CUSTOM_CTA_ROLE_PATTERN,
   CanonicalAliasEventSchema,
   CanonicalAnalyticsEventSchema,
   CanonicalGroupEventSchema,
@@ -25649,9 +25816,11 @@ export {
   ControlPlaneEventTypeSchema,
   ControlPlaneSemanticEventSchema,
   CtaActionTypeSchema,
+  CtaEmphasisSchema,
   CtaObjectSchema,
   CtaPathSchema,
   CtaPathTypeSchema,
+  CtaRoleSchema,
   CurrencySchema,
   CustomerAccountCreateSchema,
   CustomerAccountListQuerySchema,
@@ -25794,6 +25963,7 @@ export {
   HandleField,
   INGEST_WRITE_SCOPE,
   INVOICE_RECEIVABLE_TRANSITIONS,
+  IN_APP_TEMPLATE_IDS,
   IdField,
   IdentityKind,
   IdentityLineageSchema,
@@ -25809,6 +25979,7 @@ export {
   KpiAggregateSchema,
   LEGACY_BILLING_OCCURRENCE_IDENTITY_VERSION,
   LEGACY_TRACK_EVENT_ENVELOPE_SCHEMA_VERSION,
+  LINK_CTA_ROLES,
   LearningPolaritySchema,
   LearningRecordSchema,
   LocalizedTextSchema,
@@ -25821,6 +25992,7 @@ export {
   MAX_EVENT_TAGS,
   MAX_EVENT_TAG_LENGTH,
   MAX_SEGMENT_MESSAGES_PER_BATCH,
+  MAX_SURFACE_CTAS,
   METRIC_IMPACT_COMMENT_MARKER,
   METRIC_SEMANTICS,
   METRIC_TIMEZONE_SETTING,
@@ -25858,11 +26030,14 @@ export {
   MrrPolicyVersionSchema,
   MrrTenantStateRowSchema,
   NON_RETRYABLE_EVIDENCE_REASONS,
+  NOTIFICATION_COMPONENT_TYPES,
+  NOTIFICATION_TEMPLATE_IDS,
   NameField,
   NullableDatetimeField,
   OPERATOR_EVENT_MAX_ATTEMPTS,
   OPERATOR_EVENT_NAMES,
   OPERATOR_EVENT_STATUSES,
+  OUT_OF_APP_COMPONENT_TYPES,
   ObjectiveField,
   ObjectiveSchema,
   ObservationMaturitySchema,
