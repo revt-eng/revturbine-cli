@@ -2,37 +2,18 @@
 // Check level L1 for the CLI, run in CI by the shared check-level workflow (.github/workflows/ci-level.yml,
 // EP-1747) after it sets up Node, the pinned npm and `npm ci`. The same steps the PR gate's jobs ran, in order:
 //
-//   npm run ci:l1        (job `verify`) selector regression checks, release workflow script checks (EP-1747 phase
+//   npm run ci:l1        (job `verify`) PR gate workflow checks, release workflow script checks (EP-1747 phase
 //                        5), line endings (BL-0216), typecheck, lint,
-//                        schema consistency, tests, build. Pull requests into or out of an iteration/ branch run
-//                        the tests the PR base's own selector picks; everything else runs every test.
+//                        schema consistency, every test, build. Every event runs the same steps: the
+//                        targeted-tests mode for iteration/ pull requests went with Iterations (EP-1747).
 //   npm run ci:l1:smoke  (job `Packed CLI smoke`, Node 22.13.0 and 24) build, pack, install the tarball into a
 //                        clean consumer with no workspace siblings, then exercise the installed binary.
-//
-// Iteration pull requests need full history (fetch-depth 0) for the PR base.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-
-const ITERATION_BRANCH = /^iteration\/(IT|it)-[0-9]+([/-][a-zA-Z0-9_/-]+)?$/;
-
-/**
- * Which tests this run executes. Pull requests into or out of an iteration/ branch (compared without regard to
- * case, like the workflow's startsWith) run targeted tests and must name the branch iteration/it-<number>.
- */
-export function testPlan(env, event) {
-  const baseRef = env.GITHUB_BASE_REF ?? '';
-  const headRef = env.GITHUB_HEAD_REF ?? '';
-  const iteration = ref => ref.toLowerCase().startsWith('iteration/');
-  if (env.GITHUB_EVENT_NAME !== 'pull_request' || (!iteration(baseRef) && !iteration(headRef))) return { kind: 'exhaustive' };
-  if (!ITERATION_BRANCH.test(baseRef) && !ITERATION_BRANCH.test(headRef)) {
-    return { kind: 'invalid', error: 'Iteration branch must use iteration/it-<number> with an optional slug' };
-  }
-  return { kind: 'targeted', baseSha: event?.pull_request?.base?.sha ?? '', baseRef, headRef };
-}
 
 const inActions = process.env.GITHUB_ACTIONS === 'true';
 
@@ -63,31 +44,14 @@ function step(label, [command, args], options = {}) {
 }
 
 function verify() {
-  step('Iteration selector regression checks', [process.execPath, ['--test', 'scripts/iteration-targeted.check.mjs']]);
+  step('PR gate workflow checks', [process.execPath, ['--test', 'scripts/pr-gate.check.mjs']]);
   // EP-1747 phase 5: the Release prerelease and pin scripts behind release-prerelease.yml and release-pin.yml.
   step('Release workflow script checks', [process.execPath, ['--test', 'scripts/release-prerelease.check.mjs', 'scripts/release-pin.check.mjs']]);
   step('Line-ending check (BL-0216)', [process.execPath, ['scripts/check-line-endings.mjs', '--all']]);
   step('npm run typecheck', npm(['run', 'typecheck']));
   step('npm run lint', npm(['run', 'lint']));
   step('npm run check:schema', npm(['run', 'check:schema']));
-
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  const event = eventPath && existsSync(eventPath) ? JSON.parse(readFileSync(eventPath, 'utf8')) : {};
-  const plan = testPlan(process.env, event);
-  if (plan.kind === 'invalid') fail(plan.error);
-  if (plan.kind === 'targeted') {
-    // The PR base's selector, not this tree's: a pull request cannot loosen the selector that judges it.
-    const { baseSha, baseRef, headRef } = plan;
-    const trusted = spawnSync('git', ['show', `${baseSha}:scripts/iteration-targeted.mjs`], { encoding: 'utf8' });
-    if (trusted.status !== 0) fail(`Could not read the PR base's selector: ${trusted.stderr}`);
-    const selector = path.join(mkdtempSync(path.join(process.env.RUNNER_TEMP || tmpdir(), 'iteration-')), 'iteration-targeted.mjs');
-    writeFileSync(selector, trusted.stdout);
-    step('Targeted iteration tests', [process.execPath, [selector, baseSha]], {
-      env: { ITERATION_BASE_SHA: baseSha, ITERATION_BASE_REF: baseRef, ITERATION_HEAD_REF: headRef },
-    });
-  } else {
-    step('Exhaustive tests', npm(['run', 'test']));
-  }
+  step('Exhaustive tests', npm(['run', 'test']));
   step('npm run build', npm(['run', 'build']));
 }
 
