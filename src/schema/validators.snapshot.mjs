@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.561
+// Vendored validation engine bundled from @revt-eng/schema@0.1.562
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -192,6 +192,36 @@ var CATALOG = {
     message: "This payload uses a surface template that does not exist.",
     specRef: "config-validation.md \xA75.2 (BUG-1345)"
   },
+  // ST-1425: a retention payload on an in-app template must carry a continue button.
+  "VAL-PLC-12": {
+    id: "VAL-PLC-12",
+    severity: "error_launch",
+    message: 'A retention payload on an in-app template must include a CTA with role "continue".',
+    specRef: "placements.md \xA73.1.1 (ST-1425 REQ-6)"
+  },
+  // ST-1425: authored CTA roles/emphasis that cannot stand — two primary CTAs,
+  // a "dismiss" role off a notification-style template, or a custom path with
+  // no resolvable role. Fires only on an authored role or emphasis.
+  "VAL-PLC-13": {
+    id: "VAL-PLC-13",
+    severity: "error_draft",
+    message: "An authored CTA role or emphasis is invalid: only one CTA can be primary, a dismiss role belongs on a banner or toast, and a custom path needs a role.",
+    specRef: "placements.md \xA73.1.1 (ST-1425 REQ-5)"
+  },
+  // ST-1425: a gated placement payload with a dismiss button.
+  "VAL-PLC-14": {
+    id: "VAL-PLC-14",
+    severity: "error_launch",
+    message: 'A gated placement payload must not include a CTA with role "dismiss".',
+    specRef: "placements.md \xA73.1.1 (ST-1425 REQ-7)"
+  },
+  // ST-1425: a surface authors both ctas and legacy fields.
+  "VAL-PLC-15": {
+    id: "VAL-PLC-15",
+    severity: "warning",
+    message: "This surface authors both ctas and legacy CTA fields; ctas takes precedence.",
+    specRef: "placements.md \xA73.1.1 (ST-1425 REQ-19)"
+  },
   "VAL-PLN-08": {
     id: "VAL-PLN-08",
     severity: "error_launch",
@@ -276,24 +306,6 @@ function disposition(finding2, callSite) {
   if (finding2.severity === "error_draft") return "block";
   if (finding2.severity === "error_launch" && callSite === "publish") return "block";
   return "advise";
-}
-
-// scaffold/src/core/record.ts
-function isRecord(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-// scaffold/src/core/helpers.ts
-function categoryBucket(category) {
-  const normalized = String(category || "").trim().toLowerCase();
-  if (!normalized) return 99;
-  if (normalized.includes("gated") || normalized.includes("entitlement")) return 0;
-  if (normalized.includes("fixed")) return 1;
-  if (normalized.includes("usage") || normalized.includes("credit") || normalized.includes("seat") || normalized.includes("quota")) return 2;
-  if (normalized.includes("trial")) return 2;
-  if (normalized.includes("conversion") || normalized.includes("expansion") || normalized.includes("upsell")) return 4;
-  if (normalized.includes("retention") || normalized.includes("winback") || normalized.includes("churn")) return 4;
-  return 99;
 }
 
 // scaffold/src/core/common.ts
@@ -495,6 +507,11 @@ var BUILT_IN_TEMPLATE_COMPONENT_TYPES = Object.freeze({
   ),
   full_page: "full_page"
 });
+function resolveComponentType(value) {
+  const componentType = ComponentTypeSchema.safeParse(value);
+  if (componentType.success) return componentType.data;
+  return DEFAULT_TEMPLATE_COMPONENT_TYPES[value];
+}
 var ENTITLEMENT_STATUS_VALUES = ["allowed", "limited", "denied"];
 var PresentationOutcomeSchema = z3.enum(["presented", "clicked", "converted", "dismissed", "reminded", "suppressed"]).meta(
   { id: "PresentationOutcome", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External }
@@ -585,7 +602,220 @@ var CtaActionTypeSchema = z3.enum([
   "snooze",
   "custom"
 ]).meta({ id: "CtaActionType", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var MAX_SURFACE_CTAS = 5;
+var BUILT_IN_CTA_ROLES = [
+  "upgrade",
+  "downgrade",
+  "purchase",
+  "pause",
+  "continue",
+  "not_now",
+  "learn_more",
+  "contact",
+  "manage",
+  "engage",
+  "snooze",
+  "dismiss"
+];
+var CUSTOM_CTA_ROLE_PATTERN = /^[a-z][a-z0-9_]{1,31}$/;
+var CtaRoleSchema = z3.union([z3.enum(BUILT_IN_CTA_ROLES), z3.string().regex(CUSTOM_CTA_ROLE_PATTERN)]).meta({ id: "CtaRole", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var CtaEmphasisSchema = z3.enum(["primary", "secondary", "link"]).meta({ id: "CtaEmphasis", "x-revturbine-schema-persistence": Transient, "x-revturbine-schema-exposure": External });
+var LINK_CTA_ROLES = ["dismiss", "not_now", "snooze"];
+var CTA_PATH_DEFAULT_ROLES = Object.freeze({
+  open_checkout: "purchase",
+  view_plans: "learn_more",
+  book_demo: "contact",
+  contact_sales: "contact",
+  complete_onboarding: "engage",
+  invite_teammate: "engage",
+  refer_friend: "engage",
+  verify_work_email: "engage",
+  extend_trial: "engage",
+  update_payment_method: "continue",
+  manage_subscription: "continue",
+  enable_auto_renewal: "manage",
+  switch_billing_period: "manage",
+  open_rt_placement: "learn_more",
+  snooze: "snooze",
+  dismiss: "dismiss"
+});
+var NOTIFICATION_COMPONENT_TYPES = ["banner", "toast"];
+var OUT_OF_APP_COMPONENT_TYPES = ["email", "sms", "push", "cli", "agent"];
+var NOTIFICATION_TEMPLATE_IDS = Object.freeze(
+  Object.entries(BUILT_IN_TEMPLATE_COMPONENT_TYPES).filter(([, type]) => NOTIFICATION_COMPONENT_TYPES.includes(type)).map(([id]) => id).sort()
+);
+var IN_APP_TEMPLATE_IDS = Object.freeze(
+  Object.entries(BUILT_IN_TEMPLATE_COMPONENT_TYPES).filter(([, type]) => !OUT_OF_APP_COMPONENT_TYPES.includes(type)).map(([id]) => id).sort()
+);
 var ObjectiveField = HandleField.optional();
+
+// scaffold/src/core/record.ts
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// scaffold/src/core/cta-resolution.ts
+var EMPHASES = ["primary", "secondary", "link"];
+var UI_PATH_ACTION_TO_CTA_PATH = Object.freeze({
+  open_checkout_modal: "open_checkout",
+  navigate_to_plans: "view_plans",
+  open_placement: "open_rt_placement"
+});
+function nonEmptyString(value) {
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function templateComponentType(templateId, customTemplates2) {
+  const builtIn = BUILT_IN_TEMPLATE_COMPONENT_TYPES[templateId];
+  if (builtIn) return builtIn;
+  const custom = (customTemplates2 ?? []).find((t) => t.id === templateId);
+  return typeof custom?.surface_type === "string" ? resolveComponentType(custom.surface_type) : void 0;
+}
+function isNotificationComponentType(componentType) {
+  return componentType !== void 0 && NOTIFICATION_COMPONENT_TYPES.includes(componentType);
+}
+function isInAppComponentType(componentType) {
+  return componentType !== void 0 && !OUT_OF_APP_COMPONENT_TYPES.includes(componentType);
+}
+function defaultRoleForPath(path, componentType) {
+  const type = path ?? "dismiss";
+  if (type === "dismiss") return isNotificationComponentType(componentType) ? "dismiss" : "not_now";
+  return CTA_PATH_DEFAULT_ROLES[type];
+}
+function customPathDefinition(cta, uiPaths) {
+  if (cta.path !== "custom") return void 0;
+  const handle = nonEmptyString(cta.config?.handle);
+  return handle ? (uiPaths ?? []).find((p) => p.name === handle) : void 0;
+}
+function inheritedCtaRole(cta, ctx) {
+  if (cta.path === "custom") {
+    const definition = customPathDefinition(cta, ctx.uiPaths);
+    if (!definition) return void 0;
+    if (nonEmptyString(definition.role)) return definition.role;
+    const actionType = definition.action_type;
+    if (!actionType || actionType === "custom") return void 0;
+    return defaultRoleForPath(UI_PATH_ACTION_TO_CTA_PATH[actionType] ?? actionType, ctx.componentType);
+  }
+  return defaultRoleForPath(cta.path, ctx.componentType);
+}
+function resolveCtaRole(cta, ctx) {
+  const inherited = inheritedCtaRole(cta, ctx);
+  const authored = nonEmptyString(cta.role);
+  if (authored) return { role: authored, role_overridden: authored !== inherited };
+  return inherited ? { role: inherited, role_overridden: false } : { role_overridden: false };
+}
+function deriveCtaEmphases(entries) {
+  let primaryTaken = entries.some((e) => e.emphasis === "primary");
+  return entries.map((entry) => {
+    if (entry.emphasis && EMPHASES.includes(entry.emphasis)) return entry.emphasis;
+    if (entry.role && LINK_CTA_ROLES.includes(entry.role)) return "link";
+    if (!primaryTaken) {
+      primaryTaken = true;
+      return "primary";
+    }
+    return "secondary";
+  });
+}
+function normalizeCtaPath(cta) {
+  if (!cta?.path) return { type: "dismiss" };
+  const rawPath = cta.path;
+  const config = cta.config ?? {};
+  if (rawPath === "open_checkout") {
+    return {
+      type: "open_checkout",
+      plan_handle: typeof config.purchase === "string" ? config.purchase : void 0
+    };
+  }
+  if (rawPath === "view_plans") return { type: "view_plans" };
+  if (rawPath === "open_rt_placement") {
+    return {
+      type: "open_rt_placement",
+      placement_handle: typeof config.placement_handle === "string" ? config.placement_handle : void 0
+    };
+  }
+  return { type: rawPath, ...config };
+}
+function readAuthoredCta(raw, source) {
+  if (!isRecord(raw) || typeof raw.label !== "string") return void 0;
+  return {
+    label: raw.label,
+    ...nonEmptyString(raw.path) ? { path: raw.path } : {},
+    ...isRecord(raw.config) ? { config: raw.config } : {},
+    ...nonEmptyString(raw.role) ? { role: raw.role } : {},
+    ...nonEmptyString(raw.emphasis) ? { emphasis: raw.emphasis } : {},
+    source
+  };
+}
+function surfaceAuthorsCtas(surface) {
+  return isRecord(surface) && Array.isArray(surface.ctas) && surface.ctas.length > 0;
+}
+function surfaceAuthorsLegacyLabel(surface) {
+  return isRecord(surface) && isRecord(surface.fields) && typeof surface.fields.cta_label === "string" && surface.fields.cta_label.length > 0;
+}
+function authoredSurfaceCtas(surface) {
+  if (!isRecord(surface)) return [];
+  if (surfaceAuthorsCtas(surface)) {
+    return surface.ctas.map((c) => readAuthoredCta(c, "surface")).filter((c) => c !== void 0);
+  }
+  if (surfaceAuthorsLegacyLabel(surface)) {
+    return [{ label: surface.fields.cta_label, source: "fields" }];
+  }
+  return [];
+}
+function blockAuthorsCtas(content) {
+  return isRecord(content) && Array.isArray(content.ctas) && content.ctas.length > 0;
+}
+function blockAuthorsLegacyLabels(content) {
+  return isRecord(content) && (typeof content.cta_label === "string" || typeof content.secondary_cta_label === "string");
+}
+function resolveCtas(authored, ctx) {
+  const capped = authored.slice(0, MAX_SURFACE_CTAS);
+  const roles = capped.map((cta) => resolveCtaRole(cta, ctx));
+  const emphases = deriveCtaEmphases(capped.map((cta, i) => ({ role: roles[i].role, emphasis: cta.emphasis })));
+  return capped.map((cta, i) => ({
+    label: cta.label,
+    path: normalizeCtaPath(cta),
+    ...roles[i].role ? { role: roles[i].role } : {},
+    role_overridden: roles[i].role_overridden,
+    emphasis: emphases[i]
+  }));
+}
+function ctaAuthoringIssues(ctas, templateId, componentType, uiPaths) {
+  if (!ctas.some((c) => c.role !== void 0 || c.emphasis !== void 0)) return [];
+  const issues = [];
+  let primarySeen = false;
+  ctas.forEach((cta, index) => {
+    if (cta.emphasis === "primary") {
+      if (primarySeen) {
+        issues.push({ index, field: "emphasis", message: `Only one CTA on a surface can have emphasis "primary"; CTA ${index + 1} ("${cta.label}") is a second one.` });
+      }
+      primarySeen = true;
+    }
+    if (cta.role === "dismiss" && componentType !== void 0 && !isNotificationComponentType(componentType)) {
+      issues.push({ index, field: "role", message: `CTA ${index + 1} ("${cta.label}") has role "dismiss", which is only allowed on notification-style templates (banner, toast); template "${templateId}" is not one. Use "not_now" or the close icon.` });
+    }
+    if (cta.path === "custom" && cta.role === void 0) {
+      const handle = nonEmptyString(cta.config?.handle);
+      const resolvable = handle !== void 0 && (uiPaths === void 0 || inheritedCtaRole(cta, { componentType, uiPaths }) !== void 0);
+      if (!resolvable) {
+        issues.push({ index, field: "role", message: `CTA ${index + 1} ("${cta.label}") uses a custom path with no role: set a role on the button or on its custom path definition.` });
+      }
+    }
+  });
+  return issues;
+}
+
+// scaffold/src/core/helpers.ts
+function categoryBucket(category) {
+  const normalized = String(category || "").trim().toLowerCase();
+  if (!normalized) return 99;
+  if (normalized.includes("gated") || normalized.includes("entitlement")) return 0;
+  if (normalized.includes("fixed")) return 1;
+  if (normalized.includes("usage") || normalized.includes("credit") || normalized.includes("seat") || normalized.includes("quota")) return 2;
+  if (normalized.includes("trial")) return 2;
+  if (normalized.includes("conversion") || normalized.includes("expansion") || normalized.includes("upsell")) return 4;
+  if (normalized.includes("retention") || normalized.includes("winback") || normalized.includes("churn")) return 4;
+  return 99;
+}
 
 // scaffold/src/entitlements/controllers/purchased-allowance.ts
 function hasCreditResetPeriod(fields) {
@@ -959,6 +1189,10 @@ var SEMANTIC_RULE_CODES = [
   "VAL-PLC-09",
   "VAL-PLC-10",
   "VAL-PLC-11",
+  "VAL-PLC-12",
+  "VAL-PLC-13",
+  "VAL-PLC-14",
+  "VAL-PLC-15",
   "VAL-PLN-08",
   "VAL-TRL-04",
   "VAL-TRL-05",
@@ -985,6 +1219,10 @@ function runSemanticRules(graph, opts = {}) {
     ...checkPublicVariationCollisions(graph),
     ...checkPayloadCtaOverflow(graph),
     ...checkPayloadTemplateRefs(graph),
+    ...checkCtaAuthoring(graph),
+    ...checkRetentionContinue(graph),
+    ...checkGateDismiss(graph),
+    ...checkMixedCtaShapes(graph),
     ...checkPlacementAuthoring(graph),
     ...checkTrialRuleWidestAudience(graph),
     ...checkSegmentExperimentRefs(graph),
@@ -1466,7 +1704,7 @@ function checkPayloadCtaOverflow(graph) {
   const flag = (payloadId, count, objectType) => {
     findings.push(
       finding("VAL-PLC-05", { object_type: objectType, object_id: payloadId, field: "ctas", studio: "placements" }, {
-        message: `Payload '${payloadId}' authors ${count} CTAs, but the decision output carries one primary path and one secondary label \u2014 the third and later CTAs are dropped at resolution.`
+        message: `Payload '${payloadId}' authors ${count} CTAs, but the decision output carries at most 5 \u2014 the sixth and later CTAs are dropped at resolution.`
       })
     );
   };
@@ -1477,7 +1715,7 @@ function checkPayloadCtaOverflow(graph) {
       const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
       for (const surface of surfaces) {
         const count = surfaceCtas(surface);
-        if (count > 2) flag(payloadId, count, "placement_payload");
+        if (count > 5) flag(payloadId, count, "placement_payload");
       }
     }
   }
@@ -1486,7 +1724,7 @@ function checkPayloadCtaOverflow(graph) {
     const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
     for (const surface of surfaces) {
       const count = surfaceCtas(surface);
-      if (count > 2) flag(payloadId, count, "placement_payload");
+      if (count > 5) flag(payloadId, count, "placement_payload");
     }
   }
   return findings;
@@ -1524,6 +1762,178 @@ function checkPayloadTemplateRefs(graph) {
   });
   (graph.placement_payloads ?? []).forEach((payload, index) => {
     check(String(payload.payload_id ?? payload.id ?? ""), payload.surfaces, ["placement_payloads", index]);
+  });
+  return findings;
+}
+function customTemplates(graph) {
+  return [...graph.surface_templates ?? [], ...graph.templates ?? []];
+}
+function ctaPathDefinitions(graph) {
+  if (!Array.isArray(graph.content_ui_paths)) return void 0;
+  return graph.content_ui_paths.flatMap((row) => typeof row.name === "string" ? [{
+    name: row.name,
+    ...typeof row.action_type === "string" ? { action_type: row.action_type } : {},
+    ...typeof row.role === "string" ? { role: row.role } : {}
+  }] : []);
+}
+function messageBlockContents(block) {
+  const contents = [];
+  if (isRecord(block.default_content)) contents.push({ content: block.default_content, path: ["default_content"] });
+  if (Array.isArray(block.segment_overrides)) {
+    block.segment_overrides.forEach((override, index) => {
+      if (isRecord(override) && isRecord(override.content)) {
+        contents.push({ content: override.content, path: ["segment_overrides", index, "content"] });
+      }
+    });
+  }
+  return contents;
+}
+function checkCtaAuthoring(graph) {
+  const findings = [];
+  const templates = customTemplates(graph);
+  const uiPaths = ctaPathDefinitions(graph);
+  for (const { payload, path } of placementPayloads(graph)) {
+    const id = String(payload.payload_id ?? payload.id ?? "");
+    const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+    surfaces.forEach((surface, index) => {
+      if (!isRecord(surface) || typeof surface.template_id !== "string" || !surfaceAuthorsCtas(surface)) return;
+      const componentType = templateComponentType(surface.template_id, templates);
+      const issues = ctaAuthoringIssues(authoredSurfaceCtas(surface), surface.template_id, componentType, uiPaths);
+      for (const issue of issues) {
+        findings.push(finding("VAL-PLC-13", {
+          object_type: "placement_payload",
+          object_id: id,
+          field: "ctas",
+          path: [...path, "surfaces", index, "ctas", issue.index, issue.field],
+          studio: "placements"
+        }, {
+          message: `Payload '${id}': ${issue.message}`
+        }));
+      }
+    });
+  }
+  (graph.message_blocks ?? []).forEach((block, blockIndex) => {
+    if (typeof block.surface_template_id !== "string") return;
+    const blockId = String(block.block_id ?? block.id ?? "");
+    const componentType = templateComponentType(block.surface_template_id, templates);
+    for (const { content, path } of messageBlockContents(block)) {
+      if (!blockAuthorsCtas(content)) continue;
+      const authored = content.ctas.flatMap((raw) => isRecord(raw) && typeof raw.label === "string" ? [{
+        label: raw.label,
+        ...typeof raw.role === "string" && raw.role ? { role: raw.role } : {},
+        ...typeof raw.emphasis === "string" && raw.emphasis ? { emphasis: raw.emphasis } : {}
+      }] : []);
+      for (const issue of ctaAuthoringIssues(authored, block.surface_template_id, componentType, uiPaths)) {
+        findings.push(finding("VAL-PLC-13", {
+          object_type: "message_block",
+          object_id: blockId,
+          field: "ctas",
+          path: ["message_blocks", blockIndex, ...path, "ctas", issue.index, issue.field],
+          studio: "content"
+        }, {
+          message: `Message block '${blockId}': ${issue.message}`
+        }));
+      }
+    }
+  });
+  return findings;
+}
+function checkRetentionContinue(graph) {
+  const findings = [];
+  const uiPaths = ctaPathDefinitions(graph);
+  const templates = customTemplates(graph);
+  for (const { payload, category, path, parentFound } of placementPayloads(graph)) {
+    if (!parentFound || category !== "retention") continue;
+    const id = String(payload.payload_id ?? payload.id ?? "");
+    const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+    surfaces.forEach((surface, index) => {
+      if (!isRecord(surface) || typeof surface.template_id !== "string") return;
+      const componentType = templateComponentType(surface.template_id, templates);
+      if (!isInAppComponentType(componentType)) return;
+      const authored = authoredSurfaceCtas(surface);
+      if (authored.length === 0) return;
+      const resolved = resolveCtas(authored, { componentType, uiPaths });
+      const hasContinue = resolved.some((c) => c.role === "continue");
+      if (hasContinue) return;
+      findings.push(finding("VAL-PLC-12", {
+        object_type: "placement_payload",
+        object_id: id,
+        field: "ctas",
+        path: [...path, "surfaces", index, "ctas"],
+        studio: "placements"
+      }, {
+        message: `Retention payload '${id}' has no CTA with role "continue". A retention payload on an in-app template must let the user proceed.`,
+        detail: 'Add a CTA with role "continue" to this surface.'
+      }));
+    });
+  }
+  return findings;
+}
+function checkGateDismiss(graph) {
+  const findings = [];
+  const uiPaths = ctaPathDefinitions(graph);
+  const templates = customTemplates(graph);
+  for (const { payload, category, path, parentFound } of placementPayloads(graph)) {
+    if (!parentFound || category !== "gated") continue;
+    const id = String(payload.payload_id ?? payload.id ?? "");
+    const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+    surfaces.forEach((surface, index) => {
+      if (!isRecord(surface) || typeof surface.template_id !== "string") return;
+      const componentType = templateComponentType(surface.template_id, templates);
+      const authored = authoredSurfaceCtas(surface);
+      const resolved = resolveCtas(authored, { componentType, uiPaths });
+      const dismissIdx = resolved.findIndex((c) => c.role === "dismiss");
+      if (dismissIdx === -1) return;
+      findings.push(finding("VAL-PLC-14", {
+        object_type: "placement_payload",
+        object_id: id,
+        field: "ctas",
+        path: [...path, "surfaces", index, "ctas", dismissIdx],
+        studio: "placements"
+      }, {
+        message: `Gated payload '${id}' has a CTA with role "dismiss". Gates must not have a dismiss button.`,
+        detail: 'Remove the dismiss role or change it to "not_now".'
+      }));
+    });
+  }
+  return findings;
+}
+function checkMixedCtaShapes(graph) {
+  const findings = [];
+  for (const { payload, path } of placementPayloads(graph)) {
+    const id = String(payload.payload_id ?? payload.id ?? "");
+    const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+    surfaces.forEach((surface, index) => {
+      if (!isRecord(surface)) return;
+      if (surfaceAuthorsCtas(surface) && surfaceAuthorsLegacyLabel(surface)) {
+        findings.push(finding("VAL-PLC-15", {
+          object_type: "placement_payload",
+          object_id: id,
+          field: "ctas",
+          path: [...path, "surfaces", index],
+          studio: "placements"
+        }, {
+          message: `Payload '${id}' surface authors both ctas and legacy fields.cta_label; ctas takes precedence.`,
+          detail: "Remove the legacy fields.cta_label or migrate it into ctas."
+        }));
+      }
+    });
+  }
+  (graph.message_blocks ?? []).forEach((block, blockIndex) => {
+    const blockId = String(block.block_id ?? block.id ?? "");
+    for (const { content, path } of messageBlockContents(block)) {
+      if (!blockAuthorsCtas(content) || !blockAuthorsLegacyLabels(content)) continue;
+      findings.push(finding("VAL-PLC-15", {
+        object_type: "message_block",
+        object_id: blockId,
+        field: "ctas",
+        path: ["message_blocks", blockIndex, ...path],
+        studio: "content"
+      }, {
+        message: `Message block '${blockId}' authors both ctas and legacy cta_label/secondary_cta_label; ctas takes precedence.`,
+        detail: "Remove the legacy labels or migrate them into ctas."
+      }));
+    }
   });
   return findings;
 }
@@ -3821,7 +4231,9 @@ var ContentUiPathSchema = z9.object({
   url: z9.string().optional().meta(Unrestricted5),
   tour_id: z9.string().optional().meta(Unrestricted5),
   target_billing_period: z9.enum(["monthly", "annual"]).optional().meta(Unrestricted5),
-  description: z9.string().optional().meta(Unrestricted5)
+  description: z9.string().optional().meta(Unrestricted5),
+  /** Default semantic role for buttons that use this path (ST-1425 REQ-2). */
+  role: z9.string().optional().meta(Unrestricted5)
 }).meta(
   { id: "ContentUiPath", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
@@ -3856,8 +4268,16 @@ var RevTurbineConfigObjectivesItemSchema = z9.object({
 var MessageBlockContentSchema = z9.object({
   header: z9.string().optional().meta(Unrestricted5),
   body: z9.string().optional().meta(Unrestricted5),
+  /** @deprecated Use ctas. Kept for compatibility (ST-1425 D-11). */
   cta_label: z9.string().optional().meta(Unrestricted5),
-  secondary_cta_label: z9.string().optional().meta(Unrestricted5)
+  /** @deprecated Use ctas. Kept for compatibility (ST-1425 D-11). */
+  secondary_cta_label: z9.string().optional().meta(Unrestricted5),
+  /** Message-block CTA overrides by index (ST-1425 REQ-19 b). */
+  ctas: z9.array(z9.object({
+    label: z9.string(),
+    role: z9.string().optional(),
+    emphasis: z9.string().optional()
+  })).optional().meta(Unrestricted5)
 }).catchall(z9.unknown()).meta(
   { id: "MessageBlockContent", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4 }
 );
@@ -3885,7 +4305,11 @@ var MessageBlockSchema = z9.object({
 var RevTurbineConfigStudioCtaConfigSchema = z9.object({
   label: z9.string().meta(Unrestricted5),
   path: CtaActionTypeSchema.meta(Unrestricted5),
-  config: z9.record(z9.string(), z9.string()).optional().meta(Unrestricted5)
+  config: z9.record(z9.string(), z9.string()).optional().meta(Unrestricted5),
+  /** Semantic role; overrides the path default (ST-1425 REQ-2). */
+  role: z9.string().optional().meta(Unrestricted5),
+  /** Visual emphasis; overrides the derived default (ST-1425 REQ-4). */
+  emphasis: z9.string().optional().meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigStudioCtaConfig", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4 }
 );
@@ -3893,6 +4317,16 @@ var RevTurbineConfigStudioPayloadSurfaceSchema = z9.object({
   template_id: z9.string().min(1).meta(Unrestricted5),
   fields: z9.record(z9.string(), z9.string()).meta(Unrestricted5),
   ctas: z9.array(RevTurbineConfigStudioCtaConfigSchema).meta(Unrestricted5)
+}).superRefine((surface, ctx) => {
+  const issues = ctaAuthoringIssues(surface.ctas, surface.template_id, templateComponentType(surface.template_id), void 0);
+  issues.forEach((issue) => {
+    ctx.addIssue({
+      code: z9.ZodIssueCode.custom,
+      message: issue.message,
+      path: ["ctas", issue.index, issue.field],
+      params: { code: "VAL-PLC-13" }
+    });
+  });
 }).meta(
   { id: "RevTurbineConfigStudioPayloadSurface", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4 }
 );
