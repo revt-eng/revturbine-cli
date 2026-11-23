@@ -23,6 +23,8 @@ const FIXTURES = join(__dirname, 'fixtures');
 const EXCLUDED: Readonly<Record<string, string>> = {
   'evaluate-context-playbook.json':
     'a minimal evaluate-context fragment, not a full Playbook: it fails PlaybookSchema.safeParse by design',
+  'bl-0425-export.json':
+    'documented live-export shape for the BL-0425 semantic-diff regression (paired with evaluate-context-playbook.json); not a full authored Playbook — export placement_slots use name/component_type, not Playbook label/description/surface_type/placement_handle',
   'invalid.export-config.json': 'intentionally invalid input for the validation tests',
 };
 

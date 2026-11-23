@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { diffExportedConfig, formatDiff } from '../src/lib/config-diff';
+import { DIFF_EXIT, diffExitCode } from '../src/lib/output';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const loadJson = (name: string): unknown => JSON.parse(readFileSync(join(here, 'fixtures', name), 'utf8'));
 
 const base = {
   version: '1.0.0',
@@ -70,9 +78,9 @@ describe('diffExportedConfig', () => {
 });
 
 // BL-0425: a hand-authored file and the export of the tenant it was uploaded
-// to differ only by server normalisation. The exported side below is built from
-// the differences the bug enumerates (synthetic: a captured export is the
-// follow-up fixture).
+// to differ only by server normalisation. The block below is the original
+// synthetic allow-list; the evaluate-context fixture pair is the source-file
+// round-trip.
 describe('diffExportedConfig is semantic (BL-0425)', () => {
   const authored = {
     version: '1.0.0',
@@ -128,4 +136,126 @@ describe('diffExportedConfig is semantic (BL-0425)', () => {
     const gone = { ...exported, segments: [] };
     expect(diffExportedConfig(authored, gone).segments).toMatchObject({ added: [], removed: ['whales'] });
   });
+
+  it('applies Playbook item-schema defaults (omitted plan fields equal exported zeros/public)', () => {
+    const authored = { plans: [{ unique_handle: 'free', name: 'Free' }] };
+    const exported = {
+      plans: [{ unique_handle: 'free', name: 'Free', tier_position: 0, sort_order: 0, visibility: 'public' }],
+    };
+    expect(diffExportedConfig(authored, exported)).toEqual({});
+  });
+
+  it('ignores derived entitlement_rules fields the importer does not round-trip', () => {
+    const authored = {
+      entitlement_rules: [{ id: 'r1', entitlement_id: 'seats', targets: [{ kind: 'plan', id: 'pro' }] }],
+    };
+    const exported = {
+      entitlement_rules: [
+        {
+          id: 'r1',
+          entitlement_id: 'seats',
+          targets: [{ kind: 'plan', id: 'pro' }],
+          kind: 'capability_tier',
+          unit: 'seat',
+          tier_name: 'Pro',
+          tier_description: 'Per seat',
+          current_usage: 0,
+          max_seats: null,
+        },
+      ],
+    };
+    expect(diffExportedConfig(authored, exported)).toEqual({});
+  });
+
+  it('lifts inline placement payloads onto placement_payloads (keyed by payload_id)', () => {
+    const authored = {
+      placements: [
+        {
+          id: 'pl_usage_warn',
+          name: 'pl_usage_warn',
+          category: 'usage_credit_seat',
+          order: 0,
+          trigger: { type: 'trial_ended' },
+          payloads: [
+            {
+              id: 'pl_usage_warn_p0',
+              target: { plan_ids: ['pro'], segment_chips: [] },
+              surfaces: [{ template_id: 'banner_inline', fields: { header: 'Limit' } }],
+            },
+          ],
+        },
+      ],
+    };
+    const exported = {
+      placements: [
+        {
+          id: 'pl_usage_warn',
+          name: 'pl_usage_warn',
+          category: 'usage_credit_seat',
+          order: 0,
+          trigger: { type: 'trial_ended' },
+          payloads: [],
+        },
+      ],
+      placement_payloads: [
+        {
+          payload_id: 'pl_usage_warn_p0',
+          placement_id: 'pl_usage_warn',
+          target: { plan_ids: ['pro'], segment_chips: [] },
+          surfaces: [{ template_id: 'banner_inline', fields: { header: 'Limit' } }],
+          source_mode: 'inline',
+          created_at: '2026-11-04T00:00:00Z',
+          updated_at: '2026-11-04T00:00:00Z',
+        },
+      ],
+    };
+    expect(diffExportedConfig(authored, exported)).toEqual({});
+    expect(diffExportedConfig(exported, authored)).toEqual({});
+  });
+
+  it('still reports a real payload field change after the lift', () => {
+    const authored = {
+      placements: [
+        {
+          id: 'nudge',
+          name: 'Nudge',
+          category: 'fixed',
+          order: 0,
+          trigger: { type: 'trial_ended' },
+          payloads: [{ id: 'p0', target: { plan_ids: [] }, surfaces: [{ template_id: 'banner_inline', fields: { header: 'A' } }] }],
+        },
+      ],
+    };
+    const exported = {
+      placements: [
+        { id: 'nudge', name: 'Nudge', category: 'fixed', order: 0, trigger: { type: 'trial_ended' }, payloads: [] },
+      ],
+      placement_payloads: [
+        {
+          payload_id: 'p0',
+          placement_id: 'nudge',
+          target: { plan_ids: [] },
+          surfaces: [{ template_id: 'banner_inline', fields: { header: 'B' } }],
+          source_mode: 'inline',
+        },
+      ],
+    };
+    const diff = diffExportedConfig(authored, exported);
+    expect(diff.placement_payloads).toEqual({
+      added: [],
+      changed: ['p0'],
+      removed: [],
+      fields: { p0: ['surfaces'] },
+    });
+    expect(diff.placements).toBeUndefined();
+  });
+
+  it('reads evaluate-context source vs a documented export shape as unchanged (exit 0)', () => {
+    const authored = loadJson('evaluate-context-playbook.json');
+    const exported = loadJson('bl-0425-export.json');
+    expect(diffExportedConfig(authored, exported)).toEqual({});
+    expect(diffExportedConfig(exported, authored)).toEqual({});
+    expect(diffExitCode(diffExportedConfig(authored, exported))).toBe(DIFF_EXIT.NO_DIFFERENCES);
+  });
+
 });
