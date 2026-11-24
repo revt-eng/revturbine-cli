@@ -1,5 +1,5 @@
 // GENERATED — do not edit by hand.
-// Vendored validation engine bundled from @revt-eng/schema@0.1.562
+// Vendored validation engine bundled from @revt-eng/schema@0.1.563
 // (revturbine-scaffold/src/core/validation/index.ts). Regenerate with:
 //   node scripts/generate-schema-snapshot.mjs
 
@@ -121,8 +121,8 @@ var CATALOG = {
   "VAL-PLN-06": {
     id: "VAL-PLN-06",
     severity: "error_draft",
-    message: "Only one public variation is allowed per billing period and segment.",
-    specRef: "config-validation.md \xA75.3 (provisional \u2014 plan 73 Q-1)"
+    message: "Only one public variation is allowed per billing period and segment. Add-on variations that grant different amounts (pack sizes) are exempt.",
+    specRef: "config-validation.md \xA75.3 (provisional \u2014 plan 73 Q-1); plans-and-entitlements.md \xA72.2.1 Pack sizes (DEC-1420)"
   },
   // more-than-two CTAs on a payload surface. Promoted from §5.8 (plan 174
   // TASK-7 / devkit #584): the decision output carries ONE cta_path (from
@@ -222,6 +222,31 @@ var CATALOG = {
     message: "This surface authors both ctas and legacy CTA fields; ctas takes precedence.",
     specRef: "placements.md \xA73.1.1 (ST-1425 REQ-19)"
   },
+  // DEC-1420 / ST-3164: an open_checkout CTA names an add-on that sells
+  // several sizes (more than one Public variation in one tuple), so the
+  // button cannot pick a size.
+  "VAL-PLC-16": {
+    id: "VAL-PLC-16",
+    severity: "error_launch",
+    message: "A checkout button names add-on '{addon}', which sells several sizes; set purchase to the variation handle of the size it offers.",
+    specRef: "plans-and-entitlements.md \xA72.2.1 Pack sizes (add-ons) (DEC-1420, ST-3164)"
+  },
+  // ST-9991 / CHK-17: a slot default that can never render as one — it sits
+  // on the overlay slot (which has no default, so it competes there as an
+  // ordinary Fixed placement), or none of its payload templates is the slot's.
+  "VAL-PLC-17": {
+    id: "VAL-PLC-17",
+    severity: "warning",
+    message: "This slot default can never show as one: the slot is the overlay, which has no default (a placement marked as one there does not rank last but competes as an ordinary Fixed placement), or the slot accepts none of its payload templates.",
+    specRef: "config-validation.md CHK-17; placement-decision-rules.md \xA74.2 (ST-9991)"
+  },
+  // ST-9991 / CHK-18: two slot defaults for one slot; only one can rank last.
+  "VAL-PLC-18": {
+    id: "VAL-PLC-18",
+    severity: "warning",
+    message: "More than one placement is the slot default for this slot; only one can rank last.",
+    specRef: "config-validation.md CHK-18; placements.md \xA73.2 (ST-9991)"
+  },
   "VAL-PLN-08": {
     id: "VAL-PLN-08",
     severity: "error_launch",
@@ -259,6 +284,16 @@ var CATALOG = {
     severity: "error_draft",
     message: "This entitlement rule is missing the value required by its entitlement type.",
     specRef: "ST-1596 (BUG-1188)"
+  },
+  // ST-3163 (ruling Mark, 2026-11-16): Initial Grant is now One-time Grant.
+  // The old Playbook field name is still read (normalized onto
+  // `one_time_grant` on parse) for a transition period; this warns where a
+  // rule still carries it. Never blocking.
+  "VAL-ENT-04": {
+    id: "VAL-ENT-04",
+    severity: "warning",
+    message: "Entitlement rule '{rule}' uses initial_grant, renamed one_time_grant; the old name is still read but will stop being accepted.",
+    specRef: "plans-and-entitlements.md Credits rule fields (One-time Grant); config-validation.md (ST-3163)"
   },
   // placement / entitlement rule → objective (BL-0176, ruling D-15): the
   // optional `objective` field references an `objectives[]` entity by handle.
@@ -500,6 +535,14 @@ var LEGACY_TEMPLATE_ALIASES = Object.freeze({
   toast_message: "toast",
   push_notification: "push"
 });
+function templateIdEquivalents(id) {
+  const canonical = LEGACY_TEMPLATE_ALIASES[id] ?? id;
+  const ids = [id, canonical];
+  for (const [legacy, target] of Object.entries(LEGACY_TEMPLATE_ALIASES)) {
+    if (target === canonical) ids.push(legacy);
+  }
+  return [...new Set(ids)];
+}
 var BUILT_IN_TEMPLATE_COMPONENT_TYPES = Object.freeze({
   ...DEFAULT_TEMPLATE_COMPONENT_TYPES,
   ...Object.fromEntries(
@@ -1174,6 +1217,522 @@ function segmentsCanCoapply(a, b, graph) {
   return true;
 }
 
+// scaffold/src/entitlements/models/schema.ts
+import { z as z6 } from "zod";
+
+// scaffold/src/core/identity.ts
+import { z as z4 } from "zod";
+var IdentityKind = {
+  /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
+  Named: "named",
+  /** Opaque machine-minted slug (variations, entitlement_rules, payloads, …). */
+  Minted: "minted"
+};
+var SCHEMA_IDENTITY_META_KEY = "x-revturbine-schema-identity";
+function namedIdentity(handleField = "handle") {
+  return { [SCHEMA_IDENTITY_META_KEY]: { kind: IdentityKind.Named, handleField } };
+}
+function mintedIdentity(handleField = "handle") {
+  return { [SCHEMA_IDENTITY_META_KEY]: { kind: IdentityKind.Minted, handleField } };
+}
+
+// scaffold/src/core/facets.ts
+var SchemaContext = {
+  Playbook: "playbook",
+  Branding: "branding",
+  Billing: "billing",
+  Metering: "metering",
+  CustomerOperations: "customer_operations",
+  EventIngestion: "event_ingestion"
+};
+var SchemaSource = {
+  Customer: "customer",
+  Stripe: "stripe",
+  CodeConstant: "code-constant",
+  Runtime: "runtime"
+};
+var SCHEMA_CONTEXT_META_KEY = "x-revturbine-context";
+var SCHEMA_IN_CONFIG_META_KEY = "x-revturbine-in-config";
+var SCHEMA_SDK_INPUT_META_KEY = "x-revturbine-sdk-input";
+var SCHEMA_SOURCE_META_KEY = "x-revturbine-source";
+var SCHEMA_DEPRECATION_META_KEY = "x-revturbine-deprecation";
+var DEFAULT_SOURCE_BY_CONTEXT = {
+  [SchemaContext.Playbook]: SchemaSource.Customer,
+  [SchemaContext.Branding]: SchemaSource.Customer,
+  [SchemaContext.Billing]: SchemaSource.Stripe,
+  [SchemaContext.Metering]: SchemaSource.Customer,
+  [SchemaContext.CustomerOperations]: SchemaSource.Runtime,
+  [SchemaContext.EventIngestion]: SchemaSource.Runtime
+};
+function schemaFacets(context, options) {
+  return {
+    [SCHEMA_CONTEXT_META_KEY]: context,
+    [SCHEMA_IN_CONFIG_META_KEY]: options.inConfig ?? context === SchemaContext.Playbook,
+    [SCHEMA_SDK_INPUT_META_KEY]: options.sdkInput,
+    [SCHEMA_SOURCE_META_KEY]: options.source ?? DEFAULT_SOURCE_BY_CONTEXT[context]
+  };
+}
+function schemaDeprecation(declaration) {
+  return {
+    deprecated: true,
+    [SCHEMA_DEPRECATION_META_KEY]: {
+      since: declaration.since,
+      replacement: declaration.replacement,
+      remove_after: declaration.removeAfter,
+      reason: declaration.reason
+    }
+  };
+}
+function getSchemaDeprecation(schema) {
+  const meta = schema.meta();
+  if (meta?.deprecated !== true) return void 0;
+  const value = meta[SCHEMA_DEPRECATION_META_KEY];
+  if (!value || typeof value !== "object") return void 0;
+  const declaration = value;
+  if (typeof declaration.since !== "string" || typeof declaration.replacement !== "string" || typeof declaration.remove_after !== "string" || typeof declaration.reason !== "string") {
+    return void 0;
+  }
+  return {
+    since: declaration.since,
+    replacement: declaration.replacement,
+    removeAfter: declaration.remove_after,
+    reason: declaration.reason
+  };
+}
+
+// scaffold/src/core/openapi/helpers.ts
+import { z as z5 } from "zod";
+var ListEnvelope = (itemSchema) => z5.object({
+  items: z5.array(itemSchema)
+});
+var ErrorEnvelope = z5.object({
+  error: z5.string(),
+  code: z5.string(),
+  request_id: z5.string()
+});
+var operation = (op) => op;
+var ListQueryParamsSchema = z5.object({
+  page: z5.number().int().min(1).default(1).optional(),
+  per_page: z5.number().int().min(1).max(100).default(25).optional(),
+  sort: z5.string().optional(),
+  order: z5.enum(["asc", "desc"]).default("asc").optional(),
+  include_deleted: z5.boolean().default(false).optional()
+});
+
+// scaffold/src/entitlements/models/schema.ts
+var { Unrestricted: Unrestricted2 } = DataClassification;
+var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
+var { Internal: Internal2, External: External2 } = SchemaExposure;
+var PLAYBOOK_SDK_FACETS = schemaFacets(SchemaContext.Playbook, { sdkInput: true });
+var PENDING_PLAYBOOK_FACETS = schemaFacets(SchemaContext.Playbook, {
+  inConfig: false,
+  sdkInput: false
+});
+var UsagePeriodScopeSchema = z6.enum(["per_month", "per_year", "per_billing_period", "lifetime", "concurrent", "per_instance", "per_second", "per_minute", "per_hour", "per_6_hours", "per_day", "per_week"]).meta(
+  { id: "UsagePeriodScope", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var UsageAllocationSchema = z6.enum(["account_pool", "per_instance", "per_user", "per_user_pooled"]).meta(
+  { id: "UsageAllocation", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EntitlementGrantStatusSchema = z6.enum(ENTITLEMENT_STATUS_VALUES).meta(
+  { id: "EntitlementGrantStatus", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EntitlementGrantSourceSchema = z6.enum(["rule", "user_context", "override"]).meta(
+  { id: "EntitlementGrantSource", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EnforcementModeSchema = z6.enum(["hard_block", "block_with_upsell", "degrade", "allow_overage"]).meta(
+  { id: "EnforcementMode", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EntitlementGrantSchema = z6.object({
+  entitlement_id: z6.string().min(1).meta(Unrestricted2),
+  entitlement_handle: z6.string().min(1).meta(Unrestricted2),
+  status: EntitlementGrantStatusSchema.meta(Unrestricted2),
+  limit: z6.number().optional().meta(Unrestricted2),
+  used: z6.number().optional().meta(Unrestricted2),
+  allocation: UsageAllocationSchema.optional().meta(Unrestricted2),
+  enforcement: EnforcementModeSchema.optional().meta(Unrestricted2),
+  /** How this grant was derived. */
+  source: EntitlementGrantSourceSchema.optional().meta(Unrestricted2),
+  // ── Derivation context (populated when source = 'rule') ──
+  /** The plan that activated this rule-derived grant. */
+  plan_id: z6.string().optional().meta(Unrestricted2),
+  /** The segment that matched for this rule-derived grant. */
+  segment_id: z6.string().optional().meta(Unrestricted2),
+  /** The seat type that qualified this grant (when allocation is per-seat). */
+  seat_type_id: z6.string().optional().meta(Unrestricted2),
+  /** The entitlement rule id that produced this grant. */
+  rule_id: z6.string().optional().meta(Unrestricted2)
+}).meta(
+  {
+    id: "EntitlementGrant",
+    "x-revturbine-schema-persistence": Transient2,
+    "x-revturbine-schema-exposure": External2,
+    ...DataClassification.Operational
+  }
+);
+var EntitlementGrantSetSchema = z6.object({
+  account: z6.record(z6.string(), EntitlementGrantSchema).optional().meta(Unrestricted2),
+  instance: z6.record(z6.string(), EntitlementGrantSchema).optional().meta(Unrestricted2),
+  user: z6.record(z6.string(), EntitlementGrantSchema).optional().meta(Unrestricted2)
+}).meta(
+  {
+    id: "EntitlementGrantSet",
+    "x-revturbine-schema-persistence": Transient2,
+    "x-revturbine-schema-exposure": External2,
+    ...DataClassification.Operational
+  }
+);
+var RuleVisibilitySchema = z6.enum(["public", "non_public"]).meta(
+  { id: "RuleVisibility", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EntitlementRuleTargetKindSchema = z6.enum(["plan", "plan_variation", "addon", "addon_variation"]).meta(
+  { id: "EntitlementRuleTargetKind", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EntitlementRuleTargetSchema = z6.object({
+  kind: EntitlementRuleTargetKindSchema.meta(Unrestricted2),
+  id: z6.string().min(1).meta(Unrestricted2)
+}).meta(
+  { id: "EntitlementRuleTarget", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EntitlementRulePeriodUnitSchema = z6.enum(["month", "day", "week", "quarter", "year", "billing_period", "hour", "six_hours"]).meta(
+  { id: "EntitlementRulePeriodUnit", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EntitlementSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
+  anchor_id: z6.string().min(1).meta({ ...Unrestricted2, readOnly: true }),
+  name: NameField.meta(Unrestricted2),
+  handle: HandleField.meta(Unrestricted2),
+  customer_facing_description: z6.string().max(500).optional().meta(Unrestricted2),
+  type: EntitlementTypeSchema.meta(Unrestricted2),
+  unit: z6.string().max(100).optional().meta(Unrestricted2),
+  period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted2),
+  allocation: UsageAllocationSchema.optional().meta(Unrestricted2),
+  tier_definitions: z6.array(z6.object({
+    name: z6.string(),
+    handle: z6.string(),
+    description: z6.string().optional()
+  })).optional().meta(Unrestricted2),
+  sort_order: z6.number().int().default(0).meta(Unrestricted2),
+  metadata: MetadataField.meta(Unrestricted2)
+}).meta(
+  {
+    id: "Entitlement",
+    "x-revturbine-schema-persistence": Persisted2,
+    "x-revturbine-schema-exposure": External2,
+    ...PLAYBOOK_SDK_FACETS,
+    ...namedIdentity()
+  }
+);
+var EntitlementAnchorSchema = makeAnchor("EntitlementAnchor");
+var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
+  anchor_id: z6.string().min(1).meta({ ...Unrestricted2, readOnly: true }),
+  handle: HandleField.meta({ ...Unrestricted2, readOnly: true }),
+  entitlement_id: z6.string().min(1).meta(Unrestricted2),
+  targets: z6.array(EntitlementRuleTargetSchema).min(1).meta(Unrestricted2),
+  // Segment scoping per spec §2.5: array of segment IDs interpreted with
+  // intra-dimension OR + cross-dimension AND at evaluation time. The
+  // dimensions registry resolves each ID → dimension. Empty array means
+  // "match all users" (replaces the legacy 'all' sentinel).
+  segment_ids: z6.array(z6.string()).default([]).meta(Unrestricted2),
+  visibility: RuleVisibilitySchema.default("public").meta(Unrestricted2),
+  // Business objective this rule monetizes for — the analytics `objective`
+  // slice, which resolves `rule_handle → objective` through a configuration
+  // snapshot (BL-0065 / worksheet G4). A reference by handle to an
+  // `objectives[]` entity (D-15; VAL-OBJ-01). Config-only, and deliberately
+  // NOT part of the minted identity below: an objective relabel is a
+  // behaviour-only edit that coalesces onto the same rule, not a new rule scope.
+  // Nullable on the persisted entity so an editor can CLEAR the reference
+  // (a PATCH merges, so omission keeps the old value); the portable
+  // projection stays optional-only and omits it when unset.
+  objective: ObjectiveField.nullable().meta(Unrestricted2),
+  // Usage-Limit "measured over" window, rule-level (plan #55). Rate Limit
+  // keeps its entitlement-level `period_scope`; this is the per-rule one.
+  period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted2),
+  // Optional instance label, surfaced when `period_scope = 'per_instance'` (F-1).
+  instance: z6.string().max(100).optional().meta(Unrestricted2),
+  // Credits reset cadence ("refills every"): governs only the per-period
+  // `allowance_value` refill. `billing_period` resolves at runtime to the
+  // customer's Variation billing period; structural guard below. Absent means
+  // one-time only — a `one_time_grant` with no recurring refill (plan 147
+  // REQ-6; `on_purchase` retired from the enum).
+  reset_period: EntitlementRulePeriodUnitSchema.optional().meta(Unrestricted2),
+  // Type-specific fields (populated based on entitlement type)
+  limit_value: z6.union([z6.number(), z6.literal("unlimited")]).optional().meta(Unrestricted2),
+  enforcement: EnforcementModeSchema.optional().meta(Unrestricted2),
+  // Usage-warning emitter (plan 138 REQ-13): the percent at which this rule
+  // emits a usage-warning crossing event. 10% increments so a placement's
+  // `threshold_percent` (same field type) can align with — "should match one
+  // of those global values" (placement-studio-ui.md §3.4). Optional; a rule
+  // with no warning threshold emits none.
+  warning_threshold_percent: ThresholdPercentField.optional().meta(Unrestricted2),
+  overage_price_ref: z6.string().optional().meta(Unrestricted2),
+  grace_period_hours: z6.number().int().min(0).optional().meta(Unrestricted2),
+  tier_value: z6.string().optional().meta(Unrestricted2),
+  rate_value: z6.number().optional().meta(Unrestricted2),
+  // One-time Grant (ST-3163, ruling Mark 2026-11-16; formerly `initial_grant`):
+  // credits granted once, never repeated on a later reset. Input still accepts
+  // the old name through `normalizeEntitlementRuleAliases` below; output,
+  // export and generated types carry only this name.
+  one_time_grant: z6.number().optional().meta(Unrestricted2),
+  allowance_value: z6.union([z6.number(), z6.literal("unlimited")]).optional().meta(Unrestricted2),
+  rollover_enabled: z6.boolean().optional().meta(Unrestricted2),
+  // Ceiling on total balance — refills clipped, add-on top-ups bypass.
+  // NOT NULL JSONB at the DB level; JSON-null value means "no ceiling."
+  max_balance: z6.union([z6.number(), z6.literal("unlimited")]).nullable().default(null).meta(Unrestricted2),
+  seat_type_id: z6.string().optional().meta(Unrestricted2),
+  included_count: z6.union([z6.number().int(), z6.literal("unlimited")]).optional().meta(Unrestricted2),
+  at_limit_behavior: z6.enum(["hard_cap", "auto_upgrade_at_renewal"]).optional().meta(Unrestricted2),
+  stripe_metered_price_id: z6.string().optional().meta(Unrestricted2),
+  // ── Plan 147: columns promoted from the deleted portable `type_fields` union
+  // so the flat wire projection round-trips (REQ-3 persist verdicts). The wire
+  // (RevTurbineConfigEntitlementRulesItemSchema) mirrors these one-to-one under
+  // their canonical names; web derives `kind`/`unit`/`tier_*` from the parent
+  // entitlement instead of persisting them.
+  //
+  // feature enable/disable: a present-but-disabled feature rule is a real DENY
+  // (`entitlement-check.ts` reads `enabled !== false`), distinct from "no rule".
+  // Optional (absent = enabled) matches that evaluator semantic — replaces the
+  // hard-coded `true` the export used to emit.
+  enabled: z6.boolean().optional().meta(Unrestricted2),
+  // How this rule partitions usage across the identity hierarchy. Rule-level in
+  // the IR (`encode.ts` maps `r.allocation`); may default from the parent
+  // entitlement's `allocation` when unset.
+  allocation: UsageAllocationSchema.optional().meta(Unrestricted2),
+  // Seat ceiling. null = unlimited (plan 72); the 999999 export sentinel maps
+  // back to null at the compile boundary.
+  max_seats: z6.union([z6.number(), z6.literal("unlimited")]).nullable().optional().meta(Unrestricted2),
+  // price_per_unit content-rendering fields (OQ-7: persisted-and-rendered, NOT
+  // evaluated — no IR/evaluator branch). `unit` derives from the entitlement;
+  // `period` maps onto the existing `period_scope` column.
+  amount_cents: z6.number().int().optional().meta(Unrestricted2),
+  currency: z6.string().optional().meta(Unrestricted2)
+}).meta(
+  {
+    id: "EntitlementRule",
+    "x-revturbine-schema-persistence": Persisted2,
+    "x-revturbine-schema-exposure": Internal2,
+    ...PLAYBOOK_SDK_FACETS,
+    // Bucket 2: a rule IS its scope (entitlement + segments + targets); its
+    // limit/enforcement is the mutable payload. Behaviour-only edits coalesce
+    // as the same rule; a scope edit is a new rule identity (plan 121 REQ-3).
+    // segment_ids/targets are jsonb arrays — the DB unique index normalizes them.
+    ...mintedIdentity()
+  }
+);
+var LEGACY_ONE_TIME_GRANT_FIELD = "initial_grant";
+function normalizeEntitlementRuleAliases(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return input;
+  if (!Object.prototype.hasOwnProperty.call(input, LEGACY_ONE_TIME_GRANT_FIELD)) return input;
+  const next = { ...input };
+  if (next.one_time_grant === void 0) next.one_time_grant = next[LEGACY_ONE_TIME_GRANT_FIELD];
+  delete next[LEGACY_ONE_TIME_GRANT_FIELD];
+  return next;
+}
+var EntitlementRuleAnchorSchema = makeAnchor("EntitlementRuleAnchor");
+function refineEntitlementRuleAuthoring(rule, ctx) {
+  if (rule.reset_period === "billing_period") {
+    const nonVariationIdx = rule.targets.findIndex(
+      (t) => t.kind !== "plan_variation" && t.kind !== "addon_variation"
+    );
+    if (nonVariationIdx !== -1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reset_period"],
+        params: { code: "billing_period_target_mismatch" },
+        message: "reset_period='billing_period' requires all targets to be plan_variation or addon_variation"
+      });
+    }
+  }
+  const allowance = rule.allowance_value;
+  const hasRecurringAllowance = allowance === "unlimited" || typeof allowance === "number" && allowance > 0;
+  if (hasRecurringAllowance && rule.reset_period == null) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["reset_period"],
+      params: { code: "allowance_requires_reset_period" },
+      message: "a non-zero credits allowance_value requires a reset_period (the per-period refill cadence)"
+    });
+  }
+}
+var EntitlementRuleValidatedSchema = EntitlementRuleSchema.superRefine(refineEntitlementRuleAuthoring);
+var EntitlementRuleWarningCodeSchema = z6.enum(["one_time_period_mismatch"]).meta(
+  { id: "EntitlementRuleWarningCode", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EntitlementRuleWarningSchema = z6.object({
+  code: EntitlementRuleWarningCodeSchema.meta(Unrestricted2),
+  message: z6.string().min(1).meta(Unrestricted2),
+  /** Optional dotted field path the warning relates to (e.g. `['targets']`). */
+  path: z6.array(z6.union([z6.string(), z6.number().int()])).optional().meta(Unrestricted2)
+}).meta(
+  { id: "EntitlementRuleWarning", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
+);
+var EntitlementRuleWriteResponseSchema = EntitlementRuleSchema.extend({
+  warnings: z6.array(EntitlementRuleWarningSchema).optional().meta(Unrestricted2)
+}).meta(
+  {
+    id: "EntitlementRuleWriteResponse",
+    "x-revturbine-schema-persistence": Transient2,
+    "x-revturbine-schema-exposure": External2
+  }
+);
+var EntitlementRuleVariantSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
+  handle: HandleField.meta({ ...Unrestricted2, readOnly: true }),
+  rule_id: z6.string().min(1).meta(Unrestricted2),
+  experiment_id: z6.string().min(1).meta(Unrestricted2),
+  variant_name: z6.string().min(1).max(200).meta(Unrestricted2),
+  is_control: z6.boolean().default(false).meta(Unrestricted2),
+  override_fields: z6.record(z6.string(), z6.unknown()).default({}).meta(Unrestricted2)
+}).meta(
+  {
+    id: "EntitlementRuleVariant",
+    "x-revturbine-schema-persistence": Persisted2,
+    "x-revturbine-schema-exposure": Internal2,
+    ...PENDING_PLAYBOOK_FACETS,
+    ...mintedIdentity()
+  }
+);
+var EntitlementWriteSchema = toWritableSchema(EntitlementSchema);
+var EntitlementRuleWriteSchema = toWritableSchema(EntitlementRuleSchema);
+var entitlementPaths = {
+  "/api/entitlement-anchors": {
+    get: operation({
+      operationId: "listEntitlementAnchors",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List entitlement anchors (identity registry)",
+      tags: ["entitlements"],
+      responses: {
+        "200": { description: "Entitlement anchor list", content: { "application/json": { schema: ListEnvelope(EntitlementAnchorSchema) } } },
+        default: { description: "Error response", content: { "application/json": { schema: ErrorEnvelope } } }
+      },
+      "x-revturbine-operation": { exposure: "internal", resource: "entitlement-anchors", persistence: { table: "entitlements", mode: "list" } }
+    })
+  },
+  "/api/entitlement-rule-anchors": {
+    get: operation({
+      operationId: "listEntitlementRuleAnchors",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List entitlement rule anchors (identity registry)",
+      tags: ["entitlements"],
+      responses: {
+        "200": { description: "Entitlement rule anchor list", content: { "application/json": { schema: ListEnvelope(EntitlementRuleAnchorSchema) } } },
+        default: { description: "Error response", content: { "application/json": { schema: ErrorEnvelope } } }
+      },
+      "x-revturbine-operation": { exposure: "internal", resource: "entitlement-rule-anchors", persistence: { table: "entitlementRules", mode: "list" } }
+    })
+  },
+  "/api/entitlements": {
+    get: operation({
+      operationId: "listEntitlements",
+      requestParams: { query: ListQueryParamsSchema },
+      summary: "List entitlements",
+      tags: ["entitlements"],
+      responses: { "200": { description: "Entitlement list", content: { "application/json": { schema: ListEnvelope(EntitlementSchema) } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "list" } }
+    }),
+    post: operation({
+      operationId: "createEntitlement",
+      summary: "Create entitlement",
+      tags: ["entitlements"],
+      requestBody: { required: true, content: { "application/json": { schema: toCreateSchema(EntitlementSchema) } } },
+      responses: { "201": { description: "Created", content: { "application/json": { schema: EntitlementSchema } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "create" } }
+    })
+  },
+  "/api/entitlements/{entitlementId}": {
+    get: operation({
+      operationId: "getEntitlement",
+      requestParams: { path: z6.object({ entitlementId: z6.string() }) },
+      summary: "Get entitlement",
+      tags: ["entitlements"],
+      responses: { "200": { description: "Entitlement detail", content: { "application/json": { schema: EntitlementSchema } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "get" } }
+    }),
+    patch: operation({
+      operationId: "updateEntitlement",
+      requestParams: { path: z6.object({ entitlementId: z6.string() }) },
+      summary: "Update entitlement",
+      tags: ["entitlements"],
+      requestBody: { required: true, content: { "application/json": { schema: EntitlementWriteSchema } } },
+      responses: { "200": { description: "Updated", content: { "application/json": { schema: EntitlementSchema } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "update" } }
+    }),
+    delete: operation({
+      operationId: "deleteEntitlement",
+      requestParams: { path: z6.object({ entitlementId: z6.string() }) },
+      summary: "Delete entitlement",
+      tags: ["entitlements"],
+      responses: { "204": { description: "Deleted" }, default: { description: "Error", content: { "application/json": { schema: ErrorEnvelope } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "delete" } }
+    })
+  },
+  "/api/entitlements/{entitlementId}/rules": {
+    get: operation({
+      operationId: "listEntitlementRules",
+      requestParams: { path: z6.object({ entitlementId: z6.string() }), query: ListQueryParamsSchema },
+      summary: "List rules for entitlement",
+      tags: ["entitlements"],
+      responses: { "200": { description: "Rule list", content: { "application/json": { schema: ListEnvelope(EntitlementRuleSchema) } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "list" } }
+    }),
+    post: operation({
+      operationId: "createEntitlementRule",
+      requestParams: { path: z6.object({ entitlementId: z6.string() }) },
+      summary: "Create entitlement rule",
+      tags: ["entitlements"],
+      requestBody: { required: true, content: { "application/json": { schema: toCreateSchema(EntitlementRuleSchema) } } },
+      responses: { "201": { description: "Created", content: { "application/json": { schema: EntitlementRuleWriteResponseSchema } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "create" } }
+    })
+  },
+  "/api/entitlement-rules/{ruleId}": {
+    patch: operation({
+      operationId: "updateEntitlementRule",
+      requestParams: { path: z6.object({ ruleId: z6.string() }) },
+      summary: "Update entitlement rule",
+      tags: ["entitlements"],
+      requestBody: { required: true, content: { "application/json": { schema: EntitlementRuleWriteSchema } } },
+      responses: { "200": { description: "Updated", content: { "application/json": { schema: EntitlementRuleWriteResponseSchema } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "update" } }
+    }),
+    delete: operation({
+      operationId: "deleteEntitlementRule",
+      requestParams: { path: z6.object({ ruleId: z6.string() }) },
+      summary: "Delete entitlement rule",
+      tags: ["entitlements"],
+      responses: { "204": { description: "Deleted" } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "delete" } }
+    })
+  },
+  "/api/entitlement-rules/{ruleId}/duplicate": {
+    post: operation({
+      operationId: "duplicateEntitlementRule",
+      requestParams: { path: z6.object({ ruleId: z6.string() }) },
+      summary: "Duplicate entitlement rule",
+      tags: ["entitlements"],
+      responses: { "201": { description: "Duplicated", content: { "application/json": { schema: EntitlementRuleWriteResponseSchema } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "duplicate" } }
+    })
+  },
+  "/api/entitlement-rules/{ruleId}/variants": {
+    get: operation({
+      operationId: "listEntitlementRuleVariants",
+      requestParams: { path: z6.object({ ruleId: z6.string() }), query: ListQueryParamsSchema },
+      summary: "List A/B variants for rule",
+      tags: ["entitlements"],
+      responses: { "200": { description: "Variant list", content: { "application/json": { schema: ListEnvelope(EntitlementRuleVariantSchema) } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rule-variants", persistence: { table: "entitlementRuleVariants", mode: "list" } }
+    }),
+    post: operation({
+      operationId: "createEntitlementRuleVariant",
+      requestParams: { path: z6.object({ ruleId: z6.string() }) },
+      summary: "Create rule A/B variant",
+      tags: ["entitlements"],
+      requestBody: { required: true, content: { "application/json": { schema: toCreateSchema(EntitlementRuleVariantSchema) } } },
+      responses: { "201": { description: "Created", content: { "application/json": { schema: EntitlementRuleVariantSchema } } } },
+      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rule-variants", persistence: { table: "entitlementRuleVariants", mode: "create" } }
+    })
+  }
+};
+
 // scaffold/src/core/validation/rules.ts
 var SEMANTIC_RULE_CODES = [
   "VAL-UIP-01",
@@ -1193,6 +1752,9 @@ var SEMANTIC_RULE_CODES = [
   "VAL-PLC-13",
   "VAL-PLC-14",
   "VAL-PLC-15",
+  "VAL-PLC-16",
+  "VAL-PLC-17",
+  "VAL-PLC-18",
   "VAL-PLN-08",
   "VAL-TRL-04",
   "VAL-TRL-05",
@@ -1203,6 +1765,7 @@ var SEMANTIC_RULE_CODES = [
   "VAL-ENT-01",
   "VAL-ENT-02",
   "VAL-ENT-03",
+  "VAL-ENT-04",
   "VAL-OBJ-01"
 ];
 function runSemanticRules(graph, opts = {}) {
@@ -1215,6 +1778,7 @@ function runSemanticRules(graph, opts = {}) {
       studio: "plans-entitlements"
     }, { message: issue.message, detail: `Conflicting rule: ${issue.otherRuleId}` })),
     ...checkEntitlementRuleRequiredValues(graph),
+    ...checkLegacyOneTimeGrant(graph),
     ...checkLimitRuleEnforcement(graph),
     ...checkPublicVariationCollisions(graph),
     ...checkPayloadCtaOverflow(graph),
@@ -1223,7 +1787,9 @@ function runSemanticRules(graph, opts = {}) {
     ...checkRetentionContinue(graph),
     ...checkGateDismiss(graph),
     ...checkMixedCtaShapes(graph),
+    ...checkMultiSizeAddonCheckout(graph),
     ...checkPlacementAuthoring(graph),
+    ...checkSlotDefaults(graph),
     ...checkTrialRuleWidestAudience(graph),
     ...checkSegmentExperimentRefs(graph),
     ...checkReservedSegmentHandles(graph),
@@ -1243,7 +1809,7 @@ var REQUIRED_RULE_VALUES = {
   },
   credits: {
     field: "allowance_value",
-    message: "Credits rules require allowance_value or initial_grant. Set allowance_value to a number or 'unlimited', or set initial_grant for a one-time grant."
+    message: "Credits rules require allowance_value or one_time_grant. Set allowance_value to a number or 'unlimited', or set one_time_grant for a one-time grant."
   },
   seat: {
     field: "included_count",
@@ -1262,7 +1828,7 @@ function checkEntitlementRuleRequiredValues(graph) {
     const type = entitlementTypes.get(rule.entitlement_id);
     if (!type || !(type in REQUIRED_RULE_VALUES)) continue;
     const requirement = REQUIRED_RULE_VALUES[type];
-    const hasValue = type === "credits" ? rule.allowance_value != null || rule.initial_grant != null : type === "rate_limit" ? rule.rate_value != null || typeof rule.limit_value === "number" || rule.limit_value === "unlimited" : rule[requirement.field] != null;
+    const hasValue = type === "credits" ? rule.allowance_value != null || rule.one_time_grant != null || rule.initial_grant != null : type === "rate_limit" ? rule.rate_value != null || typeof rule.limit_value === "number" || rule.limit_value === "unlimited" : rule[requirement.field] != null;
     if (hasValue) continue;
     const id = String(rule.handle ?? rule.id ?? "");
     findings.push(finding("VAL-ENT-03", {
@@ -1272,6 +1838,24 @@ function checkEntitlementRuleRequiredValues(graph) {
       path: ["entitlement_rules", index, requirement.field],
       studio: "plans-entitlements"
     }, { message: requirement.message }));
+  }
+  return findings;
+}
+function checkLegacyOneTimeGrant(graph) {
+  const findings = [];
+  for (const [index, rule] of (graph.entitlement_rules ?? []).entries()) {
+    if (!isRecord(rule) || rule[LEGACY_ONE_TIME_GRANT_FIELD] === void 0) continue;
+    const id = String(rule.handle ?? rule.id ?? "");
+    findings.push(finding("VAL-ENT-04", {
+      object_type: "entitlement_rule",
+      object_id: id,
+      field: LEGACY_ONE_TIME_GRANT_FIELD,
+      path: ["entitlement_rules", index, LEGACY_ONE_TIME_GRANT_FIELD],
+      studio: "plans-entitlements"
+    }, {
+      message: `Entitlement rule '${id}' uses initial_grant, renamed one_time_grant; the old name is still read but will stop being accepted.`,
+      detail: rule.one_time_grant !== void 0 ? "The rule also sets one_time_grant, which wins; remove initial_grant." : "Rename the field to one_time_grant; the value is unchanged."
+    }));
   }
   return findings;
 }
@@ -1605,6 +2189,86 @@ function* placementPayloads(graph) {
     yield { payload, category: placement?.category, path: ["placement_payloads", index], parentFound: placement !== void 0 };
   }
 }
+var OVERLAY_SLOT = "overlay";
+function placementSlotId(placement) {
+  const trigger = placement.trigger;
+  if (isRecord(trigger) && typeof trigger.slot_id === "string" && trigger.slot_id) return trigger.slot_id;
+  return typeof placement.surface_slot_id === "string" && placement.surface_slot_id ? placement.surface_slot_id : void 0;
+}
+function placementTemplateIds(graph, placement) {
+  const ids = /* @__PURE__ */ new Set();
+  const add = (payload) => {
+    if (!isRecord(payload) || !Array.isArray(payload.surfaces)) return;
+    for (const surface of payload.surfaces) {
+      if (isRecord(surface) && typeof surface.template_id === "string" && surface.template_id) ids.add(surface.template_id);
+    }
+  };
+  if (Array.isArray(placement.payloads)) placement.payloads.forEach(add);
+  const keys = [placement.handle, placement.id].filter((k) => typeof k === "string" && k.length > 0);
+  for (const payload of graph.placement_payloads ?? []) {
+    if (typeof payload.placement_id === "string" && keys.includes(payload.placement_id)) add(payload);
+  }
+  return ids;
+}
+function checkSlotDefaults(graph) {
+  const findings = [];
+  const slotTemplates = /* @__PURE__ */ new Map();
+  for (const slot of graph.placement_slots ?? []) {
+    if (typeof slot.id === "string" && typeof slot.template === "string" && slot.template) slotTemplates.set(slot.id, slot.template);
+  }
+  const bySlot = /* @__PURE__ */ new Map();
+  for (const [index, placement] of (graph.placements ?? []).entries()) {
+    if (placement.slot_default !== true) continue;
+    const id = String(placement.handle ?? placement.id ?? "");
+    const slotId = placementSlotId(placement);
+    if (!slotId) continue;
+    const target = {
+      object_type: "placement",
+      object_id: id,
+      field: "slot_default",
+      path: ["placements", index, "slot_default"],
+      studio: "placements"
+    };
+    if (slotId === OVERLAY_SLOT) {
+      findings.push(finding("VAL-PLC-17", target, {
+        message: `Placement '${id}' is marked as a slot default on the overlay slot, which has no default: there it does not rank last but competes as an ordinary Fixed placement.`,
+        detail: "Clear the slot default, or target an inline slot."
+      }));
+    } else {
+      const slotTemplate = slotTemplates.get(slotId);
+      const templates = placementTemplateIds(graph, placement);
+      if (slotTemplate && templates.size > 0) {
+        const accepted = new Set(templateIdEquivalents(slotTemplate));
+        if (![...templates].some((t) => accepted.has(t))) {
+          findings.push(finding("VAL-PLC-17", target, {
+            message: `Placement '${id}' is the slot default for '${slotId}', but none of its payload templates is the slot's template '${slotTemplate}', so it never shows there.`,
+            detail: `Payload templates: ${[...templates].sort().map((t) => `'${t}'`).join(", ")}.`
+          }));
+        }
+      }
+    }
+    const group = bySlot.get(slotId) ?? [];
+    group.push({ index, id });
+    bySlot.set(slotId, group);
+  }
+  for (const [slotId, group] of bySlot) {
+    if (group.length < 2) continue;
+    for (const { index, id } of group) {
+      const others = group.filter((g) => g.index !== index).map((g) => `'${g.id}'`).join(", ");
+      findings.push(finding("VAL-PLC-18", {
+        object_type: "placement",
+        object_id: id,
+        field: "slot_default",
+        path: ["placements", index, "slot_default"],
+        studio: "placements"
+      }, {
+        message: `Placement '${id}' is one of ${group.length} slot defaults for slot '${slotId}'; only one can rank last.`,
+        detail: `Also the default for '${slotId}': ${others}. Keep one.`
+      }));
+    }
+  }
+  return findings;
+}
 function checkPlacementAuthoring(graph) {
   const findings = [];
   const plans = graph.plans;
@@ -1937,6 +2601,61 @@ function checkMixedCtaShapes(graph) {
   });
   return findings;
 }
+function rowKeys(row) {
+  return [row.unique_handle, row.handle, row.id].filter((key) => typeof key === "string" && key.length > 0);
+}
+function multiSizeAddonKeys(graph) {
+  const addons = graph.addons ?? [];
+  const counts = /* @__PURE__ */ new Map();
+  const multi = /* @__PURE__ */ new Map();
+  for (const variation of graph.addon_variations ?? []) {
+    if (variation.is_current === false) continue;
+    if (String(variation.visibility ?? "public") !== "public") continue;
+    const parentRef = variation.addon_id ?? variation.addon_handle;
+    if (typeof parentRef !== "string" || parentRef === "") continue;
+    const addon = addons.find((row) => rowKeys(row).includes(parentRef));
+    const parentKeys = addon ? rowKeys(addon) : [parentRef];
+    const parent = parentKeys[0];
+    const segment = variation.segment_id ?? variation.segment_handle ?? "_default";
+    const key = JSON.stringify([String(variation.tenant_id ?? ""), parent, String(variation.billing_period ?? ""), String(segment)]);
+    const count = (counts.get(key) ?? 0) + 1;
+    counts.set(key, count);
+    if (count > 1) for (const k of parentKeys) multi.set(k, parent);
+  }
+  return multi;
+}
+function checkMultiSizeAddonCheckout(graph) {
+  const multi = multiSizeAddonKeys(graph);
+  if (multi.size === 0) return [];
+  const variationKeys = new Set((graph.addon_variations ?? []).flatMap(rowKeys));
+  const findings = [];
+  for (const { payload, path } of placementPayloads(graph)) {
+    const id = String(payload.payload_id ?? payload.id ?? "");
+    const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+    surfaces.forEach((surface, surfaceIndex) => {
+      if (!isRecord(surface) || !Array.isArray(surface.ctas)) return;
+      surface.ctas.forEach((cta, ctaIndex) => {
+        if (!isRecord(cta) || cta.path !== "open_checkout" || !isRecord(cta.config)) return;
+        const purchase = cta.config.purchase;
+        if (typeof purchase !== "string" || variationKeys.has(purchase)) return;
+        const addon = multi.get(purchase);
+        if (addon === void 0) return;
+        const label = typeof cta.label === "string" ? cta.label : "";
+        findings.push(finding("VAL-PLC-16", {
+          object_type: "placement_payload",
+          object_id: id,
+          field: "ctas",
+          path: [...path, "surfaces", surfaceIndex, "ctas", ctaIndex, "config", "purchase"],
+          studio: "placements"
+        }, {
+          message: `Payload '${id}': CTA ${ctaIndex + 1} ("${label}") opens checkout for add-on '${purchase}', which sells several sizes; set purchase to the variation handle of the size it offers.`,
+          detail: `Add-on '${addon}' has more than one Public variation in one billing period and segment, so the button cannot tell which size to sell.`
+        }));
+      });
+    });
+  }
+  return findings;
+}
 function checkTrialRuleWidestAudience(graph) {
   const findings = [];
   for (const rule of graph.free_trial_rules ?? []) {
@@ -2234,12 +2953,41 @@ function checkRuleOverlaps(graph) {
 function checkPublicVariationCollisions(graph) {
   return [
     ...collectPublicCollisions(graph.plan_variations, "plan_variation", "plan_id"),
-    ...collectPublicCollisions(graph.addon_variations, "addon_variation", "addon_id")
+    ...collectPublicCollisions(graph.addon_variations, "addon_variation", "addon_id", graph.entitlement_rules)
   ];
 }
-function collectPublicCollisions(rows, objectType, parentField) {
+var GRANT_VALUE_FIELDS = [
+  "allowance_value",
+  "limit_value",
+  "included_count",
+  "tier_value",
+  "rate_value",
+  "enabled"
+];
+function ruleGrantAmount(rule) {
+  const oneTime = rule.one_time_grant ?? rule.initial_grant;
+  if (oneTime != null) return JSON.stringify(oneTime);
+  for (const field of GRANT_VALUE_FIELDS) {
+    if (rule[field] != null) return JSON.stringify(rule[field]);
+  }
+  return "null";
+}
+function addonVariationGrantSignature(variation, rules) {
+  const keys = [variation.handle, variation.unique_handle, variation.id].filter((key) => typeof key === "string" && key.length > 0);
+  if (!keys.length || !rules?.length) return "";
+  const pairs = /* @__PURE__ */ new Set();
+  for (const rule of rules) {
+    const targets = Array.isArray(rule.targets) ? rule.targets : [];
+    const targetsVariation = targets.some((target) => isRecord(target) && target.kind === "addon_variation" && typeof target.id === "string" && keys.includes(target.id));
+    if (!targetsVariation) continue;
+    pairs.add(`${String(rule.entitlement_id ?? "")}=${ruleGrantAmount(rule)}`);
+  }
+  return [...pairs].sort().join("|");
+}
+function collectPublicCollisions(rows, objectType, parentField, entitlementRules) {
   if (!rows?.length) return [];
   const parentHandleField = parentField === "plan_id" ? "plan_handle" : "addon_handle";
+  const isAddon = parentField === "addon_id";
   const publicByTuple = /* @__PURE__ */ new Map();
   for (const row of rows) {
     if (row.is_current === false) continue;
@@ -2251,7 +2999,8 @@ function collectPublicCollisions(rows, objectType, parentField) {
     const parent = String(parentRef);
     const period = String(row.billing_period ?? "");
     const segment = segmentRef == null ? "_default" : String(segmentRef);
-    const key = `${tenant} ${parent} ${period} ${segment}`;
+    const signature = isAddon ? addonVariationGrantSignature(row, entitlementRules) : "";
+    const key = JSON.stringify([tenant, parent, period, segment, signature]);
     const id = String(row.handle ?? row.id ?? "");
     const bucket = publicByTuple.get(key);
     if (bucket) bucket.ids.push(id);
@@ -2274,8 +3023,8 @@ function collectPublicCollisions(rows, objectType, parentField) {
             studio: "plans-entitlements"
           },
           {
-            message: `Variation '${id}' is one of ${bucket.ids.length} marked Public for the same ${parentLabel}, billing period '${bucket.period}', and ${segmentLabel} \u2014 only one may be Public.`,
-            detail: `Set all but one of [${allIds.join(", ")}] to Unlisted or Legacy before deploying.`
+            message: isAddon ? `Variation '${id}' is one of ${bucket.ids.length} marked Public for the same ${parentLabel}, billing period '${bucket.period}', and ${segmentLabel}, and they grant the same amounts \u2014 several sizes may be Public, but sizes must differ in what they grant.` : `Variation '${id}' is one of ${bucket.ids.length} marked Public for the same ${parentLabel}, billing period '${bucket.period}', and ${segmentLabel} \u2014 only one may be Public.`,
+            detail: isAddon ? `Change what the entitlement rules grant one of [${allIds.join(", ")}], or set all but one to Unlisted or Legacy before deploying.` : `Set all but one of [${allIds.join(", ")}] to Unlisted or Legacy before deploying.`
           }
         )
       );
@@ -2350,509 +3099,6 @@ function evaluate(graph, opts = {}) {
 
 // scaffold/src/config/models/schema.ts
 import { z as z9 } from "zod";
-
-// scaffold/src/core/identity.ts
-import { z as z4 } from "zod";
-var IdentityKind = {
-  /** Author-given, human-meaningful handle (plans, entitlements, segments, …). */
-  Named: "named",
-  /** Opaque machine-minted slug (variations, entitlement_rules, payloads, …). */
-  Minted: "minted"
-};
-var SCHEMA_IDENTITY_META_KEY = "x-revturbine-schema-identity";
-function namedIdentity(handleField = "handle") {
-  return { [SCHEMA_IDENTITY_META_KEY]: { kind: IdentityKind.Named, handleField } };
-}
-function mintedIdentity(handleField = "handle") {
-  return { [SCHEMA_IDENTITY_META_KEY]: { kind: IdentityKind.Minted, handleField } };
-}
-
-// scaffold/src/core/facets.ts
-var SchemaContext = {
-  Playbook: "playbook",
-  Branding: "branding",
-  Billing: "billing",
-  Metering: "metering",
-  CustomerOperations: "customer_operations",
-  EventIngestion: "event_ingestion"
-};
-var SchemaSource = {
-  Customer: "customer",
-  Stripe: "stripe",
-  CodeConstant: "code-constant",
-  Runtime: "runtime"
-};
-var SCHEMA_CONTEXT_META_KEY = "x-revturbine-context";
-var SCHEMA_IN_CONFIG_META_KEY = "x-revturbine-in-config";
-var SCHEMA_SDK_INPUT_META_KEY = "x-revturbine-sdk-input";
-var SCHEMA_SOURCE_META_KEY = "x-revturbine-source";
-var SCHEMA_DEPRECATION_META_KEY = "x-revturbine-deprecation";
-var DEFAULT_SOURCE_BY_CONTEXT = {
-  [SchemaContext.Playbook]: SchemaSource.Customer,
-  [SchemaContext.Branding]: SchemaSource.Customer,
-  [SchemaContext.Billing]: SchemaSource.Stripe,
-  [SchemaContext.Metering]: SchemaSource.Customer,
-  [SchemaContext.CustomerOperations]: SchemaSource.Runtime,
-  [SchemaContext.EventIngestion]: SchemaSource.Runtime
-};
-function schemaFacets(context, options) {
-  return {
-    [SCHEMA_CONTEXT_META_KEY]: context,
-    [SCHEMA_IN_CONFIG_META_KEY]: options.inConfig ?? context === SchemaContext.Playbook,
-    [SCHEMA_SDK_INPUT_META_KEY]: options.sdkInput,
-    [SCHEMA_SOURCE_META_KEY]: options.source ?? DEFAULT_SOURCE_BY_CONTEXT[context]
-  };
-}
-function schemaDeprecation(declaration) {
-  return {
-    deprecated: true,
-    [SCHEMA_DEPRECATION_META_KEY]: {
-      since: declaration.since,
-      replacement: declaration.replacement,
-      remove_after: declaration.removeAfter,
-      reason: declaration.reason
-    }
-  };
-}
-function getSchemaDeprecation(schema) {
-  const meta = schema.meta();
-  if (meta?.deprecated !== true) return void 0;
-  const value = meta[SCHEMA_DEPRECATION_META_KEY];
-  if (!value || typeof value !== "object") return void 0;
-  const declaration = value;
-  if (typeof declaration.since !== "string" || typeof declaration.replacement !== "string" || typeof declaration.remove_after !== "string" || typeof declaration.reason !== "string") {
-    return void 0;
-  }
-  return {
-    since: declaration.since,
-    replacement: declaration.replacement,
-    removeAfter: declaration.remove_after,
-    reason: declaration.reason
-  };
-}
-
-// scaffold/src/entitlements/models/schema.ts
-import { z as z6 } from "zod";
-
-// scaffold/src/core/openapi/helpers.ts
-import { z as z5 } from "zod";
-var ListEnvelope = (itemSchema) => z5.object({
-  items: z5.array(itemSchema)
-});
-var ErrorEnvelope = z5.object({
-  error: z5.string(),
-  code: z5.string(),
-  request_id: z5.string()
-});
-var operation = (op) => op;
-var ListQueryParamsSchema = z5.object({
-  page: z5.number().int().min(1).default(1).optional(),
-  per_page: z5.number().int().min(1).max(100).default(25).optional(),
-  sort: z5.string().optional(),
-  order: z5.enum(["asc", "desc"]).default("asc").optional(),
-  include_deleted: z5.boolean().default(false).optional()
-});
-
-// scaffold/src/entitlements/models/schema.ts
-var { Unrestricted: Unrestricted2 } = DataClassification;
-var { Persisted: Persisted2, Transient: Transient2 } = SchemaPersistence;
-var { Internal: Internal2, External: External2 } = SchemaExposure;
-var PLAYBOOK_SDK_FACETS = schemaFacets(SchemaContext.Playbook, { sdkInput: true });
-var PENDING_PLAYBOOK_FACETS = schemaFacets(SchemaContext.Playbook, {
-  inConfig: false,
-  sdkInput: false
-});
-var UsagePeriodScopeSchema = z6.enum(["per_month", "per_year", "per_billing_period", "lifetime", "concurrent", "per_instance", "per_second", "per_minute", "per_hour", "per_6_hours", "per_day", "per_week"]).meta(
-  { id: "UsagePeriodScope", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var UsageAllocationSchema = z6.enum(["account_pool", "per_instance", "per_user", "per_user_pooled"]).meta(
-  { id: "UsageAllocation", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EntitlementGrantStatusSchema = z6.enum(ENTITLEMENT_STATUS_VALUES).meta(
-  { id: "EntitlementGrantStatus", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EntitlementGrantSourceSchema = z6.enum(["rule", "user_context", "override"]).meta(
-  { id: "EntitlementGrantSource", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EnforcementModeSchema = z6.enum(["hard_block", "block_with_upsell", "degrade", "allow_overage"]).meta(
-  { id: "EnforcementMode", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EntitlementGrantSchema = z6.object({
-  entitlement_id: z6.string().min(1).meta(Unrestricted2),
-  entitlement_handle: z6.string().min(1).meta(Unrestricted2),
-  status: EntitlementGrantStatusSchema.meta(Unrestricted2),
-  limit: z6.number().optional().meta(Unrestricted2),
-  used: z6.number().optional().meta(Unrestricted2),
-  allocation: UsageAllocationSchema.optional().meta(Unrestricted2),
-  enforcement: EnforcementModeSchema.optional().meta(Unrestricted2),
-  /** How this grant was derived. */
-  source: EntitlementGrantSourceSchema.optional().meta(Unrestricted2),
-  // ── Derivation context (populated when source = 'rule') ──
-  /** The plan that activated this rule-derived grant. */
-  plan_id: z6.string().optional().meta(Unrestricted2),
-  /** The segment that matched for this rule-derived grant. */
-  segment_id: z6.string().optional().meta(Unrestricted2),
-  /** The seat type that qualified this grant (when allocation is per-seat). */
-  seat_type_id: z6.string().optional().meta(Unrestricted2),
-  /** The entitlement rule id that produced this grant. */
-  rule_id: z6.string().optional().meta(Unrestricted2)
-}).meta(
-  {
-    id: "EntitlementGrant",
-    "x-revturbine-schema-persistence": Transient2,
-    "x-revturbine-schema-exposure": External2,
-    ...DataClassification.Operational
-  }
-);
-var EntitlementGrantSetSchema = z6.object({
-  account: z6.record(z6.string(), EntitlementGrantSchema).optional().meta(Unrestricted2),
-  instance: z6.record(z6.string(), EntitlementGrantSchema).optional().meta(Unrestricted2),
-  user: z6.record(z6.string(), EntitlementGrantSchema).optional().meta(Unrestricted2)
-}).meta(
-  {
-    id: "EntitlementGrantSet",
-    "x-revturbine-schema-persistence": Transient2,
-    "x-revturbine-schema-exposure": External2,
-    ...DataClassification.Operational
-  }
-);
-var RuleVisibilitySchema = z6.enum(["public", "non_public"]).meta(
-  { id: "RuleVisibility", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EntitlementRuleTargetKindSchema = z6.enum(["plan", "plan_variation", "addon", "addon_variation"]).meta(
-  { id: "EntitlementRuleTargetKind", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EntitlementRuleTargetSchema = z6.object({
-  kind: EntitlementRuleTargetKindSchema.meta(Unrestricted2),
-  id: z6.string().min(1).meta(Unrestricted2)
-}).meta(
-  { id: "EntitlementRuleTarget", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EntitlementRulePeriodUnitSchema = z6.enum(["month", "day", "week", "quarter", "year", "billing_period", "hour", "six_hours"]).meta(
-  { id: "EntitlementRulePeriodUnit", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EntitlementSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z6.string().min(1).meta({ ...Unrestricted2, readOnly: true }),
-  name: NameField.meta(Unrestricted2),
-  handle: HandleField.meta(Unrestricted2),
-  customer_facing_description: z6.string().max(500).optional().meta(Unrestricted2),
-  type: EntitlementTypeSchema.meta(Unrestricted2),
-  unit: z6.string().max(100).optional().meta(Unrestricted2),
-  period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted2),
-  allocation: UsageAllocationSchema.optional().meta(Unrestricted2),
-  tier_definitions: z6.array(z6.object({
-    name: z6.string(),
-    handle: z6.string(),
-    description: z6.string().optional()
-  })).optional().meta(Unrestricted2),
-  sort_order: z6.number().int().default(0).meta(Unrestricted2),
-  metadata: MetadataField.meta(Unrestricted2)
-}).meta(
-  {
-    id: "Entitlement",
-    "x-revturbine-schema-persistence": Persisted2,
-    "x-revturbine-schema-exposure": External2,
-    ...PLAYBOOK_SDK_FACETS,
-    ...namedIdentity()
-  }
-);
-var EntitlementAnchorSchema = makeAnchor("EntitlementAnchor");
-var EntitlementRuleSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  anchor_id: z6.string().min(1).meta({ ...Unrestricted2, readOnly: true }),
-  handle: HandleField.meta({ ...Unrestricted2, readOnly: true }),
-  entitlement_id: z6.string().min(1).meta(Unrestricted2),
-  targets: z6.array(EntitlementRuleTargetSchema).min(1).meta(Unrestricted2),
-  // Segment scoping per spec §2.5: array of segment IDs interpreted with
-  // intra-dimension OR + cross-dimension AND at evaluation time. The
-  // dimensions registry resolves each ID → dimension. Empty array means
-  // "match all users" (replaces the legacy 'all' sentinel).
-  segment_ids: z6.array(z6.string()).default([]).meta(Unrestricted2),
-  visibility: RuleVisibilitySchema.default("public").meta(Unrestricted2),
-  // Business objective this rule monetizes for — the analytics `objective`
-  // slice, which resolves `rule_handle → objective` through a configuration
-  // snapshot (BL-0065 / worksheet G4). A reference by handle to an
-  // `objectives[]` entity (D-15; VAL-OBJ-01). Config-only, and deliberately
-  // NOT part of the minted identity below: an objective relabel is a
-  // behaviour-only edit that coalesces onto the same rule, not a new rule scope.
-  // Nullable on the persisted entity so an editor can CLEAR the reference
-  // (a PATCH merges, so omission keeps the old value); the portable
-  // projection stays optional-only and omits it when unset.
-  objective: ObjectiveField.nullable().meta(Unrestricted2),
-  // Usage-Limit "measured over" window, rule-level (plan #55). Rate Limit
-  // keeps its entitlement-level `period_scope`; this is the per-rule one.
-  period_scope: UsagePeriodScopeSchema.optional().meta(Unrestricted2),
-  // Optional instance label, surfaced when `period_scope = 'per_instance'` (F-1).
-  instance: z6.string().max(100).optional().meta(Unrestricted2),
-  // Credits reset cadence ("refills every"): governs only the per-period
-  // `allowance_value` refill. `billing_period` resolves at runtime to the
-  // customer's Variation billing period; structural guard below. Absent means
-  // one-time only — an `initial_grant` with no recurring refill (plan 147
-  // REQ-6; `on_purchase` retired from the enum).
-  reset_period: EntitlementRulePeriodUnitSchema.optional().meta(Unrestricted2),
-  // Type-specific fields (populated based on entitlement type)
-  limit_value: z6.union([z6.number(), z6.literal("unlimited")]).optional().meta(Unrestricted2),
-  enforcement: EnforcementModeSchema.optional().meta(Unrestricted2),
-  // Usage-warning emitter (plan 138 REQ-13): the percent at which this rule
-  // emits a usage-warning crossing event. 10% increments so a placement's
-  // `threshold_percent` (same field type) can align with — "should match one
-  // of those global values" (placement-studio-ui.md §3.4). Optional; a rule
-  // with no warning threshold emits none.
-  warning_threshold_percent: ThresholdPercentField.optional().meta(Unrestricted2),
-  overage_price_ref: z6.string().optional().meta(Unrestricted2),
-  grace_period_hours: z6.number().int().min(0).optional().meta(Unrestricted2),
-  tier_value: z6.string().optional().meta(Unrestricted2),
-  rate_value: z6.number().optional().meta(Unrestricted2),
-  initial_grant: z6.number().optional().meta(Unrestricted2),
-  allowance_value: z6.union([z6.number(), z6.literal("unlimited")]).optional().meta(Unrestricted2),
-  rollover_enabled: z6.boolean().optional().meta(Unrestricted2),
-  // Ceiling on total balance — refills clipped, add-on top-ups bypass.
-  // NOT NULL JSONB at the DB level; JSON-null value means "no ceiling."
-  max_balance: z6.union([z6.number(), z6.literal("unlimited")]).nullable().default(null).meta(Unrestricted2),
-  seat_type_id: z6.string().optional().meta(Unrestricted2),
-  included_count: z6.union([z6.number().int(), z6.literal("unlimited")]).optional().meta(Unrestricted2),
-  at_limit_behavior: z6.enum(["hard_cap", "auto_upgrade_at_renewal"]).optional().meta(Unrestricted2),
-  stripe_metered_price_id: z6.string().optional().meta(Unrestricted2),
-  // ── Plan 147: columns promoted from the deleted portable `type_fields` union
-  // so the flat wire projection round-trips (REQ-3 persist verdicts). The wire
-  // (RevTurbineConfigEntitlementRulesItemSchema) mirrors these one-to-one under
-  // their canonical names; web derives `kind`/`unit`/`tier_*` from the parent
-  // entitlement instead of persisting them.
-  //
-  // feature enable/disable: a present-but-disabled feature rule is a real DENY
-  // (`entitlement-check.ts` reads `enabled !== false`), distinct from "no rule".
-  // Optional (absent = enabled) matches that evaluator semantic — replaces the
-  // hard-coded `true` the export used to emit.
-  enabled: z6.boolean().optional().meta(Unrestricted2),
-  // How this rule partitions usage across the identity hierarchy. Rule-level in
-  // the IR (`encode.ts` maps `r.allocation`); may default from the parent
-  // entitlement's `allocation` when unset.
-  allocation: UsageAllocationSchema.optional().meta(Unrestricted2),
-  // Seat ceiling. null = unlimited (plan 72); the 999999 export sentinel maps
-  // back to null at the compile boundary.
-  max_seats: z6.union([z6.number(), z6.literal("unlimited")]).nullable().optional().meta(Unrestricted2),
-  // price_per_unit content-rendering fields (OQ-7: persisted-and-rendered, NOT
-  // evaluated — no IR/evaluator branch). `unit` derives from the entitlement;
-  // `period` maps onto the existing `period_scope` column.
-  amount_cents: z6.number().int().optional().meta(Unrestricted2),
-  currency: z6.string().optional().meta(Unrestricted2)
-}).meta(
-  {
-    id: "EntitlementRule",
-    "x-revturbine-schema-persistence": Persisted2,
-    "x-revturbine-schema-exposure": Internal2,
-    ...PLAYBOOK_SDK_FACETS,
-    // Bucket 2: a rule IS its scope (entitlement + segments + targets); its
-    // limit/enforcement is the mutable payload. Behaviour-only edits coalesce
-    // as the same rule; a scope edit is a new rule identity (plan 121 REQ-3).
-    // segment_ids/targets are jsonb arrays — the DB unique index normalizes them.
-    ...mintedIdentity()
-  }
-);
-var EntitlementRuleAnchorSchema = makeAnchor("EntitlementRuleAnchor");
-function refineEntitlementRuleAuthoring(rule, ctx) {
-  if (rule.reset_period === "billing_period") {
-    const nonVariationIdx = rule.targets.findIndex(
-      (t) => t.kind !== "plan_variation" && t.kind !== "addon_variation"
-    );
-    if (nonVariationIdx !== -1) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["reset_period"],
-        params: { code: "billing_period_target_mismatch" },
-        message: "reset_period='billing_period' requires all targets to be plan_variation or addon_variation"
-      });
-    }
-  }
-  const allowance = rule.allowance_value;
-  const hasRecurringAllowance = allowance === "unlimited" || typeof allowance === "number" && allowance > 0;
-  if (hasRecurringAllowance && rule.reset_period == null) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["reset_period"],
-      params: { code: "allowance_requires_reset_period" },
-      message: "a non-zero credits allowance_value requires a reset_period (the per-period refill cadence)"
-    });
-  }
-}
-var EntitlementRuleValidatedSchema = EntitlementRuleSchema.superRefine(refineEntitlementRuleAuthoring);
-var EntitlementRuleWarningCodeSchema = z6.enum(["one_time_period_mismatch"]).meta(
-  { id: "EntitlementRuleWarningCode", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EntitlementRuleWarningSchema = z6.object({
-  code: EntitlementRuleWarningCodeSchema.meta(Unrestricted2),
-  message: z6.string().min(1).meta(Unrestricted2),
-  /** Optional dotted field path the warning relates to (e.g. `['targets']`). */
-  path: z6.array(z6.union([z6.string(), z6.number().int()])).optional().meta(Unrestricted2)
-}).meta(
-  { id: "EntitlementRuleWarning", "x-revturbine-schema-persistence": Transient2, "x-revturbine-schema-exposure": External2 }
-);
-var EntitlementRuleWriteResponseSchema = EntitlementRuleSchema.extend({
-  warnings: z6.array(EntitlementRuleWarningSchema).optional().meta(Unrestricted2)
-}).meta(
-  {
-    id: "EntitlementRuleWriteResponse",
-    "x-revturbine-schema-persistence": Transient2,
-    "x-revturbine-schema-exposure": External2
-  }
-);
-var EntitlementRuleVariantSchema = IdField.merge(TimestampFields).merge(TenantIdField).merge(AnchorFields).merge(VersionFields).extend({
-  handle: HandleField.meta({ ...Unrestricted2, readOnly: true }),
-  rule_id: z6.string().min(1).meta(Unrestricted2),
-  experiment_id: z6.string().min(1).meta(Unrestricted2),
-  variant_name: z6.string().min(1).max(200).meta(Unrestricted2),
-  is_control: z6.boolean().default(false).meta(Unrestricted2),
-  override_fields: z6.record(z6.string(), z6.unknown()).default({}).meta(Unrestricted2)
-}).meta(
-  {
-    id: "EntitlementRuleVariant",
-    "x-revturbine-schema-persistence": Persisted2,
-    "x-revturbine-schema-exposure": Internal2,
-    ...PENDING_PLAYBOOK_FACETS,
-    ...mintedIdentity()
-  }
-);
-var EntitlementWriteSchema = toWritableSchema(EntitlementSchema);
-var EntitlementRuleWriteSchema = toWritableSchema(EntitlementRuleSchema);
-var entitlementPaths = {
-  "/api/entitlement-anchors": {
-    get: operation({
-      operationId: "listEntitlementAnchors",
-      requestParams: { query: ListQueryParamsSchema },
-      summary: "List entitlement anchors (identity registry)",
-      tags: ["entitlements"],
-      responses: {
-        "200": { description: "Entitlement anchor list", content: { "application/json": { schema: ListEnvelope(EntitlementAnchorSchema) } } },
-        default: { description: "Error response", content: { "application/json": { schema: ErrorEnvelope } } }
-      },
-      "x-revturbine-operation": { exposure: "internal", resource: "entitlement-anchors", persistence: { table: "entitlements", mode: "list" } }
-    })
-  },
-  "/api/entitlement-rule-anchors": {
-    get: operation({
-      operationId: "listEntitlementRuleAnchors",
-      requestParams: { query: ListQueryParamsSchema },
-      summary: "List entitlement rule anchors (identity registry)",
-      tags: ["entitlements"],
-      responses: {
-        "200": { description: "Entitlement rule anchor list", content: { "application/json": { schema: ListEnvelope(EntitlementRuleAnchorSchema) } } },
-        default: { description: "Error response", content: { "application/json": { schema: ErrorEnvelope } } }
-      },
-      "x-revturbine-operation": { exposure: "internal", resource: "entitlement-rule-anchors", persistence: { table: "entitlementRules", mode: "list" } }
-    })
-  },
-  "/api/entitlements": {
-    get: operation({
-      operationId: "listEntitlements",
-      requestParams: { query: ListQueryParamsSchema },
-      summary: "List entitlements",
-      tags: ["entitlements"],
-      responses: { "200": { description: "Entitlement list", content: { "application/json": { schema: ListEnvelope(EntitlementSchema) } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "list" } }
-    }),
-    post: operation({
-      operationId: "createEntitlement",
-      summary: "Create entitlement",
-      tags: ["entitlements"],
-      requestBody: { required: true, content: { "application/json": { schema: toCreateSchema(EntitlementSchema) } } },
-      responses: { "201": { description: "Created", content: { "application/json": { schema: EntitlementSchema } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "create" } }
-    })
-  },
-  "/api/entitlements/{entitlementId}": {
-    get: operation({
-      operationId: "getEntitlement",
-      requestParams: { path: z6.object({ entitlementId: z6.string() }) },
-      summary: "Get entitlement",
-      tags: ["entitlements"],
-      responses: { "200": { description: "Entitlement detail", content: { "application/json": { schema: EntitlementSchema } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "get" } }
-    }),
-    patch: operation({
-      operationId: "updateEntitlement",
-      requestParams: { path: z6.object({ entitlementId: z6.string() }) },
-      summary: "Update entitlement",
-      tags: ["entitlements"],
-      requestBody: { required: true, content: { "application/json": { schema: EntitlementWriteSchema } } },
-      responses: { "200": { description: "Updated", content: { "application/json": { schema: EntitlementSchema } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "update" } }
-    }),
-    delete: operation({
-      operationId: "deleteEntitlement",
-      requestParams: { path: z6.object({ entitlementId: z6.string() }) },
-      summary: "Delete entitlement",
-      tags: ["entitlements"],
-      responses: { "204": { description: "Deleted" }, default: { description: "Error", content: { "application/json": { schema: ErrorEnvelope } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlements", persistence: { table: "entitlementVersions", mode: "delete" } }
-    })
-  },
-  "/api/entitlements/{entitlementId}/rules": {
-    get: operation({
-      operationId: "listEntitlementRules",
-      requestParams: { path: z6.object({ entitlementId: z6.string() }), query: ListQueryParamsSchema },
-      summary: "List rules for entitlement",
-      tags: ["entitlements"],
-      responses: { "200": { description: "Rule list", content: { "application/json": { schema: ListEnvelope(EntitlementRuleSchema) } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "list" } }
-    }),
-    post: operation({
-      operationId: "createEntitlementRule",
-      requestParams: { path: z6.object({ entitlementId: z6.string() }) },
-      summary: "Create entitlement rule",
-      tags: ["entitlements"],
-      requestBody: { required: true, content: { "application/json": { schema: toCreateSchema(EntitlementRuleSchema) } } },
-      responses: { "201": { description: "Created", content: { "application/json": { schema: EntitlementRuleWriteResponseSchema } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "create" } }
-    })
-  },
-  "/api/entitlement-rules/{ruleId}": {
-    patch: operation({
-      operationId: "updateEntitlementRule",
-      requestParams: { path: z6.object({ ruleId: z6.string() }) },
-      summary: "Update entitlement rule",
-      tags: ["entitlements"],
-      requestBody: { required: true, content: { "application/json": { schema: EntitlementRuleWriteSchema } } },
-      responses: { "200": { description: "Updated", content: { "application/json": { schema: EntitlementRuleWriteResponseSchema } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "update" } }
-    }),
-    delete: operation({
-      operationId: "deleteEntitlementRule",
-      requestParams: { path: z6.object({ ruleId: z6.string() }) },
-      summary: "Delete entitlement rule",
-      tags: ["entitlements"],
-      responses: { "204": { description: "Deleted" } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "delete" } }
-    })
-  },
-  "/api/entitlement-rules/{ruleId}/duplicate": {
-    post: operation({
-      operationId: "duplicateEntitlementRule",
-      requestParams: { path: z6.object({ ruleId: z6.string() }) },
-      summary: "Duplicate entitlement rule",
-      tags: ["entitlements"],
-      responses: { "201": { description: "Duplicated", content: { "application/json": { schema: EntitlementRuleWriteResponseSchema } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rules", persistence: { table: "entitlementRuleVersions", mode: "duplicate" } }
-    })
-  },
-  "/api/entitlement-rules/{ruleId}/variants": {
-    get: operation({
-      operationId: "listEntitlementRuleVariants",
-      requestParams: { path: z6.object({ ruleId: z6.string() }), query: ListQueryParamsSchema },
-      summary: "List A/B variants for rule",
-      tags: ["entitlements"],
-      responses: { "200": { description: "Variant list", content: { "application/json": { schema: ListEnvelope(EntitlementRuleVariantSchema) } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rule-variants", persistence: { table: "entitlementRuleVariants", mode: "list" } }
-    }),
-    post: operation({
-      operationId: "createEntitlementRuleVariant",
-      requestParams: { path: z6.object({ ruleId: z6.string() }) },
-      summary: "Create rule A/B variant",
-      tags: ["entitlements"],
-      requestBody: { required: true, content: { "application/json": { schema: toCreateSchema(EntitlementRuleVariantSchema) } } },
-      responses: { "201": { description: "Created", content: { "application/json": { schema: EntitlementRuleVariantSchema } } } },
-      "x-revturbine-operation": { exposure: "external", resource: "entitlement-rule-variants", persistence: { table: "entitlementRuleVariants", mode: "create" } }
-    })
-  }
-};
 
 // scaffold/src/trials/models/schema.ts
 import { z as z7 } from "zod";
@@ -4146,7 +4392,7 @@ var RevTurbineConfigEntitlementRulesItemSchema = z9.object({
     period_scope: true,
     included_count: true,
     seat_type_id: true,
-    initial_grant: true,
+    one_time_grant: true,
     allowance_value: true,
     rollover_enabled: true,
     max_balance: true,
@@ -4176,7 +4422,14 @@ var RevTurbineConfigPlacementSlotsItemSchema = z9.object({
   label: z9.string().min(1).meta(Unrestricted5),
   description: z9.string().meta(Unrestricted5),
   surface_type: z9.string().meta(Unrestricted5),
-  placement_handle: z9.string().min(1).meta(Unrestricted5),
+  /**
+   * Optional (ST-9990): the placement this entry names for the slot. It is a
+   * reference, not the slot's owner: a slot is defined by the customer's app
+   * and discovered, and it shows whichever placements target it (a
+   * `surface_render` trigger, a payload's `surface_slot_ids`, or a compatible
+   * template). An entry without it is a plain reference to the slot.
+   */
+  placement_handle: z9.string().min(1).optional().meta(Unrestricted5),
   template: z9.string().optional().meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigPlacementSlotsItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
@@ -4392,7 +4645,16 @@ var RevTurbineConfigPlacementItemSchema = z9.object({
   payloads: z9.array(RevTurbineConfigStudioPayloadSchema).meta(Unrestricted5),
   order: z9.number().int().min(0).meta(Unrestricted5),
   /** Optional business objective, by `objectives[].handle` (VAL-OBJ-01). Config-only. */
-  objective: ObjectiveField.meta(Unrestricted5)
+  objective: ObjectiveField.meta(Unrestricted5),
+  /**
+   * Slot default (ST-9991; placement-decision-rules.md §4.2): a Fixed
+   * placement the PM marks as the default for its inline slot. It ranks
+   * LAST in an inline slot, after every other eligible candidate whatever
+   * its tier, so it shows only when nothing else qualifies. The
+   * `overlay` slot has no default: a placement marked as one there does
+   * not rank last but competes as an ordinary Fixed placement. Absent = false. Validation: VAL-PLC-17, VAL-PLC-18.
+   */
+  slot_default: z9.boolean().optional().meta(Unrestricted5)
 }).meta(
   { id: "RevTurbineConfigPlacementItem", "x-revturbine-schema-persistence": Transient5, "x-revturbine-schema-exposure": External4, ...PLAYBOOK_SDK_FACETS4 }
 );
@@ -4644,6 +4906,11 @@ function normalizeConfigHeaderInput(input) {
   if ("change_set_id" in next) {
     if (!("playbook_version_id" in next)) next.playbook_version_id = next.change_set_id;
     delete next.change_set_id;
+  }
+  if (Array.isArray(next.entitlement_rules)) {
+    const rules = next.entitlement_rules;
+    const normalized = rules.map(normalizeEntitlementRuleAliases);
+    if (normalized.some((rule, index) => rule !== rules[index])) next.entitlement_rules = normalized;
   }
   return next;
 }
@@ -4992,11 +5259,23 @@ function repairDeprecatedFields(config, schema = PlaybookObjectSchema) {
     delete repaired[field];
     findings.push(repairFinding(field, deprecation));
   }
+  if (schema === PlaybookObjectSchema && Array.isArray(config.entitlement_rules)) {
+    const rules = config.entitlement_rules;
+    const legacy = checkLegacyOneTimeGrant({ entitlement_rules: rules.map((rule) => isRecord3(rule) ? rule : {}) });
+    if (legacy.length > 0) {
+      findings.push(...legacy);
+      repaired ??= { ...config };
+      repaired.entitlement_rules = rules.map(normalizeEntitlementRuleAliases);
+    }
+  }
   return { config: repaired ?? config, findings };
 }
 
 // scaffold/src/core/validation/unknown-fields.ts
 var LEGACY_ROOT_ALIASES = /* @__PURE__ */ new Set(["version", "change_set_id"]);
+function isLegacyItemAlias(path, key) {
+  return key === LEGACY_ONE_TIME_GRANT_FIELD && path.length === 2 && path[0] === "entitlement_rules" && typeof path[1] === "number";
+}
 function isRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -5012,7 +5291,7 @@ function walk(raw, parsed, path, out) {
   for (const key of Object.keys(raw)) {
     if (Object.prototype.hasOwnProperty.call(parsed, key)) {
       walk(raw[key], parsed[key], [...path, key], out);
-    } else if (!(path.length === 0 && LEGACY_ROOT_ALIASES.has(key))) {
+    } else if (!(path.length === 0 && LEGACY_ROOT_ALIASES.has(key)) && !isLegacyItemAlias(path, key)) {
       out.push({ path: [...path, key], key });
     }
   }
@@ -5111,6 +5390,7 @@ export {
   assertCatalogInSync,
   checkCatalogDrift,
   checkIdHandleParity,
+  checkLegacyOneTimeGrant,
   collectUnknownFields,
   disposition,
   evaluate,
