@@ -48,7 +48,8 @@ function verify() {
   // EP-1747 phase 5: the Release prerelease and pin scripts behind release-prerelease.yml and release-pin.yml.
   // And scripts/gate-result.mjs, which publish-on-main.yml uses to wait for this gate's push run on the commit,
   // and scripts/npm-published.mjs, which that workflow and snapshot-patch-release.yml use to ask npm for the current version.
-  step('Release workflow script checks', [process.execPath, ['--test', 'scripts/release-prerelease.check.mjs', 'scripts/release-pin.check.mjs', 'scripts/gate-result.check.mjs', 'scripts/npm-published.check.mjs']]);
+  // And scripts/release-pins.check.mjs: a workflow that pushes, publishes or mints a token names every action by commit.
+  step('Release workflow script checks', [process.execPath, ['--test', 'scripts/release-prerelease.check.mjs', 'scripts/release-pin.check.mjs', 'scripts/gate-result.check.mjs', 'scripts/npm-published.check.mjs', 'scripts/release-pins.check.mjs']]);
   step('Line-ending check (BL-0216)', [process.execPath, ['scripts/check-line-endings.mjs', '--all']]);
   step('npm run typecheck', npm(['run', 'typecheck']));
   step('npm run lint', npm(['run', 'lint']));
