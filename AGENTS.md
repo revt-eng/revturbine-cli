@@ -115,6 +115,10 @@ are gone.
   typecheck, lint, schema consistency, every test, build and the
   packed-consumer checks. Backlog merges the PR once L1 passes and the item's QA
   run accepts it; do not merge it yourself.
+- The PR gate also starts by hand (`workflow_dispatch` on a branch): `verify`
+  and `Packed CLI smoke` on that branch's head, with no pull request. Their
+  check names end in `(on demand)`, `Release exhaustive` does not run, and the
+  result is never a push run's, so the publish gate does not read it.
 - Only Backlog merges the Release branch onward to `main`.
 
 The push-only `Release exhaustive` job (named `Iteration exhaustive` until

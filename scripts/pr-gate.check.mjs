@@ -28,3 +28,23 @@ test('every event runs the whole test suite: there is no targeted mode', () => {
   assert.doesNotMatch(script, /GITHUB_BASE_REF|GITHUB_HEAD_REF|GITHUB_EVENT_NAME/, 'the tests do not depend on the event or branch');
   assert.equal(existsSync('scripts/iteration-targeted.mjs'), false);
 });
+
+// A branch's head can be gated by hand (workflow_dispatch): the jobs a pull request runs, no exhaustive job, and
+// nothing a push run is read for. The push and pull_request triggers are unchanged. Check names carry " (on demand)"
+// on a dispatch so that a dispatched run on a pull request's head never stands in for that pull request's own run.
+test('a dispatched run has the pull-request jobs, no exhaustive job, and names of its own', () => {
+  const workflow = readFileSync('.github/workflows/pr-gate.yml', 'utf8');
+  assert.match(workflow, /^on:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n {2}workflow_dispatch: \{\}\n/m);
+  const code = workflow.replace(/^\s*#.*\n/gm, '');
+  assert.doesNotMatch(code, /^concurrency:/m, 'concurrency is the shared workflow\'s');
+  assert.doesNotMatch(code, /reuse-passed/, 'no lane reuses an earlier pass');
+  const jobs = Object.fromEntries(code.slice(code.indexOf('\njobs:\n')).split(/^(?= {2}[a-z][a-z-]+:\n)/m).slice(1)
+    .map(block => [block.match(/^ {2}([a-z][a-z-]+):/)[1], block]));
+  assert.deepEqual(Object.keys(jobs), ['verify', 'package-smoke', 'release-exhaustive']);
+  assert.doesNotMatch(jobs.verify + jobs['package-smoke'], /\n {4}if:/, 'both run on every event, a dispatch included');
+  assert.match(jobs['release-exhaustive'], /\n {4}if: always\(\) && github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'\n/);
+  assert.match(jobs.verify, /^ {4}name: \$\{\{ github\.event_name == 'workflow_dispatch' && 'verify \(on demand\)' \|\| 'verify' \}\}$/m);
+  assert.match(jobs['package-smoke'], /^ {4}name: \$\{\{ github\.event_name == 'workflow_dispatch' && format\('Packed CLI smoke \(Node \{0\}, on demand\)', matrix\.node\) \|\| format\('Packed CLI smoke \(Node \{0\}\)', matrix\.node\) \}\}$/m);
+  // What publish-on-main.yml reads is a push run of this workflow.
+  assert.match(readFileSync('scripts/gate-result.mjs', 'utf8'), /run\.event !== 'push'/);
+});
