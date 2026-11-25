@@ -127,8 +127,10 @@ describe('publish-on-main reuses the PR gate on the same commit', () => {
     const verify = job(gate, 'verify');
     expect(verify).toContain('uses: ./.github/workflows/ci-level.yml');
     expect(verify).toMatch(/^ {6}level: l1$/m);
-    expect(verify).not.toMatch(/^ {4}name:|^ {6}name:/m);
-    expect(job(gate, 'package-smoke')).toMatch(/^ {4}name: Packed CLI smoke \(Node \$\{\{ matrix\.node \}\}\)$/m);
+    // Its name is the job id on a pull request or a push; only a dispatched run's carries " (on demand)".
+    expect(verify).toMatch(/^ {4}name: \$\{\{ github\.event_name == 'workflow_dispatch' && 'verify \(on demand\)' \|\| 'verify' \}\}$/m);
+    expect(verify).not.toMatch(/^ {6}name:/m);
+    expect(job(gate, 'package-smoke')).toMatch(/^ {4}name: \$\{\{ github\.event_name == 'workflow_dispatch' && format\('Packed CLI smoke \(Node \{0\}, on demand\)', matrix\.node\) \|\| format\('Packed CLI smoke \(Node \{0\}\)', matrix\.node\) \}\}$/m);
     // A push to main starts both workflows on the same commit.
     expect(gate).toMatch(/^ {2}push:\r?\n {4}branches: \[main\]/m);
     expect(workflow('ci-level.yml')).toContain("name: ${{ inputs.name != '' && inputs.name || inputs.level }}");

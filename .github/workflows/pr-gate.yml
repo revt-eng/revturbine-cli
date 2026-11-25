@@ -15,17 +15,26 @@ name: PR gate
 #                     The name is a cross-repository contract (named
 #                     "Iteration exhaustive" until 2026-11-16, which Backlog
 #                     still accepts): rename it only together with Backlog.
+# workflow_dispatch gates a branch's head by hand: `verify` and the smoke jobs,
+# which do not depend on the event, with no pull request and no exhaustive job.
+# Their check names end in " (on demand)": a merge gate that keeps the newest
+# check run per name on a pull request's head would otherwise take a dispatched
+# pass for that pull request's own run. Concurrency is the shared workflow's, per
+# pull request number or else per ref, and only a pull request cancels. A
+# dispatched run is not a push run, which is all publish-on-main.yml reads.
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch: {}
 
 permissions:
   contents: read
 
 jobs:
   verify:
+    name: ${{ github.event_name == 'workflow_dispatch' && 'verify (on demand)' || 'verify' }}
     uses: ./.github/workflows/ci-level.yml
     with:
       level: l1
@@ -38,7 +47,7 @@ jobs:
         npm ci
 
   package-smoke:
-    name: Packed CLI smoke (Node ${{ matrix.node }})
+    name: ${{ github.event_name == 'workflow_dispatch' && format('Packed CLI smoke (Node {0}, on demand)', matrix.node) || format('Packed CLI smoke (Node {0})', matrix.node) }}
     # Proves the installed package validates configs with NO workspace siblings
     # present (scaffold/demo-data absent) at the supported floor and primary LTS.
     strategy:
