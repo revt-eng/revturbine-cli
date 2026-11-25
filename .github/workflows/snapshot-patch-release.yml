@@ -23,8 +23,9 @@ name: Snapshot patch release
 #
 # Release decision, kept deliberately small:
 #   - only a change to the bundled schema version releases (the path filter);
-#   - if package.json's version is not on npm yet, a release is already pending
-#     and publish-on-main owns it — nothing to bump;
+#   - if npm says package.json's version does not exist (E404 and nothing else,
+#     scripts/npm-published.mjs), a release is already pending and
+#     publish-on-main owns it — nothing to bump; any other npm error fails the job;
 #   - the bump commit touches package.json / package-lock.json only, so it can
 #     not re-trigger this workflow.
 
@@ -71,12 +72,17 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           SCHEMA=$(node -p "require('fs').readFileSync('src/schema/version.ts','utf8').match(/'([0-9]+\.[0-9]+\.[0-9]+[^']*)'/)[1]")
           echo "schema=$SCHEMA" >> "$GITHUB_OUTPUT"
-          if npm view "@revturbine/cli@$VERSION" version >/dev/null 2>&1; then
+          # Only npm's E404 is `false`; any other npm failure fails this step (ST-11618).
+          PUBLISHED=$(node scripts/npm-published.mjs @revturbine/cli "$VERSION")
+          if [ "$PUBLISHED" = true ]; then
             echo "release=true" >> "$GITHUB_OUTPUT"
             echo "@revturbine/cli@$VERSION is on npm; bundling schema $SCHEMA needs a patch release."
-          else
+          elif [ "$PUBLISHED" = false ]; then
             echo "release=false" >> "$GITHUB_OUTPUT"
             echo "@revturbine/cli@$VERSION is not on npm yet — a release is already pending; publish-on-main owns it."
+          else
+            echo "::error::unexpected answer from scripts/npm-published.mjs: $PUBLISHED"
+            exit 1
           fi
       - name: Mint the push App token for the push
         if: steps.decide.outputs.release == 'true'

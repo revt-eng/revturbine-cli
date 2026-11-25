@@ -31,7 +31,8 @@ describe('snapshot -> patch release chain', () => {
   });
 
   it('only bumps when the current version is already on npm, and touches package files only', () => {
-    expect(snapshot).toContain('npm view "@revturbine/cli@$VERSION"');
+    expect(snapshot).toContain('PUBLISHED=$(node scripts/npm-published.mjs @revturbine/cli "$VERSION")');
+    expect(snapshot).not.toMatch(/^ *if npm view/m);
     expect(snapshot).toContain('npm version patch --no-git-tag-version');
     expect(snapshot).toContain('git add package.json package-lock.json');
     expect(snapshot).toContain('npm install --global --ignore-scripts "npm@$NPM_VERSION"');
@@ -51,7 +52,8 @@ describe('snapshot -> patch release chain', () => {
   });
 
   it('keeps publishing idempotent against the registry', () => {
-    expect(publish).toContain('npm view "@revturbine/cli@$VERSION"');
+    expect(publish).toContain('PUBLISHED=$(node scripts/npm-published.mjs @revturbine/cli "$VERSION")');
+    expect(publish).not.toMatch(/^ *if npm view/m);
   });
 });
 

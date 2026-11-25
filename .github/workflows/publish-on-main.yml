@@ -88,13 +88,19 @@ jobs:
       - name: Resolve version state against the registry
         id: state
         run: |
+          set -euo pipefail
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if npm view "@revturbine/cli@$VERSION" version >/dev/null 2>&1; then
+          # Only npm's E404 is `false`; any other npm failure fails this step (ST-11618).
+          PUBLISHED=$(node scripts/npm-published.mjs @revturbine/cli "$VERSION")
+          if [ "$PUBLISHED" = true ]; then
             echo "published=true" >> "$GITHUB_OUTPUT"
             echo "@revturbine/cli@$VERSION already on npm — nothing to publish."
-          else
+          elif [ "$PUBLISHED" = false ]; then
             echo "published=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::unexpected answer from scripts/npm-published.mjs: $PUBLISHED"
+            exit 1
           fi
       # Every gate job, on this commit: `verify`, both `Packed CLI smoke` jobs and
       # the run as a whole. The names are pr-gate.yml's (tests/release-workflows.test.ts
