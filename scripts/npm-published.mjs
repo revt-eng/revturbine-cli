@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Whether one exact version of a package is on the public npm registry (snapshot-patch-release.yml, ST-11618).
+// Whether one exact version of a package is on the public npm registry (snapshot-patch-release.yml and
+// publish-on-main.yml, ST-11618).
 //
 // "Not published" is a decision, so it needs proof: only npm's own E404 means it. A network error, a rate
 // limit, a 5xx or an answer that cannot be read says nothing about the version, and fails the job instead.

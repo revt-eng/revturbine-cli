@@ -48,11 +48,13 @@ test('only a package name and one exact version are asked about', () => {
   }
 });
 
-// The workflow step itself, as bash, against a stub npm: what it writes to GITHUB_OUTPUT and how it exits.
-const workflow = readFileSync('.github/workflows/snapshot-patch-release.yml', 'utf8').replace(/\r/g, '');
-const block = workflow.split('- name: Decide whether a patch release is needed\n')[1].split(/\n {6}- /)[0].split('run: |\n')[1].replace(/^ {10}/gm, '');
+// The workflow steps themselves, as bash, against a stub npm: what each writes to GITHUB_OUTPUT and how it exits.
+function block(file, step) {
+  const workflow = readFileSync(`.github/workflows/${file}`, 'utf8').replace(/\r/g, '');
+  return workflow.split(`- name: ${step}\n`)[1].split(/\n {6}(?:- |#)/)[0].split('run: |\n')[1].replace(/^ {10}/gm, '');
+}
 
-function decide(stub) {
+function decide(script, stub) {
   const dir = mkdtempSync(path.join(tmpdir(), 'npm-published-'));
   try {
     const bin = path.join(dir, 'npm');
@@ -60,26 +62,32 @@ function decide(stub) {
     chmodSync(bin, 0o755);
     const output = path.join(dir, 'output');
     writeFileSync(output, '');
-    const result = spawnSync('bash', ['-e', '-c', block], { encoding: 'utf8', env: { ...process.env, PATH: `${dir}${path.delimiter}${process.env.PATH}`, GITHUB_OUTPUT: output } });
+    const result = spawnSync('bash', ['-e', '-c', script], { encoding: 'utf8', env: { ...process.env, PATH: `${dir}${path.delimiter}${process.env.PATH}`, GITHUB_OUTPUT: output } });
     return { status: result.status, output: readFileSync(output, 'utf8'), log: result.stdout + result.stderr };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
-test('the step bumps when published, waits on E404, and fails on any other npm error', { skip: process.platform === 'win32' }, () => {
-  const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
-  const published = decide(`echo '"${version}"'`);
-  assert.equal(published.status, 0, published.log);
-  assert.match(published.output, /^release=true$/m);
+for (const [file, step, output] of [
+  ['snapshot-patch-release.yml', 'Decide whether a patch release is needed', 'release'],
+  ['publish-on-main.yml', 'Resolve version state against the registry', 'published'],
+]) {
+  test(`${file}: published is true, E404 is false, and any other npm error fails the step`, { skip: process.platform === 'win32' }, () => {
+    const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+    const script = block(file, step);
+    const published = decide(script, `echo '"${version}"'`);
+    assert.equal(published.status, 0, published.log);
+    assert.match(published.output, new RegExp(`^${output}=true$`, 'm'));
 
-  const missing = decide(`echo '${error('E404')}'; exit 1`);
-  assert.equal(missing.status, 0, missing.log);
-  assert.match(missing.output, /^release=false$/m);
+    const missing = decide(script, `echo '${error('E404')}'; exit 1`);
+    assert.equal(missing.status, 0, missing.log);
+    assert.match(missing.output, new RegExp(`^${output}=false$`, 'm'));
 
-  for (const stub of [`echo '${error('E503')}'; exit 1`, 'echo ECONNRESET >&2; exit 1', 'exit 0']) {
-    const failed = decide(stub);
-    assert.notEqual(failed.status, 0, stub);
-    assert.doesNotMatch(failed.output, /^release=/m, stub);
-  }
-});
+    for (const stub of [`echo '${error('E503')}'; exit 1`, 'echo ECONNRESET >&2; exit 1', 'exit 0']) {
+      const failed = decide(script, stub);
+      assert.notEqual(failed.status, 0, stub);
+      assert.doesNotMatch(failed.output, new RegExp(`^${output}=`, 'm'), stub);
+    }
+  });
+}

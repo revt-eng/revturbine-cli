@@ -52,7 +52,8 @@ describe('snapshot -> patch release chain', () => {
   });
 
   it('keeps publishing idempotent against the registry', () => {
-    expect(publish).toContain('npm view "@revturbine/cli@$VERSION"');
+    expect(publish).toContain('PUBLISHED=$(node scripts/npm-published.mjs @revturbine/cli "$VERSION")');
+    expect(publish).not.toMatch(/^ *if npm view/m);
   });
 });
 
